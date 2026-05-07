@@ -1,5 +1,10 @@
 # Infrawise
 
+[![npm version](https://img.shields.io/npm/v/infrawise)](https://www.npmjs.com/package/infrawise)
+[![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
+[![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **Understand your infrastructure, not just your code.**
 
 Infrawise is a CLI tool that scans your TypeScript codebase, maps every function-to-database relationship into a graph, detects anti-patterns (full table scans, missing indexes, hot partitions, N+1 queries), and exposes all of it as an MCP server — so AI coding assistants like Claude Code have live, deterministic knowledge of your infrastructure when helping you write database code.
