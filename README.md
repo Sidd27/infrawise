@@ -33,13 +33,9 @@ Infrawise fixes that. It runs a static analysis of your repo, maps every functio
 | Requirement | Version | Check |
 |---|---|---|
 | Node.js | 22+ | `node --version` |
-| pnpm | 9+ | `pnpm --version` |
 | AWS CLI | any | `aws --version` |
 
-Install pnpm if you don't have it:
-```bash
-npm install -g pnpm
-```
+> **Note for contributors:** Building from source requires pnpm 9+ (`npm install -g pnpm`).
 
 ### AWS credentials
 
