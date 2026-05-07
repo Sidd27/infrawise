@@ -5,6 +5,8 @@ import ora from 'ora';
 import { loadConfig } from '@infrawise/core';
 import { validateDynamoAccess } from '@infrawise/adapters-dynamodb';
 import { validatePostgresAccess } from '@infrawise/adapters-postgres';
+import { validateMySQLAccess } from '@infrawise/adapters-mysql';
+import { validateMongoAccess } from '@infrawise/adapters-mongodb';
 import { log, printHeader } from '../utils';
 
 interface CheckResult {
@@ -116,6 +118,50 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     } catch (err) {
       return {
         name: 'PostgreSQL',
+        status: 'fail',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }));
+
+  // MySQL
+  results.push(await runCheck('Testing MySQL...', async () => {
+    if (!config?.mysql?.enabled || !config.mysql.connectionString) {
+      return { name: 'MySQL', status: 'skip', message: 'Not configured' };
+    }
+    try {
+      const ok = await validateMySQLAccess(config.mysql.connectionString);
+      return {
+        name: 'MySQL',
+        status: ok ? 'pass' : 'fail',
+        message: ok ? 'Connected' : 'Cannot connect',
+        detail: ok ? undefined : 'Check connection string, host, port 3306, and credentials',
+      };
+    } catch (err) {
+      return {
+        name: 'MySQL',
+        status: 'fail',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }));
+
+  // MongoDB
+  results.push(await runCheck('Testing MongoDB...', async () => {
+    if (!config?.mongodb?.enabled || !config.mongodb.connectionString) {
+      return { name: 'MongoDB', status: 'skip', message: 'Not configured' };
+    }
+    try {
+      const ok = await validateMongoAccess(config.mongodb.connectionString);
+      return {
+        name: 'MongoDB',
+        status: ok ? 'pass' : 'fail',
+        message: ok ? 'Connected' : 'Cannot connect',
+        detail: ok ? undefined : 'Check connection string, host, port 27017, and credentials',
+      };
+    } catch (err) {
+      return {
+        name: 'MongoDB',
         status: 'fail',
         message: err instanceof Error ? err.message : String(err),
       };

@@ -30,6 +30,27 @@ const POSTGRES_QUERY_METHODS = new Set(['query', 'execute', 'exec']);
 
 const KNEX_METHODS = new Set(['select', 'where', 'join', 'from', 'insert', 'update', 'delete', 'del']);
 
+// MySQL-specific patterns
+const MYSQL_QUERY_METHODS = new Set(['query', 'execute', 'exec']);
+const MYSQL_CLIENT_PATTERNS = ['mysql', 'mysql2', 'connection', 'pool', 'conn'];
+
+// MongoDB-specific patterns
+const MONGO_READ_METHODS = new Set([
+  'find',
+  'findOne',
+  'findById',
+  'insertOne',
+  'insertMany',
+  'updateOne',
+  'updateMany',
+  'deleteOne',
+  'deleteMany',
+  'aggregate',
+  'countDocuments',
+  'estimatedDocumentCount',
+]);
+const MONGO_COLLECTION_METHODS = new Set(['collection']);
+
 const PRISMA_METHODS = new Set([
   'findMany',
   'findFirst',
@@ -251,6 +272,146 @@ function detectPostgresOperations(
   return null;
 }
 
+function detectMySQLOperations(
+  callExpr: CallExpression,
+  filePath: string,
+): ExtractedOperation | null {
+  const expr = callExpr.getExpression();
+  const args = callExpr.getArguments();
+
+  if (!Node.isPropertyAccessExpression(expr)) return null;
+
+  const methodName = expr.getName();
+  const objExpr = expr.getExpression();
+  const objText = objExpr.getText().toLowerCase();
+
+  // Pattern: connection.query(...) / pool.query(...) / mysql.query(...)
+  if (MYSQL_QUERY_METHODS.has(methodName)) {
+    const isMysqlClient = MYSQL_CLIENT_PATTERNS.some((p) => objText.includes(p.toLowerCase()));
+    if (isMysqlClient) {
+      let tableName = 'unknown';
+      if (args.length > 0) {
+        const firstArg = args[0];
+        if (Node.isStringLiteral(firstArg)) {
+          tableName = extractSqlTableName((firstArg as StringLiteral).getLiteralValue());
+        } else if (Node.isNoSubstitutionTemplateLiteral(firstArg)) {
+          tableName = extractSqlTableName(firstArg.getLiteralText());
+        } else if (Node.isTemplateExpression(firstArg)) {
+          tableName = extractSqlTableName(firstArg.getHead().getLiteralText());
+        }
+      }
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: 'query',
+        databaseType: 'mysql',
+        target: tableName,
+        filePath,
+      };
+    }
+  }
+
+  // Pattern: knex with mysql dialect — same knex methods but with mysql hint in object text
+  if (KNEX_METHODS.has(methodName)) {
+    if (objText.includes('mysql') || objText.includes('knex')) {
+      let tableName = 'unknown';
+      if (Node.isCallExpression(objExpr)) {
+        const innerArgs = objExpr.getArguments();
+        if (innerArgs.length > 0 && Node.isStringLiteral(innerArgs[0])) {
+          tableName = (innerArgs[0] as StringLiteral).getLiteralValue();
+        }
+      }
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'mysql',
+        target: tableName,
+        filePath,
+      };
+    }
+  }
+
+  return null;
+}
+
+function detectMongoOperations(
+  callExpr: CallExpression,
+  filePath: string,
+): ExtractedOperation | null {
+  const expr = callExpr.getExpression();
+
+  if (!Node.isPropertyAccessExpression(expr)) return null;
+
+  const methodName = expr.getName();
+  const objExpr = expr.getExpression();
+
+  // Pattern: collection.find(), collection.findOne(), collection.insertOne(), etc.
+  if (MONGO_READ_METHODS.has(methodName)) {
+    const objText = objExpr.getText().toLowerCase();
+    // Check if the receiver looks like a collection reference
+    if (
+      objText.includes('collection') ||
+      objText.includes('col') ||
+      objText.includes('db.') ||
+      objText.includes('model') ||
+      // Mongoose: User.find(), Order.findOne()
+      /^[A-Z][a-zA-Z]+$/.test(objExpr.getText())
+    ) {
+      let collectionName = 'unknown';
+
+      // Try to get collection name from db.collection('name')
+      if (Node.isCallExpression(objExpr)) {
+        const innerExpr = objExpr.getExpression();
+        if (
+          Node.isPropertyAccessExpression(innerExpr) &&
+          MONGO_COLLECTION_METHODS.has(innerExpr.getName())
+        ) {
+          const innerArgs = objExpr.getArguments();
+          if (innerArgs.length > 0 && Node.isStringLiteral(innerArgs[0])) {
+            collectionName = (innerArgs[0] as StringLiteral).getLiteralValue();
+          }
+        }
+      } else if (Node.isPropertyAccessExpression(objExpr)) {
+        // db.users.find() → collection name is the property
+        collectionName = objExpr.getName();
+      } else {
+        // Mongoose model — use variable name as hint
+        collectionName = objExpr.getText();
+      }
+
+      const opType = methodName === 'find' || methodName === 'aggregate' ? 'scan' : 'query';
+
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: opType,
+        databaseType: 'mongodb',
+        target: collectionName,
+        filePath,
+      };
+    }
+  }
+
+  // Pattern: db.collection('name').find() — detect the db.collection() call itself
+  if (MONGO_COLLECTION_METHODS.has(methodName)) {
+    const args = callExpr.getArguments();
+    const objText = objExpr.getText().toLowerCase();
+    if (objText.includes('db') || objText.includes('mongo')) {
+      const collectionName =
+        args.length > 0 && Node.isStringLiteral(args[0])
+          ? (args[0] as StringLiteral).getLiteralValue()
+          : 'unknown';
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: 'query',
+        databaseType: 'mongodb',
+        target: collectionName,
+        filePath,
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function scanRepository(repoPath: string): Promise<ExtractedOperation[]> {
   const resolvedPath = path.resolve(repoPath);
 
@@ -305,6 +466,18 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
       const postgresOp = detectPostgresOperations(callExpr, filePath);
       if (postgresOp) {
         operations.push(postgresOp);
+        continue;
+      }
+
+      const mysqlOp = detectMySQLOperations(callExpr, filePath);
+      if (mysqlOp) {
+        operations.push(mysqlOp);
+        continue;
+      }
+
+      const mongoOp = detectMongoOperations(callExpr, filePath);
+      if (mongoOp) {
+        operations.push(mongoOp);
       }
     }
   }

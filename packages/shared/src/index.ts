@@ -1,5 +1,5 @@
 export type GraphNode =
-  | { id: string; type: 'table'; name: string; databaseType: 'dynamodb' | 'postgres' }
+  | { id: string; type: 'table'; name: string; databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb' }
   | { id: string; type: 'function'; name: string; file: string }
   | { id: string; type: 'index'; name: string }
   | { id: string; type: 'query'; operation: string };
@@ -33,7 +33,7 @@ export interface PostgresTableMetadata {
 export interface ExtractedOperation {
   functionName: string;
   operationType: string;
-  databaseType: 'dynamodb' | 'postgres';
+  databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb';
   target: string;
   filePath: string;
 }
@@ -51,6 +51,29 @@ export interface Analyzer {
   analyze(graph: SystemGraph): Promise<Finding[]>;
 }
 
+export interface MySQLTableMetadata {
+  schema: string;
+  table: string;
+  columns: string[];
+  indexes: string[];
+  primaryKeys: string[];
+  engine: string;
+}
+
+export interface MongoIndexMetadata {
+  name: string;
+  keys: Record<string, unknown>;
+  unique: boolean;
+  sparse: boolean;
+}
+
+export interface MongoCollectionMetadata {
+  database: string;
+  collection: string;
+  indexes: MongoIndexMetadata[];
+  estimatedCount: number;
+}
+
 export interface InfrawiseConfig {
   project: string;
   aws?: {
@@ -63,6 +86,18 @@ export interface InfrawiseConfig {
   postgres?: {
     enabled?: boolean;
     connectionString?: string;
+  };
+  mysql?: {
+    enabled?: boolean;
+    connectionString?: string;
+  };
+  mongodb?: {
+    enabled?: boolean;
+    connectionString?: string;
+    databases?: string[];
+  };
+  terraform?: {
+    enabled?: boolean;
   };
   analysis?: {
     sampleSize?: number;

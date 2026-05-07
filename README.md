@@ -145,6 +145,8 @@ Claude gains four tools it calls silently while helping you:
 | `analyze_function` | Issues introduced by a specific function — scans, missing indexes, N+1 |
 | `suggest_gsi` | Exact GSI config for a DynamoDB table + attribute |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table |
+| `suggest_mongo_index` | Exact `createIndex` command for a MongoDB collection + field |
+| `mysql_index_suggestions` | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table |
 
 ### What changes in practice
 
@@ -261,6 +263,27 @@ For Amazon RDS: allow inbound on port 5432 from your machine's IP in the securit
 | N+1 Query | Medium | Repeated query patterns from ORM inefficiencies |
 | Large SELECT | Low | `SELECT *` usage |
 
+### MySQL
+
+| Analyzer | Severity | What it detects |
+|---|---|---|
+| Missing MySQL Index | Medium | Tables queried without indexes |
+| MySQL Full Table Scan | High | Scan operations on MySQL tables |
+
+### MongoDB
+
+| Analyzer | Severity | What it detects |
+|---|---|---|
+| Missing Mongo Index | Medium | Collections queried without secondary indexes |
+| Collection Scan | High | Full collection scan operations |
+
+### Terraform / CloudFormation (IaC Drift)
+
+| Analyzer | Severity | What it detects |
+|---|---|---|
+| IaC Drift | Medium | DynamoDB tables defined in IaC but not deployed in AWS |
+| IaC Drift | Medium | DynamoDB tables deployed in AWS but not defined in IaC |
+
 ---
 
 ## Security
@@ -308,8 +331,11 @@ The analysis is entirely deterministic — no LLM is involved in extracting or a
 | `@infrawise/graph` | Graph engine — nodes, edges, builder |
 | `@infrawise/adapters-dynamodb` | DynamoDB extractor (AWS SDK v3) |
 | `@infrawise/adapters-postgres` | PostgreSQL extractor (pg) |
+| `@infrawise/adapters-mysql` | MySQL extractor (mysql2) |
+| `@infrawise/adapters-mongodb` | MongoDB extractor (mongodb driver) |
+| `@infrawise/adapters-terraform` | Terraform and CloudFormation IaC schema extractor |
 | `@infrawise/context` | Repository scanner (ts-morph AST) |
-| `@infrawise/analyzers` | 6 rule-based analyzers |
+| `@infrawise/analyzers` | 11 rule-based analyzers |
 | `@infrawise/server` | Fastify MCP HTTP server |
 | `infrawise` | CLI (Commander.js) |
 
@@ -317,9 +343,9 @@ The analysis is entirely deterministic — no LLM is involved in extracting or a
 
 ## Roadmap
 
-- [ ] MySQL adapter
-- [ ] MongoDB adapter
-- [ ] Terraform / CloudFormation schema correlation
+- [x] MySQL adapter
+- [x] MongoDB adapter
+- [x] Terraform / CloudFormation schema correlation
 - [ ] Latency tracing integration
 - [ ] VS Code extension
 - [ ] Kubernetes workload graph

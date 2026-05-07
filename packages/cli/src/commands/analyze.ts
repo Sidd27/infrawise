@@ -4,9 +4,12 @@ import ora from 'ora';
 import { loadConfig, formatError, writeCache } from '@infrawise/core';
 import { extractDynamoMetadata } from '@infrawise/adapters-dynamodb';
 import { extractPostgresMetadata } from '@infrawise/adapters-postgres';
+import { extractMySQLMetadata } from '@infrawise/adapters-mysql';
+import { extractMongoMetadata } from '@infrawise/adapters-mongodb';
+import { extractIaCSchema } from '@infrawise/adapters-terraform';
 import { scanRepository } from '@infrawise/context';
 import { buildGraph } from '@infrawise/graph';
-import { runAllAnalyzers } from '@infrawise/analyzers';
+import { runAllAnalyzers, IaCDriftAnalyzer } from '@infrawise/analyzers';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils';
 
 interface AnalyzeOptions {
@@ -31,6 +34,8 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   const repoPath = options.repo ?? process.cwd();
   const dynamoMeta: Awaited<ReturnType<typeof extractDynamoMetadata>> = [];
   const postgresMeta: Awaited<ReturnType<typeof extractPostgresMetadata>> = [];
+  const mysqlMeta: Awaited<ReturnType<typeof extractMySQLMetadata>> = [];
+  const mongoMeta: Awaited<ReturnType<typeof extractMongoMetadata>> = [];
 
   // DynamoDB
   {
@@ -56,6 +61,48 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     }
   }
 
+  // MySQL
+  if (config.mysql?.enabled && config.mysql.connectionString) {
+    const spin = ora({ text: chalk.dim('Extracting MySQL schema...'), color: 'cyan' }).start();
+    try {
+      const result = await extractMySQLMetadata(config.mysql.connectionString);
+      mysqlMeta.push(...result);
+      spin.succeed(chalk.green('MySQL') + chalk.dim(`  ${result.length} table(s) found`));
+    } catch (err) {
+      spin.warn(chalk.yellow('MySQL skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+    }
+  }
+
+  // MongoDB
+  if (config.mongodb?.enabled && config.mongodb.connectionString) {
+    const spin = ora({ text: chalk.dim('Extracting MongoDB schema...'), color: 'cyan' }).start();
+    try {
+      const result = await extractMongoMetadata(
+        config.mongodb.connectionString,
+        config.mongodb.databases,
+      );
+      mongoMeta.push(...result);
+      spin.succeed(chalk.green('MongoDB') + chalk.dim(`  ${result.length} collection(s) found`));
+    } catch (err) {
+      spin.warn(chalk.yellow('MongoDB skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+    }
+  }
+
+  // IaC schema extraction
+  let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
+  {
+    const spin = ora({ text: chalk.dim('Extracting IaC schema (Terraform/CloudFormation)...'), color: 'cyan' }).start();
+    try {
+      const iacSchema = await extractIaCSchema(repoPath);
+      const totalIaC = iacSchema.dynamoTables.length + iacSchema.rdsInstances.length + iacSchema.mongoClusters.length;
+      iacDriftAnalyzer = new IaCDriftAnalyzer();
+      iacDriftAnalyzer.setIaCSchema(iacSchema);
+      spin.succeed(chalk.green('IaC schema') + chalk.dim(`  ${totalIaC} resource(s) found`));
+    } catch (err) {
+      spin.warn(chalk.yellow('IaC scan skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+    }
+  }
+
   // Repository scan
   let operations: import('@infrawise/shared').ExtractedOperation[];
   {
@@ -72,14 +119,32 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // Build graph
   {
     const spin = ora({ text: chalk.dim('Building infrastructure graph...'), color: 'cyan' }).start();
-    var graph = buildGraph(operations, dynamoMeta, postgresMeta);
+    var graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta);
     spin.succeed(chalk.green('Graph built') + chalk.dim(`  ${graph.nodes.length} nodes, ${graph.edges.length} edges`));
   }
 
   // Analyzers
   const findings = await (async () => {
     const spin = ora({ text: chalk.dim('Running analyzers...'), color: 'cyan' }).start();
-    const result = await runAllAnalyzers(graph);
+    // Build analyzer list with IaC drift analyzer if available
+    const { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer,
+            MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer,
+            MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer,
+            MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } = await import('@infrawise/analyzers');
+    const analyzers = [
+      new FullTableScanAnalyzer(),
+      new MissingGSIAnalyzer(),
+      new HotPartitionAnalyzer(),
+      new MissingIndexAnalyzer(),
+      new NplusOneAnalyzer(),
+      new LargeSelectAnalyzer(),
+      new MissingMySQLIndexAnalyzer(),
+      new MySQLFullTableScanAnalyzer(),
+      new MissingMongoIndexAnalyzer(),
+      new MongoCollectionScanAnalyzer(),
+      ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
+    ];
+    const result = await runAllAnalyzers(graph, analyzers);
     spin.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${result.length} finding(s)`));
     return result;
   })();

@@ -24,6 +24,24 @@ export const InfrawiseConfigSchema = z.object({
       connectionString: z.string().optional(),
     })
     .optional(),
+  mysql: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      connectionString: z.string().optional(),
+    })
+    .optional(),
+  mongodb: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      connectionString: z.string().optional(),
+      databases: z.array(z.string()).optional(),
+    })
+    .optional(),
+  terraform: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+    })
+    .optional(),
   analysis: z
     .object({
       sampleSize: z.number().int().positive().optional().default(100),
@@ -100,6 +118,18 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
     postgres: {
       enabled: options?.postgres?.enabled ?? false,
       connectionString: options?.postgres?.connectionString ?? '',
+    },
+    mysql: {
+      enabled: options?.mysql?.enabled ?? false,
+      connectionString: options?.mysql?.connectionString ?? '',
+    },
+    mongodb: {
+      enabled: options?.mongodb?.enabled ?? false,
+      connectionString: options?.mongodb?.connectionString ?? '',
+      databases: options?.mongodb?.databases ?? [],
+    },
+    terraform: {
+      enabled: options?.terraform?.enabled ?? true,
     },
     analysis: {
       sampleSize: options?.analysis?.sampleSize ?? 100,

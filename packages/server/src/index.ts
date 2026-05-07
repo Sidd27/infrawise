@@ -91,6 +91,22 @@ export function createServer(port = 3000) {
             column: 'string — column to analyze',
           },
         },
+        {
+          name: 'suggest_mongo_index',
+          description: 'Get index suggestions for a MongoDB collection field',
+          input: {
+            collection: 'string — MongoDB collection name',
+            field: 'string — field to index',
+          },
+        },
+        {
+          name: 'mysql_index_suggestions',
+          description: 'Get MySQL index suggestions for a table column',
+          input: {
+            table: 'string — MySQL table name',
+            column: 'string — column to analyze',
+          },
+        },
       ],
     };
   });
@@ -240,8 +256,67 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
       };
     }
 
+    case 'suggest_mongo_index': {
+      const collection = String(input.collection ?? '');
+      const field = String(input.field ?? '');
+
+      if (!collection || !field) {
+        throw new Error('Missing input.collection or input.field');
+      }
+
+      const sanitizedField = field.replace(/[^a-zA-Z0-9_.]/g, '_');
+
+      return {
+        collection,
+        field,
+        recommendation: `db.${collection}.createIndex({ ${field}: 1 })`,
+        rationale: `An index on field "${field}" of collection "${collection}" will eliminate full collection scans when filtering on this field.`,
+        notes: [
+          'Use { background: true } in MongoDB < 4.2 to avoid blocking reads during index creation',
+          `For compound queries, consider a compound index: db.${collection}.createIndex({ ${field}: 1, otherField: 1 })`,
+          `For text search, use a text index: db.${collection}.createIndex({ ${sanitizedField}: "text" })`,
+          `Run db.${collection}.explain("executionStats").find({ ${field}: value }) to verify the index is used`,
+        ],
+      };
+    }
+
+    case 'mysql_index_suggestions': {
+      const tableName = String(input.table ?? '');
+      const column = String(input.column ?? '');
+
+      if (!tableName || !column) {
+        throw new Error('Missing input.table or input.column');
+      }
+
+      const sanitizedCol = column.replace(/[^a-zA-Z0-9_]/g, '_');
+      const sanitizedTable = tableName.replace(/[^a-zA-Z0-9_]/g, '_');
+      const indexName = `idx_${sanitizedTable}_${sanitizedCol}`;
+
+      const tableNode = currentGraph.nodes.find(
+        (n) =>
+          n.type === 'table' &&
+          n.databaseType === 'mysql' &&
+          'name' in n &&
+          (n.name === tableName || n.name.endsWith(`.${tableName}`)),
+      );
+
+      return {
+        table: tableName,
+        column,
+        found: !!tableNode,
+        recommendation: `ALTER TABLE ${tableName} ADD INDEX ${indexName} (${column});`,
+        rationale: `An index on column "${column}" of table "${tableName}" will eliminate full table scans when filtering on this column.`,
+        notes: [
+          'MySQL adds indexes online (no full table lock for InnoDB with MySQL 5.6+)',
+          `Consider a composite index if you filter on multiple columns together`,
+          `Use EXPLAIN SELECT ... to verify the index is used after adding it`,
+          `Example composite: ALTER TABLE ${tableName} ADD INDEX idx_${sanitizedTable}_composite (${column}, other_column);`,
+        ],
+      };
+    }
+
     default:
-      throw new Error(`Unknown tool: "${tool}". Available tools: get_graph_summary, analyze_function, suggest_gsi, postgres_index_suggestions`);
+      throw new Error(`Unknown tool: "${tool}". Available tools: get_graph_summary, analyze_function, suggest_gsi, postgres_index_suggestions, suggest_mongo_index, mysql_index_suggestions`);
   }
 }
 

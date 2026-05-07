@@ -66,6 +66,32 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
       default: 'postgresql://localhost:5432/mydb',
       when: (a) => a.pgEnabled,
     },
+    {
+      type: 'confirm',
+      name: 'mysqlEnabled',
+      message: 'Enable MySQL analysis?',
+      default: false,
+    },
+    {
+      type: 'input',
+      name: 'mysqlConnectionString',
+      message: 'MySQL connection string:',
+      default: 'mysql://localhost:3306/mydb',
+      when: (a) => a.mysqlEnabled,
+    },
+    {
+      type: 'confirm',
+      name: 'mongoEnabled',
+      message: 'Enable MongoDB analysis?',
+      default: false,
+    },
+    {
+      type: 'input',
+      name: 'mongoConnectionString',
+      message: 'MongoDB connection string:',
+      default: 'mongodb://localhost:27017',
+      when: (a) => a.mongoEnabled,
+    },
   ]);
 
   const includeTables = answers.dynamoTables
@@ -78,6 +104,14 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     postgres: {
       enabled: answers.pgEnabled,
       connectionString: answers.pgConnectionString ?? '',
+    },
+    mysql: {
+      enabled: answers.mysqlEnabled,
+      connectionString: answers.mysqlConnectionString ?? '',
+    },
+    mongodb: {
+      enabled: answers.mongoEnabled,
+      connectionString: answers.mongoConnectionString ?? '',
     },
   });
 

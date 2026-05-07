@@ -17,6 +17,9 @@
   "dependencies": {
     "@infrawise/adapters-dynamodb": "workspace:*",
     "@infrawise/adapters-postgres": "workspace:*",
+    "@infrawise/adapters-mysql": "workspace:*",
+    "@infrawise/adapters-mongodb": "workspace:*",
+    "@infrawise/adapters-terraform": "workspace:*",
     "@infrawise/analyzers": "workspace:*",
     "@infrawise/context": "workspace:*",
     "@infrawise/core": "workspace:*",

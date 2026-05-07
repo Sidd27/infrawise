@@ -2,9 +2,15 @@ import type { Analyzer, SystemGraph, Finding } from '@infrawise/shared';
 import { logger } from '@infrawise/core';
 import { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
 import { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
+import { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
+import { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
+import { IaCDriftAnalyzer } from './terraform';
 
 export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
 export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
+export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
+export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
+export { IaCDriftAnalyzer } from './terraform';
 
 const DEFAULT_ANALYZERS: Analyzer[] = [
   new FullTableScanAnalyzer(),
@@ -13,6 +19,11 @@ const DEFAULT_ANALYZERS: Analyzer[] = [
   new MissingIndexAnalyzer(),
   new NplusOneAnalyzer(),
   new LargeSelectAnalyzer(),
+  new MissingMySQLIndexAnalyzer(),
+  new MySQLFullTableScanAnalyzer(),
+  new MissingMongoIndexAnalyzer(),
+  new MongoCollectionScanAnalyzer(),
+  new IaCDriftAnalyzer(),
 ];
 
 export async function runAllAnalyzers(

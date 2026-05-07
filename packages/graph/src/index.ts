@@ -5,12 +5,16 @@ import type {
   ExtractedOperation,
   DynamoTableMetadata,
   PostgresTableMetadata,
+  MySQLTableMetadata,
+  MongoCollectionMetadata,
 } from '@infrawise/shared';
 
 export function buildGraph(
   operations: ExtractedOperation[],
   dynamoMeta: DynamoTableMetadata[],
   postgresMeta: PostgresTableMetadata[],
+  mysqlMeta: MySQLTableMetadata[] = [],
+  mongoMeta: MongoCollectionMetadata[] = [],
 ): SystemGraph {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -65,6 +69,55 @@ export function buildGraph(
     }
   }
 
+  // Add table nodes from MySQL metadata
+  for (const table of mysqlMeta) {
+    const nodeId = `table:mysql:${table.schema}.${table.table}`;
+    if (!nodeIds.has(nodeId)) {
+      nodes.push({
+        id: nodeId,
+        type: 'table',
+        name: `${table.schema}.${table.table}`,
+        databaseType: 'mysql',
+      });
+      nodeIds.add(nodeId);
+    }
+
+    // Add index nodes
+    for (const indexName of table.indexes) {
+      const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
+      if (!nodeIds.has(indexNodeId)) {
+        nodes.push({ id: indexNodeId, type: 'index', name: indexName });
+        nodeIds.add(indexNodeId);
+      }
+      edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
+    }
+  }
+
+  // Add collection nodes from MongoDB metadata
+  for (const coll of mongoMeta) {
+    const nodeId = `table:mongodb:${coll.database}.${coll.collection}`;
+    if (!nodeIds.has(nodeId)) {
+      nodes.push({
+        id: nodeId,
+        type: 'table',
+        name: `${coll.database}.${coll.collection}`,
+        databaseType: 'mongodb',
+      });
+      nodeIds.add(nodeId);
+    }
+
+    // Add index nodes
+    for (const idx of coll.indexes) {
+      if (idx.name === '_id_') continue; // Skip default _id index
+      const indexNodeId = `index:${coll.database}.${coll.collection}:${idx.name}`;
+      if (!nodeIds.has(indexNodeId)) {
+        nodes.push({ id: indexNodeId, type: 'index', name: idx.name });
+        nodeIds.add(indexNodeId);
+      }
+      edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
+    }
+  }
+
   // Process extracted operations — add function nodes and edges
   for (const op of operations) {
     const funcNodeId = `function:${op.filePath}:${op.functionName}`;
@@ -89,6 +142,30 @@ export function buildGraph(
           type: 'table',
           name: op.target,
           databaseType: 'dynamodb',
+        });
+        nodeIds.add(tableNodeId);
+      }
+    } else if (op.databaseType === 'mysql') {
+      const qualifiedTarget = op.target.includes('.') ? op.target : `default.${op.target}`;
+      tableNodeId = `table:mysql:${qualifiedTarget}`;
+      if (!nodeIds.has(tableNodeId)) {
+        nodes.push({
+          id: tableNodeId,
+          type: 'table',
+          name: qualifiedTarget,
+          databaseType: 'mysql',
+        });
+        nodeIds.add(tableNodeId);
+      }
+    } else if (op.databaseType === 'mongodb') {
+      const qualifiedTarget = op.target.includes('.') ? op.target : `default.${op.target}`;
+      tableNodeId = `table:mongodb:${qualifiedTarget}`;
+      if (!nodeIds.has(tableNodeId)) {
+        nodes.push({
+          id: tableNodeId,
+          type: 'table',
+          name: qualifiedTarget,
+          databaseType: 'mongodb',
         });
         nodeIds.add(tableNodeId);
       }

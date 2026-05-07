@@ -1,20 +1,19 @@
 {
-  "name": "@infrawise/analyzers",
+  "name": "@infrawise/adapters-terraform",
   "version": "0.1.0",
-  "description": "Analyzer engine and DynamoDB/PostgreSQL analyzers for Infrawise",
+  "description": "Terraform and CloudFormation IaC schema extractor for Infrawise",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@infrawise/shared": "workspace:*",
-    "@infrawise/graph": "workspace:*",
     "@infrawise/core": "workspace:*",
-    "@infrawise/adapters-terraform": "workspace:*"
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
@@ -22,7 +21,10 @@
     "eslint": "^8.57.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@types/js-yaml": "^4.0.9"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ]
 }
