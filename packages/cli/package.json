@@ -1,0 +1,43 @@
+{
+  "name": "infrawise",
+  "version": "0.1.0",
+  "description": "CLI-first infrastructure intelligence platform for DynamoDB and PostgreSQL",
+  "bin": {
+    "infrawise": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "dev": "node dist/index.js dev"
+  },
+  "dependencies": {
+    "@infrawise/shared": "workspace:*",
+    "@infrawise/core": "workspace:*",
+    "@infrawise/graph": "workspace:*",
+    "@infrawise/adapters-dynamodb": "workspace:*",
+    "@infrawise/adapters-postgres": "workspace:*",
+    "@infrawise/context": "workspace:*",
+    "@infrawise/analyzers": "workspace:*",
+    "@infrawise/server": "workspace:*",
+    "commander": "^12.0.0",
+    "inquirer": "^9.2.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@types/node": "^22.0.0",
+    "@types/inquirer": "^9.0.7"
+  },
+  "files": [
+    "dist"
+  ]
+}

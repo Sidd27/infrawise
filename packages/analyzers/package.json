@@ -1,0 +1,27 @@
+{
+  "name": "@infrawise/analyzers",
+  "version": "0.1.0",
+  "description": "Analyzer engine and DynamoDB/PostgreSQL analyzers for Infrawise",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@infrawise/shared": "workspace:*",
+    "@infrawise/graph": "workspace:*",
+    "@infrawise/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "files": ["dist"]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@infrawise/server",
+  "version": "0.1.0",
+  "description": "Fastify MCP HTTP server for Infrawise",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "dev": "node dist/index.js"
+  },
+  "dependencies": {
+    "@infrawise/shared": "workspace:*",
+    "@infrawise/core": "workspace:*",
+    "@infrawise/graph": "workspace:*",
+    "@infrawise/analyzers": "workspace:*",
+    "fastify": "^4.26.0",
+    "@fastify/cors": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

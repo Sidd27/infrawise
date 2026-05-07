@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.turbo/
+.infrawise/cache/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+coverage/
+.DS_Store
