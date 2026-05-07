@@ -7,7 +7,7 @@ import { validateDynamoAccess } from '@infrawise/adapters-dynamodb';
 import { validatePostgresAccess } from '@infrawise/adapters-postgres';
 import { validateMySQLAccess } from '@infrawise/adapters-mysql';
 import { validateMongoAccess } from '@infrawise/adapters-mongodb';
-import { log, printHeader } from '../utils';
+import { printHeader } from '../utils';
 
 interface CheckResult {
   name: string;

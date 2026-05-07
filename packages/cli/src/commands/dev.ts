@@ -16,9 +16,8 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   printHeader('MCP Server');
 
   // Load config
-  let config;
   try {
-    config = loadConfig(options.config);
+    loadConfig(options.config);
     log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
     console.error(formatError(err));

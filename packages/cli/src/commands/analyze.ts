@@ -117,9 +117,10 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // Build graph
+  let graph: ReturnType<typeof buildGraph>;
   {
     const spin = ora({ text: chalk.dim('Building infrastructure graph...'), color: 'cyan' }).start();
-    var graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta);
+    graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta);
     spin.succeed(chalk.green('Graph built') + chalk.dim(`  ${graph.nodes.length} nodes, ${graph.edges.length} edges`));
   }
 

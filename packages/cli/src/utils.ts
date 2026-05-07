@@ -104,7 +104,6 @@ function severityColor(severity: Finding['severity']): chalk.Chalk {
 }
 
 export function printFinding(finding: Finding, index: number): void {
-  const color = severityColor(finding.severity);
   const badge = severityBadge(finding.severity);
   const num = chalk.dim(`${index + 1}.`);
 
