@@ -26,7 +26,8 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
   log.success(`AWS profiles found`, String(profiles.length));
   console.log('');
 
-  const answers = await inquirer.prompt([
+  // ── Core settings ──────────────────────────────────────────────────────────
+  const core = await inquirer.prompt([
     {
       type: 'input',
       name: 'project',
@@ -46,12 +47,17 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
       message: 'AWS region:',
       default: detectedRegion,
     },
+  ]);
+
+  // ── Databases ──────────────────────────────────────────────────────────────
+  console.log('\n  ' + chalk.bold('Databases'));
+  const databases = await inquirer.prompt([
     {
       type: 'input',
       name: 'dynamoTables',
       message: 'DynamoDB tables to include:',
       default: '',
-      suffix: chalk.dim(' (comma-separated, leave blank for all)'),
+      suffix: chalk.dim(' (comma-separated, blank = all)'),
     },
     {
       type: 'confirm',
@@ -94,24 +100,92 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     },
   ]);
 
-  const includeTables = answers.dynamoTables
-    ? answers.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
+  // ── AWS services ───────────────────────────────────────────────────────────
+  console.log('\n  ' + chalk.bold('AWS Services'));
+  console.log(chalk.dim('  Infrawise will introspect these services — credentials from the AWS profile above.'));
+  const services = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'sqsEnabled',
+      message: 'Introspect SQS queues?',
+      default: true,
+    },
+    {
+      type: 'confirm',
+      name: 'snsEnabled',
+      message: 'Introspect SNS topics?',
+      default: true,
+    },
+    {
+      type: 'confirm',
+      name: 'ssmEnabled',
+      message: 'Introspect SSM Parameter Store? (metadata only, no values)',
+      default: true,
+    },
+    {
+      type: 'input',
+      name: 'ssmPaths',
+      message: 'SSM path prefixes to filter:',
+      default: '',
+      suffix: chalk.dim(' (comma-separated, blank = all  e.g. /myapp/prod)'),
+      when: (a) => a.ssmEnabled,
+    },
+    {
+      type: 'confirm',
+      name: 'secretsEnabled',
+      message: 'Introspect Secrets Manager? (names & rotation only, no values)',
+      default: true,
+    },
+    {
+      type: 'confirm',
+      name: 'lambdaEnabled',
+      message: 'Introspect Lambda functions?',
+      default: true,
+    },
+    {
+      type: 'confirm',
+      name: 'logsEnabled',
+      message: 'Sample CloudWatch Logs? (error patterns only, no raw logs)',
+      default: false,
+    },
+    {
+      type: 'input',
+      name: 'logGroupPrefixes',
+      message: 'CloudWatch log group prefixes:',
+      default: '',
+      suffix: chalk.dim(' (comma-separated, blank = all)'),
+      when: (a) => a.logsEnabled,
+    },
+  ]);
+
+  // ── Build config ───────────────────────────────────────────────────────────
+  const includeTables = databases.dynamoTables
+    ? databases.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
     : [];
 
-  const configContent = generateDefaultConfig(answers.project, {
-    aws: { profile: answers.awsProfile, region: answers.region },
+  const ssmPaths = services.ssmPaths
+    ? services.ssmPaths.split(',').map((p: string) => p.trim()).filter(Boolean)
+    : [];
+
+  const logGroupPrefixes = services.logGroupPrefixes
+    ? services.logGroupPrefixes.split(',').map((p: string) => p.trim()).filter(Boolean)
+    : [];
+
+  const configContent = generateDefaultConfig(core.project, {
+    aws: { profile: core.awsProfile, region: core.region },
     dynamodb: { includeTables },
-    postgres: {
-      enabled: answers.pgEnabled,
-      connectionString: answers.pgConnectionString ?? '',
-    },
-    mysql: {
-      enabled: answers.mysqlEnabled,
-      connectionString: answers.mysqlConnectionString ?? '',
-    },
-    mongodb: {
-      enabled: answers.mongoEnabled,
-      connectionString: answers.mongoConnectionString ?? '',
+    postgres: { enabled: databases.pgEnabled, connectionString: databases.pgConnectionString ?? '' },
+    mysql: { enabled: databases.mysqlEnabled, connectionString: databases.mysqlConnectionString ?? '' },
+    mongodb: { enabled: databases.mongoEnabled, connectionString: databases.mongoConnectionString ?? '' },
+    sqs: { enabled: services.sqsEnabled },
+    sns: { enabled: services.snsEnabled },
+    ssm: { enabled: services.ssmEnabled, paths: ssmPaths },
+    secretsManager: { enabled: services.secretsEnabled },
+    lambda: { enabled: services.lambdaEnabled },
+    cloudwatchLogs: {
+      enabled: services.logsEnabled,
+      logGroupPrefixes,
+      windowHours: 24,
     },
   });
 

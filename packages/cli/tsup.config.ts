@@ -14,6 +14,12 @@ export default defineConfig({
   // Keep all real npm deps as external — they stay in node_modules
   external: [
     '@aws-sdk/client-dynamodb',
+    '@aws-sdk/client-sqs',
+    '@aws-sdk/client-sns',
+    '@aws-sdk/client-ssm',
+    '@aws-sdk/client-secrets-manager',
+    '@aws-sdk/client-lambda',
+    '@aws-sdk/client-cloudwatch-logs',
     '@aws-sdk/credential-providers',
     '@fastify/cors',
     'chalk',

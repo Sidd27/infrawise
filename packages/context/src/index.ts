@@ -51,6 +51,20 @@ const MONGO_READ_METHODS = new Set([
 ]);
 const MONGO_COLLECTION_METHODS = new Set(['collection']);
 
+// ── AWS service patterns ──────────────────────────────────────────────────────
+
+const SQS_COMMANDS = new Set(['SendMessageCommand', 'SendMessageBatchCommand', 'ReceiveMessageCommand', 'DeleteMessageCommand', 'sendMessage', 'sendMessageBatch', 'receiveMessage']);
+const SNS_COMMANDS = new Set(['PublishCommand', 'PublishBatchCommand', 'publish', 'publishBatch']);
+const SSM_COMMANDS = new Set(['GetParameterCommand', 'GetParametersCommand', 'GetParametersByPathCommand', 'getParameter', 'getParameters', 'getParametersByPath']);
+const SECRETS_COMMANDS = new Set(['GetSecretValueCommand', 'getSecretValue']);
+const LAMBDA_COMMANDS = new Set(['InvokeCommand', 'InvokeAsyncCommand', 'invoke', 'invokeAsync']);
+
+const SQS_ARG_KEYS = ['QueueUrl', 'QueueName'];
+const SNS_ARG_KEYS = ['TopicArn', 'TargetArn'];
+const SSM_ARG_KEYS = ['Name', 'Path'];
+const SECRETS_ARG_KEYS = ['SecretId', 'SecretName'];
+const LAMBDA_ARG_KEYS = ['FunctionName'];
+
 const PRISMA_METHODS = new Set([
   'findMany',
   'findFirst',
@@ -412,6 +426,139 @@ function detectMongoOperations(
   return null;
 }
 
+function extractArgValue(arg: Node, ...keys: string[]): string {
+  if (Node.isObjectLiteralExpression(arg)) {
+    for (const prop of arg.getProperties()) {
+      if (Node.isPropertyAssignment(prop) && keys.includes(prop.getName())) {
+        const init = prop.getInitializer();
+        if (init && Node.isStringLiteral(init)) {
+          // For ARNs, extract the last segment as a readable name
+          const val = (init as StringLiteral).getLiteralValue();
+          return val.includes(':') ? (val.split(':').pop() ?? val) : val;
+        }
+      }
+    }
+  }
+  return 'unknown';
+}
+
+function detectAWSServiceOperations(
+  callExpr: CallExpression,
+  filePath: string,
+): ExtractedOperation | null {
+  const expr = callExpr.getExpression();
+  const args = callExpr.getArguments();
+
+  // Pattern 1: client.send(new XCommand({ ... }))
+  if (Node.isPropertyAccessExpression(expr) && expr.getName() === 'send' && args.length > 0) {
+    const firstArg = args[0];
+    if (Node.isNewExpression(firstArg)) {
+      const className = firstArg.getExpression().getText();
+      const cmdArgs = firstArg.getArguments();
+
+      if (SQS_COMMANDS.has(className)) {
+        return {
+          functionName: getEnclosingFunctionName(callExpr),
+          operationType: className,
+          databaseType: 'sqs',
+          target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SQS_ARG_KEYS) : 'unknown',
+          filePath,
+        };
+      }
+      if (SNS_COMMANDS.has(className)) {
+        return {
+          functionName: getEnclosingFunctionName(callExpr),
+          operationType: className,
+          databaseType: 'sns',
+          target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SNS_ARG_KEYS) : 'unknown',
+          filePath,
+        };
+      }
+      if (SSM_COMMANDS.has(className)) {
+        return {
+          functionName: getEnclosingFunctionName(callExpr),
+          operationType: className,
+          databaseType: 'ssm',
+          target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SSM_ARG_KEYS) : 'unknown',
+          filePath,
+        };
+      }
+      if (SECRETS_COMMANDS.has(className)) {
+        return {
+          functionName: getEnclosingFunctionName(callExpr),
+          operationType: className,
+          databaseType: 'secretsmanager',
+          target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SECRETS_ARG_KEYS) : 'unknown',
+          filePath,
+        };
+      }
+      if (LAMBDA_COMMANDS.has(className)) {
+        return {
+          functionName: getEnclosingFunctionName(callExpr),
+          operationType: className,
+          databaseType: 'lambda',
+          target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...LAMBDA_ARG_KEYS) : 'unknown',
+          filePath,
+        };
+      }
+    }
+  }
+
+  // Pattern 2: awsService.method({ ... }) — v2-style or SDK-wrapped clients
+  if (Node.isPropertyAccessExpression(expr)) {
+    const methodName = expr.getName();
+    const objText = expr.getExpression().getText().toLowerCase();
+
+    if (SQS_COMMANDS.has(methodName) && (objText.includes('sqs') || objText.includes('queue'))) {
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'sqs',
+        target: args.length > 0 ? extractArgValue(args[0], ...SQS_ARG_KEYS) : 'unknown',
+        filePath,
+      };
+    }
+    if (SNS_COMMANDS.has(methodName) && (objText.includes('sns') || objText.includes('topic'))) {
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'sns',
+        target: args.length > 0 ? extractArgValue(args[0], ...SNS_ARG_KEYS) : 'unknown',
+        filePath,
+      };
+    }
+    if (SSM_COMMANDS.has(methodName) && (objText.includes('ssm') || objText.includes('parameter'))) {
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'ssm',
+        target: args.length > 0 ? extractArgValue(args[0], ...SSM_ARG_KEYS) : 'unknown',
+        filePath,
+      };
+    }
+    if (SECRETS_COMMANDS.has(methodName) && (objText.includes('secret') || objText.includes('secrets'))) {
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'secretsmanager',
+        target: args.length > 0 ? extractArgValue(args[0], ...SECRETS_ARG_KEYS) : 'unknown',
+        filePath,
+      };
+    }
+    if (LAMBDA_COMMANDS.has(methodName) && (objText.includes('lambda') || objText.includes('fn'))) {
+      return {
+        functionName: getEnclosingFunctionName(callExpr),
+        operationType: methodName,
+        databaseType: 'lambda',
+        target: args.length > 0 ? extractArgValue(args[0], ...LAMBDA_ARG_KEYS) : 'unknown',
+        filePath,
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function scanRepository(repoPath: string): Promise<ExtractedOperation[]> {
   const resolvedPath = path.resolve(repoPath);
 
@@ -478,6 +625,12 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
       const mongoOp = detectMongoOperations(callExpr, filePath);
       if (mongoOp) {
         operations.push(mongoOp);
+        continue;
+      }
+
+      const awsOp = detectAWSServiceOperations(callExpr, filePath);
+      if (awsOp) {
+        operations.push(awsOp);
       }
     }
   }

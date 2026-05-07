@@ -1,9 +1,6 @@
 import type { Analyzer, SystemGraph, Finding, GraphNode } from '@infrawise/shared';
 import type { IaCSchema } from '@infrawise/adapters-terraform';
 
-/**
- * Detects drift between IaC-defined infrastructure and actually-deployed AWS resources.
- */
 export class IaCDriftAnalyzer implements Analyzer {
   name = 'IaCDriftAnalyzer';
 
@@ -15,58 +12,98 @@ export class IaCDriftAnalyzer implements Analyzer {
 
   async analyze(graph: SystemGraph): Promise<Finding[]> {
     const findings: Finding[] = [];
+    if (!this.iacSchema) return findings;
 
-    if (!this.iacSchema) {
-      return findings;
-    }
+    const iac = this.iacSchema;
 
-    // Get all DynamoDB table names from the graph (deployed in AWS)
-    const deployedDynamoTables = new Set<string>(
+    // ── DynamoDB drift ───────────────────────────────────────────────────────
+
+    const deployedDynamo = new Set(
       graph.nodes
-        .filter(
-          (n): n is Extract<GraphNode, { type: 'table' }> =>
-            n.type === 'table' && n.databaseType === 'dynamodb',
-        )
+        .filter((n): n is Extract<GraphNode, { type: 'table' }> => n.type === 'table' && n.databaseType === 'dynamodb')
         .map((n) => n.name),
     );
+    const iacDynamo = new Map(iac.dynamoTables.map((t) => [t.name, t.filePath]));
 
-    // Get all DynamoDB table names from IaC (defined in code)
-    const iacDynamoTables = new Map<string, string>();
-    for (const t of this.iacSchema.dynamoTables) {
-      iacDynamoTables.set(t.name, t.filePath);
-    }
-
-    // Drift: defined in IaC but not found in deployed graph
-    for (const [tableName, filePath] of iacDynamoTables) {
-      if (!deployedDynamoTables.has(tableName)) {
+    for (const [name, fp] of iacDynamo) {
+      if (!deployedDynamo.has(name)) {
         findings.push({
           severity: 'medium',
-          issue: `IaC drift: DynamoDB table "${tableName}" is defined in IaC but not found in AWS`,
-          description: `Table "${tableName}" is defined in ${filePath} but was not found among deployed AWS DynamoDB tables. It may not have been deployed yet, or may have been deleted from AWS without updating the IaC.`,
-          recommendation:
-            'Run `terraform apply` or deploy your CloudFormation stack to create the missing table, or remove the definition from your IaC if the table is intentionally absent.',
-          metadata: {
-            tableName,
-            filePath,
-            driftType: 'defined_not_deployed',
-          },
+          issue: `IaC drift: DynamoDB table "${name}" defined in IaC but not deployed`,
+          description: `"${name}" is in ${fp} but not found in AWS. It may be undeployed or deleted manually.`,
+          recommendation: 'Run `terraform apply` / deploy your stack, or remove the definition from IaC.',
+          metadata: { resourceType: 'dynamodb_table', name, filePath: fp, driftType: 'defined_not_deployed' },
+        });
+      }
+    }
+    for (const name of deployedDynamo) {
+      if (!iacDynamo.has(name)) {
+        findings.push({
+          severity: 'medium',
+          issue: `IaC drift: DynamoDB table "${name}" deployed but not in IaC`,
+          description: `"${name}" exists in AWS DynamoDB but has no IaC definition. It may have been created manually.`,
+          recommendation: 'Import the table with `terraform import` or add a CloudFormation resource, then track all future changes through IaC.',
+          metadata: { resourceType: 'dynamodb_table', name, driftType: 'deployed_not_defined' },
         });
       }
     }
 
-    // Drift: deployed in AWS but not in IaC
-    for (const tableName of deployedDynamoTables) {
-      if (!iacDynamoTables.has(tableName)) {
+    // ── Queue drift ───────────────────────────────────────────────────────────
+
+    const deployedQueues = new Set(
+      graph.nodes.filter((n) => n.type === 'queue').map((n) => n.name),
+    );
+    const iacQueues = new Map(iac.queues.map((q) => [q.name, q.filePath]));
+
+    for (const [name, fp] of iacQueues) {
+      if (!deployedQueues.has(name)) {
         findings.push({
           severity: 'medium',
-          issue: `IaC drift: DynamoDB table "${tableName}" is deployed in AWS but not defined in IaC`,
-          description: `Table "${tableName}" exists in AWS DynamoDB but has no corresponding definition in Terraform or CloudFormation. This resource may have been created manually and is not tracked by IaC.`,
-          recommendation:
-            'Import the table into your IaC using `terraform import` or add a CloudFormation resource definition. Untracked resources can lead to configuration drift and accidental deletion.',
-          metadata: {
-            tableName,
-            driftType: 'deployed_not_defined',
-          },
+          issue: `IaC drift: SQS queue "${name}" defined in IaC but not deployed`,
+          description: `SQS queue "${name}" is defined in ${fp} but not found in the live account.`,
+          recommendation: 'Deploy the queue via `terraform apply` or your CFN/CDK stack.',
+          metadata: { resourceType: 'sqs_queue', name, filePath: fp, driftType: 'defined_not_deployed' },
+        });
+      }
+    }
+    for (const name of deployedQueues) {
+      if (!iacQueues.has(name)) {
+        findings.push({
+          severity: 'low',
+          issue: `IaC drift: SQS queue "${name}" deployed but not in IaC`,
+          description: `SQS queue "${name}" exists in AWS but is not tracked in IaC. Manual resources can't be audited or reproduced reliably.`,
+          recommendation: 'Import or define the queue in IaC to bring it under version control.',
+          metadata: { resourceType: 'sqs_queue', name, driftType: 'deployed_not_defined' },
+        });
+      }
+    }
+
+    // ── Lambda drift ──────────────────────────────────────────────────────────
+
+    const deployedLambdas = new Set(
+      graph.nodes.filter((n) => n.type === 'lambda').map((n) => n.name),
+    );
+    const iacLambdas = new Map(iac.lambdas.map((l) => [l.name, l.filePath]));
+
+    for (const [name, fp] of iacLambdas) {
+      if (!deployedLambdas.has(name)) {
+        findings.push({
+          severity: 'medium',
+          issue: `IaC drift: Lambda "${name}" defined in IaC but not deployed`,
+          description: `Lambda function "${name}" is defined in ${fp} but not found in the live account.`,
+          recommendation: 'Deploy the function via `terraform apply` or your CFN/CDK stack.',
+          metadata: { resourceType: 'lambda_function', name, filePath: fp, driftType: 'defined_not_deployed' },
+        });
+      }
+    }
+    for (const name of deployedLambdas) {
+      if (!iacLambdas.has(name)) {
+        findings.push({
+          severity: 'low',
+          issue: `IaC drift: Lambda "${name}" deployed but not in IaC`,
+          description: `Lambda "${name}" exists in AWS but is not tracked in IaC.`,
+          recommendation: 'Import the function into IaC or add it as a resource.',
+          metadata: { resourceType: 'lambda_function', name, driftType: 'deployed_not_defined' },
         });
       }
     }

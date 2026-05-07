@@ -5,12 +5,16 @@ import { logger } from '@infrawise/core';
 import {
   getTableNodes,
   getFunctionNodes,
+  getQueueNodes,
+  getTopicNodes,
+  getSecretNodes,
+  getParameterNodes,
+  getLogGroupNodes,
+  getLambdaNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '@infrawise/graph';
-import { runAllAnalyzers } from '@infrawise/analyzers';
 
-// In-memory state — populated by the CLI before starting server
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
 
@@ -20,102 +24,173 @@ export function setGraphState(graph: SystemGraph, findings: Finding[]): void {
 }
 
 export function createServer(port = 3000) {
-  const fastify = Fastify({
-    logger: false, // We use pino directly
-  });
-
+  const fastify = Fastify({ logger: false });
   fastify.register(cors, { origin: true });
 
-  // Health check
-  fastify.get('/health', async () => {
-    return {
-      status: 'ok',
-      version: '0.1.0',
-      graphNodes: currentGraph.nodes.length,
-      graphEdges: currentGraph.edges.length,
-      findings: currentFindings.length,
-    };
-  });
+  fastify.get('/health', async () => ({
+    status: 'ok',
+    version: '0.1.0',
+    graphNodes: currentGraph.nodes.length,
+    graphEdges: currentGraph.edges.length,
+    findings: currentFindings.length,
+  }));
 
-  // MCP endpoint
   fastify.post<{ Body: MCPToolCall }>('/mcp', async (request, reply) => {
     const { tool, input } = request.body;
-
     if (!tool) {
       reply.status(400);
-      return { success: false, error: 'Missing "tool" field in request body' } satisfies MCPToolResult;
+      return { success: false, error: 'Missing "tool" field' } satisfies MCPToolResult;
     }
-
     logger.info(`MCP tool call: ${tool}`);
-
     try {
       const result = await handleToolCall(tool, input ?? {});
       return { success: true, data: result } satisfies MCPToolResult;
     } catch (err) {
       logger.error(`MCP tool "${tool}" failed: ${err instanceof Error ? err.message : String(err)}`);
       reply.status(500);
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
-      } satisfies MCPToolResult;
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' } satisfies MCPToolResult;
     }
   });
 
-  // List available tools
-  fastify.get('/mcp/tools', async () => {
-    return {
-      tools: [
-        {
-          name: 'get_graph_summary',
-          description: 'Returns the full infrastructure graph with all findings',
-          input: {},
+  fastify.get('/mcp/tools', async () => ({
+    tools: [
+      // ── Overview ──────────────────────────────────────────────────────────
+      {
+        name: 'get_infra_overview',
+        description: 'Returns a complete snapshot of all infrastructure: databases, queues, topics, secrets, parameters, log groups, lambdas, and all findings. Start here for a full picture.',
+        input: {},
+      },
+      {
+        name: 'get_graph_summary',
+        description: 'Returns the full infrastructure graph (all nodes and edges) plus findings summary.',
+        input: {},
+      },
+      // ── Code analysis ────────────────────────────────────────────────────
+      {
+        name: 'analyze_function',
+        description: 'Analyze a specific function for all infrastructure issues: DB queries, queue publishing, secret access, etc.',
+        input: { function: 'string — function name' },
+      },
+      // ── Database helpers ─────────────────────────────────────────────────
+      {
+        name: 'suggest_gsi',
+        description: 'Get GSI suggestions for a DynamoDB table and attribute',
+        input: { table: 'string', attribute: 'string' },
+      },
+      {
+        name: 'postgres_index_suggestions',
+        description: 'Get PostgreSQL index suggestions for a table column',
+        input: { table: 'string', column: 'string' },
+      },
+      {
+        name: 'suggest_mongo_index',
+        description: 'Get index suggestions for a MongoDB collection field',
+        input: { collection: 'string', field: 'string' },
+      },
+      {
+        name: 'mysql_index_suggestions',
+        description: 'Get MySQL index suggestions for a table column',
+        input: { table: 'string', column: 'string' },
+      },
+      // ── Messaging ────────────────────────────────────────────────────────
+      {
+        name: 'get_queue_details',
+        description: 'Returns all SQS queues with DLQ status, encryption, message counts, and retention. Use to audit messaging infrastructure.',
+        input: {},
+      },
+      {
+        name: 'get_topic_details',
+        description: 'Returns all SNS topics with subscription counts and protocols.',
+        input: {},
+      },
+      // ── Secrets & config ─────────────────────────────────────────────────
+      {
+        name: 'get_secrets_overview',
+        description: 'Returns all Secrets Manager secrets: names, rotation status, last accessed. Secret VALUES are never included.',
+        input: {},
+      },
+      {
+        name: 'get_parameter_overview',
+        description: 'Returns all SSM Parameter Store parameters: names, types, tiers. Parameter VALUES are never included.',
+        input: {},
+      },
+      // ── Compute ──────────────────────────────────────────────────────────
+      {
+        name: 'get_lambda_overview',
+        description: 'Returns all Lambda functions: runtime, memory, timeout, env var key names (values never included).',
+        input: {},
+      },
+      // ── Observability ────────────────────────────────────────────────────
+      {
+        name: 'get_log_errors',
+        description: 'Returns recent error patterns from CloudWatch log groups. Returns pattern counts and frequencies — never raw log messages. Safe for context.',
+        input: {
+          logGroup: 'string (optional) — filter to a specific log group name',
         },
-        {
-          name: 'analyze_function',
-          description: 'Analyze a specific function for database issues',
-          input: { function: 'string — function name to analyze' },
-        },
-        {
-          name: 'suggest_gsi',
-          description: 'Get GSI suggestions for a DynamoDB table and attribute',
-          input: {
-            table: 'string — DynamoDB table name',
-            attribute: 'string — attribute to index',
-          },
-        },
-        {
-          name: 'postgres_index_suggestions',
-          description: 'Get PostgreSQL index suggestions for a table column',
-          input: {
-            table: 'string — PostgreSQL table name',
-            column: 'string — column to analyze',
-          },
-        },
-        {
-          name: 'suggest_mongo_index',
-          description: 'Get index suggestions for a MongoDB collection field',
-          input: {
-            collection: 'string — MongoDB collection name',
-            field: 'string — field to index',
-          },
-        },
-        {
-          name: 'mysql_index_suggestions',
-          description: 'Get MySQL index suggestions for a table column',
-          input: {
-            table: 'string — MySQL table name',
-            column: 'string — column to analyze',
-          },
-        },
-      ],
-    };
-  });
+      },
+    ],
+  }));
 
   return { fastify, start: () => startServer(fastify, port) };
 }
 
 async function handleToolCall(tool: string, input: Record<string, unknown>): Promise<unknown> {
   switch (tool) {
+
+    // ── Overview ─────────────────────────────────────────────────────────────
+
+    case 'get_infra_overview': {
+      const tables = getTableNodes(currentGraph);
+      const queues = getQueueNodes(currentGraph);
+      const topics = getTopicNodes(currentGraph);
+      const secrets = getSecretNodes(currentGraph);
+      const parameters = getParameterNodes(currentGraph);
+      const logGroups = getLogGroupNodes(currentGraph);
+      const lambdas = getLambdaNodes(currentGraph);
+      const functions = getFunctionNodes(currentGraph);
+
+      return {
+        summary: {
+          tables: tables.length,
+          functions: functions.length,
+          queues: queues.length,
+          topics: topics.length,
+          secrets: secrets.length,
+          parameters: parameters.length,
+          logGroups: logGroups.length,
+          lambdas: lambdas.length,
+          totalNodes: currentGraph.nodes.length,
+          totalEdges: currentGraph.edges.length,
+          findings: {
+            total: currentFindings.length,
+            high: currentFindings.filter((f) => f.severity === 'high').length,
+            medium: currentFindings.filter((f) => f.severity === 'medium').length,
+            low: currentFindings.filter((f) => f.severity === 'low').length,
+          },
+        },
+        databases: tables.map((t) => ({ name: t.name, type: t.databaseType })),
+        queues: queues.map((q) => ({
+          name: q.name,
+          hasDLQ: q.hasDLQ,
+          encrypted: q.encrypted,
+          approximateMessages: q.approximateMessages,
+        })),
+        topics: topics.map((t) => ({ name: t.name, subscriptions: t.subscriptionCount })),
+        secrets: secrets.map((s) => ({ name: s.name, rotationEnabled: s.rotationEnabled })),
+        parameters: parameters.map((p) => ({ name: p.name, type: p.paramType, tier: p.tier })),
+        lambdas: lambdas.map((l) => ({ name: l.name, runtime: l.runtime, memoryMB: l.memoryMB })),
+        logGroups: logGroups.map((lg) => ({
+          name: lg.name,
+          retentionDays: lg.retentionDays ?? 'never',
+          errorCount: lg.errorCount,
+        })),
+        highFindings: currentFindings.filter((f) => f.severity === 'high').map((f) => ({
+          issue: f.issue,
+          recommendation: f.recommendation,
+        })),
+      };
+    }
+
     case 'get_graph_summary': {
       return {
         nodes: currentGraph.nodes,
@@ -126,6 +201,7 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
           totalEdges: currentGraph.edges.length,
           tables: getTableNodes(currentGraph).length,
           functions: getFunctionNodes(currentGraph).length,
+          queues: getQueueNodes(currentGraph).length,
           scans: getScanEdges(currentGraph).length,
           totalFindings: currentFindings.length,
           highSeverity: currentFindings.filter((f) => f.severity === 'high').length,
@@ -135,15 +211,13 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
       };
     }
 
+    // ── Code analysis ──────────────────────────────────────────────────────────
+
     case 'analyze_function': {
       const functionName = String(input.function ?? '');
-      if (!functionName) {
-        throw new Error('Missing input.function');
-      }
+      if (!functionName) throw new Error('Missing input.function');
 
-      const funcNode = currentGraph.nodes.find(
-        (n) => n.type === 'function' && n.name === functionName,
-      );
+      const funcNode = currentGraph.nodes.find((n) => n.type === 'function' && n.name === functionName);
 
       if (!funcNode) {
         return {
@@ -157,85 +231,58 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
       const outEdges = getOutgoingEdges(currentGraph, funcNode.id);
       const relatedFindings = currentFindings.filter((f) => {
         const meta = f.metadata as Record<string, unknown> | undefined;
-        return meta?.functionName === functionName || meta?.callerFunctions?.toString().includes(functionName);
+        return meta?.functionName === functionName || String(meta?.callerFunctions ?? '').includes(functionName);
       });
-
-      const issues = relatedFindings.map((f) => ({
-        severity: f.severity,
-        issue: f.issue,
-        description: f.description,
-      }));
-
-      const recommendations = relatedFindings.map((f) => f.recommendation);
-      const uniqueRecs = [...new Set(recommendations)];
 
       return {
         function: functionName,
         found: true,
         file: funcNode.type === 'function' ? funcNode.file : undefined,
-        accessedTables: outEdges.map((e) => {
+        accesses: outEdges.map((e) => {
           const target = currentGraph.nodes.find((n) => n.id === e.to);
-          return { tableId: e.to, edgeType: e.type, tableName: target && 'name' in target ? target.name : e.to };
+          return {
+            targetId: e.to,
+            edgeType: e.type,
+            targetName: target && 'name' in target ? target.name : e.to,
+            targetType: target?.type,
+          };
         }),
-        issues,
-        recommendations: uniqueRecs,
+        issues: relatedFindings.map((f) => ({
+          severity: f.severity,
+          issue: f.issue,
+          description: f.description,
+        })),
+        recommendations: [...new Set(relatedFindings.map((f) => f.recommendation))],
       };
     }
+
+    // ── Database helpers ───────────────────────────────────────────────────────
 
     case 'suggest_gsi': {
       const tableName = String(input.table ?? '');
       const attribute = String(input.attribute ?? '');
-
-      if (!tableName || !attribute) {
-        throw new Error('Missing input.table or input.attribute');
-      }
+      if (!tableName || !attribute) throw new Error('Missing input.table or input.attribute');
 
       const tableNode = currentGraph.nodes.find(
         (n) => n.type === 'table' && n.databaseType === 'dynamodb' && 'name' in n && n.name === tableName,
       );
-
-      if (!tableNode) {
-        return {
-          table: tableName,
-          attribute,
-          found: false,
-          message: `DynamoDB table "${tableName}" not found in analyzed graph`,
-        };
-      }
-
       const sanitizedAttr = attribute.replace(/[^a-zA-Z0-9_]/g, '_');
       const indexName = `${tableName}-${sanitizedAttr}-index`;
 
       return {
         table: tableName,
         attribute,
-        index: {
-          name: indexName,
-          partitionKey: attribute,
-          projectionType: 'ALL',
-          billingMode: 'PAY_PER_REQUEST',
-        },
-        rationale: `Adding a GSI with partition key "${attribute}" will allow efficient Query operations instead of full table Scans when filtering by this attribute.`,
-        estimatedCost: 'Approximately double the storage cost for the projected attributes.',
-        recommendation: `Add the following GSI to your CloudFormation/Terraform definition:\n\nGSI Name: ${indexName}\nPartition Key: ${attribute}\nSort Key: (optional, add for range queries)\nProjection: ALL`,
+        found: !!tableNode,
+        index: { name: indexName, partitionKey: attribute, projectionType: 'ALL', billingMode: 'PAY_PER_REQUEST' },
+        rationale: `A GSI on "${attribute}" allows Query instead of Scan when filtering by this attribute.`,
+        recommendation: `Add GSI "${indexName}" with partition key "${attribute}" to your IaC definition.`,
       };
     }
 
     case 'postgres_index_suggestions': {
       const tableName = String(input.table ?? '');
       const column = String(input.column ?? '');
-
-      if (!tableName || !column) {
-        throw new Error('Missing input.table or input.column');
-      }
-
-      const tableNode = currentGraph.nodes.find(
-        (n) =>
-          n.type === 'table' &&
-          n.databaseType === 'postgres' &&
-          'name' in n &&
-          (n.name === tableName || n.name.endsWith(`.${tableName}`)),
-      );
+      if (!tableName || !column) throw new Error('Missing input.table or input.column');
 
       const sanitizedCol = column.replace(/[^a-zA-Z0-9_]/g, '_');
       const sanitizedTable = tableName.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -244,14 +291,12 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
       return {
         table: tableName,
         column,
-        found: !!tableNode,
         recommendation: `CREATE INDEX CONCURRENTLY ${indexName} ON ${tableName} (${column});`,
-        rationale: `An index on column "${column}" of table "${tableName}" will eliminate sequential scans when filtering on this column.`,
+        rationale: `An index on "${column}" eliminates sequential scans when filtering on this column.`,
         notes: [
-          'Use CONCURRENTLY to avoid locking the table during index creation',
-          'Consider a partial index if the column has high cardinality and you commonly filter on specific values',
-          'Run ANALYZE after creating the index to update statistics',
-          `Example partial index: CREATE INDEX CONCURRENTLY ${indexName}_partial ON ${tableName} (${column}) WHERE ${column} IS NOT NULL;`,
+          'Use CONCURRENTLY to avoid locking the table',
+          'Run ANALYZE after creation',
+          `Partial index: CREATE INDEX CONCURRENTLY ${indexName}_partial ON ${tableName} (${column}) WHERE ${column} IS NOT NULL;`,
         ],
       };
     }
@@ -259,23 +304,17 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
     case 'suggest_mongo_index': {
       const collection = String(input.collection ?? '');
       const field = String(input.field ?? '');
-
-      if (!collection || !field) {
-        throw new Error('Missing input.collection or input.field');
-      }
-
-      const sanitizedField = field.replace(/[^a-zA-Z0-9_.]/g, '_');
+      if (!collection || !field) throw new Error('Missing input.collection or input.field');
 
       return {
         collection,
         field,
         recommendation: `db.${collection}.createIndex({ ${field}: 1 })`,
-        rationale: `An index on field "${field}" of collection "${collection}" will eliminate full collection scans when filtering on this field.`,
+        rationale: `An index on "${field}" eliminates full collection scans when filtering on this field.`,
         notes: [
-          'Use { background: true } in MongoDB < 4.2 to avoid blocking reads during index creation',
-          `For compound queries, consider a compound index: db.${collection}.createIndex({ ${field}: 1, otherField: 1 })`,
-          `For text search, use a text index: db.${collection}.createIndex({ ${sanitizedField}: "text" })`,
-          `Run db.${collection}.explain("executionStats").find({ ${field}: value }) to verify the index is used`,
+          `Compound: db.${collection}.createIndex({ ${field}: 1, otherField: 1 })`,
+          `Text: db.${collection}.createIndex({ ${field}: "text" })`,
+          `Verify: db.${collection}.explain("executionStats").find({ ${field}: value })`,
         ],
       };
     }
@@ -283,40 +322,148 @@ async function handleToolCall(tool: string, input: Record<string, unknown>): Pro
     case 'mysql_index_suggestions': {
       const tableName = String(input.table ?? '');
       const column = String(input.column ?? '');
-
-      if (!tableName || !column) {
-        throw new Error('Missing input.table or input.column');
-      }
+      if (!tableName || !column) throw new Error('Missing input.table or input.column');
 
       const sanitizedCol = column.replace(/[^a-zA-Z0-9_]/g, '_');
       const sanitizedTable = tableName.replace(/[^a-zA-Z0-9_]/g, '_');
       const indexName = `idx_${sanitizedTable}_${sanitizedCol}`;
 
-      const tableNode = currentGraph.nodes.find(
-        (n) =>
-          n.type === 'table' &&
-          n.databaseType === 'mysql' &&
-          'name' in n &&
-          (n.name === tableName || n.name.endsWith(`.${tableName}`)),
-      );
-
       return {
         table: tableName,
         column,
-        found: !!tableNode,
         recommendation: `ALTER TABLE ${tableName} ADD INDEX ${indexName} (${column});`,
-        rationale: `An index on column "${column}" of table "${tableName}" will eliminate full table scans when filtering on this column.`,
+        rationale: `An index on "${column}" eliminates full table scans when filtering on this column.`,
         notes: [
-          'MySQL adds indexes online (no full table lock for InnoDB with MySQL 5.6+)',
-          `Consider a composite index if you filter on multiple columns together`,
-          `Use EXPLAIN SELECT ... to verify the index is used after adding it`,
-          `Example composite: ALTER TABLE ${tableName} ADD INDEX idx_${sanitizedTable}_composite (${column}, other_column);`,
+          'MySQL InnoDB adds indexes online (no full lock for 5.6+)',
+          `EXPLAIN SELECT ... to verify after adding`,
+          `Composite: ALTER TABLE ${tableName} ADD INDEX idx_composite (${column}, other_column);`,
         ],
       };
     }
 
+    // ── Messaging ─────────────────────────────────────────────────────────────
+
+    case 'get_queue_details': {
+      const queues = getQueueNodes(currentGraph);
+      const queueFindings = currentFindings.filter(
+        (f) => (f.metadata as Record<string, unknown> | undefined)?.queueName,
+      );
+
+      return {
+        total: queues.length,
+        queues: queues.map((q) => ({
+          name: q.name,
+          provider: q.provider,
+          hasDLQ: q.hasDLQ,
+          encrypted: q.encrypted,
+          approximateMessages: q.approximateMessages,
+          retentionDays: q.retentionDays,
+          findings: queueFindings
+            .filter((f) => (f.metadata as Record<string, unknown>).queueName === q.name)
+            .map((f) => ({ severity: f.severity, issue: f.issue })),
+        })),
+      };
+    }
+
+    case 'get_topic_details': {
+      const topics = getTopicNodes(currentGraph);
+      return {
+        total: topics.length,
+        topics: topics.map((t) => ({
+          name: t.name,
+          provider: t.provider,
+          subscriptionCount: t.subscriptionCount,
+          encrypted: t.encrypted,
+        })),
+      };
+    }
+
+    // ── Secrets & config ──────────────────────────────────────────────────────
+
+    case 'get_secrets_overview': {
+      const secrets = getSecretNodes(currentGraph);
+      const secretFindings = currentFindings.filter(
+        (f) => (f.metadata as Record<string, unknown> | undefined)?.secretName,
+      );
+
+      return {
+        total: secrets.length,
+        note: 'Secret values are never included in this response.',
+        secrets: secrets.map((s) => ({
+          name: s.name,
+          provider: s.provider,
+          rotationEnabled: s.rotationEnabled,
+          rotationDays: s.rotationDays,
+          findings: secretFindings
+            .filter((f) => (f.metadata as Record<string, unknown>).secretName === s.name)
+            .map((f) => ({ severity: f.severity, issue: f.issue })),
+        })),
+      };
+    }
+
+    case 'get_parameter_overview': {
+      const parameters = getParameterNodes(currentGraph);
+      return {
+        total: parameters.length,
+        note: 'Parameter values are never included in this response.',
+        parameters: parameters.map((p) => ({
+          name: p.name,
+          provider: p.provider,
+          type: p.paramType,
+          tier: p.tier,
+        })),
+      };
+    }
+
+    // ── Compute ───────────────────────────────────────────────────────────────
+
+    case 'get_lambda_overview': {
+      const lambdas = getLambdaNodes(currentGraph);
+      const lambdaFindings = currentFindings.filter(
+        (f) => (f.metadata as Record<string, unknown> | undefined)?.functionName,
+      );
+
+      return {
+        total: lambdas.length,
+        note: 'Environment variable values are never included.',
+        lambdas: lambdas.map((l) => ({
+          name: l.name,
+          runtime: l.runtime,
+          memoryMB: l.memoryMB,
+          timeoutSec: l.timeoutSec,
+          envVarCount: l.envVarKeys?.length ?? 0,
+          envVarKeys: l.envVarKeys,
+          findings: lambdaFindings
+            .filter((f) => (f.metadata as Record<string, unknown>).functionName === l.name)
+            .map((f) => ({ severity: f.severity, issue: f.issue })),
+        })),
+      };
+    }
+
+    // ── Observability ─────────────────────────────────────────────────────────
+
+    case 'get_log_errors': {
+      const filterName = input.logGroup ? String(input.logGroup) : undefined;
+      const logGroups = getLogGroupNodes(currentGraph).filter(
+        (lg) => !filterName || lg.name.includes(filterName),
+      );
+
+      return {
+        note: 'Only error patterns and counts are returned — no raw log messages.',
+        windowHours: 24,
+        logGroups: logGroups.map((lg) => ({
+          name: lg.name,
+          retentionDays: lg.retentionDays ?? 'never-expires',
+          errorCount: lg.errorCount,
+          topErrorPatterns: lg.topErrorPatterns,
+        })),
+      };
+    }
+
     default:
-      throw new Error(`Unknown tool: "${tool}". Available tools: get_graph_summary, analyze_function, suggest_gsi, postgres_index_suggestions, suggest_mongo_index, mysql_index_suggestions`);
+      throw new Error(
+        `Unknown tool: "${tool}". Call GET /mcp/tools for the list of available tools.`,
+      );
   }
 }
 
@@ -324,8 +471,6 @@ async function startServer(fastify: ReturnType<typeof Fastify>, port: number): P
   try {
     await fastify.listen({ port, host: '0.0.0.0' });
     logger.info(`Infrawise MCP server running at http://localhost:${port}`);
-    logger.info(`MCP endpoint: http://localhost:${port}/mcp`);
-    logger.info(`Available tools: http://localhost:${port}/mcp/tools`);
   } catch (err) {
     logger.error(`Failed to start server: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);

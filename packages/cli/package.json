@@ -1,11 +1,17 @@
 {
   "name": "infrawise",
   "version": "0.1.0",
-  "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB usage and exposes findings as an MCP server for Claude Code",
+  "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
   "keywords": [
     "infrastructure",
     "aws",
     "dynamodb",
+    "sqs",
+    "sns",
+    "lambda",
+    "cloudwatch",
+    "secrets-manager",
+    "ssm",
     "postgresql",
     "mysql",
     "mongodb",
@@ -16,7 +22,8 @@
     "cli",
     "devtools",
     "terraform",
-    "cloudformation"
+    "cloudformation",
+    "cdk"
   ],
   "homepage": "https://github.com/Sidd27/infrawise#readme",
   "repository": {
@@ -42,6 +49,12 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@aws-sdk/client-sns": "^3.0.0",
+    "@aws-sdk/client-ssm": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-lambda": "^3.0.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.0.0",
     "@aws-sdk/credential-providers": "^3.0.0",
     "@fastify/cors": "^9.0.0",
     "@infrawise/adapters-dynamodb": "workspace:*",
@@ -49,6 +62,8 @@
     "@infrawise/adapters-mysql": "workspace:*",
     "@infrawise/adapters-postgres": "workspace:*",
     "@infrawise/adapters-terraform": "workspace:*",
+    "@infrawise/adapters-aws-services": "workspace:*",
+    "@infrawise/adapters-logs": "workspace:*",
     "@infrawise/analyzers": "workspace:*",
     "@infrawise/context": "workspace:*",
     "@infrawise/core": "workspace:*",

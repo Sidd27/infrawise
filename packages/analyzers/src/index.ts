@@ -5,25 +5,59 @@ import { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './p
 import { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
 import { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
 import { IaCDriftAnalyzer } from './terraform';
+import {
+  MissingDLQAnalyzer,
+  UnencryptedQueueAnalyzer,
+  LargeQueueBacklogAnalyzer,
+  MissingSecretRotationAnalyzer,
+  MissingLogRetentionAnalyzer,
+  LambdaDefaultMemoryAnalyzer,
+  LambdaHighTimeoutAnalyzer,
+} from './aws-services';
 
 export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
 export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
 export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
 export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
 export { IaCDriftAnalyzer } from './terraform';
+export {
+  MissingDLQAnalyzer,
+  UnencryptedQueueAnalyzer,
+  LargeQueueBacklogAnalyzer,
+  MissingSecretRotationAnalyzer,
+  MissingLogRetentionAnalyzer,
+  LambdaDefaultMemoryAnalyzer,
+  LambdaHighTimeoutAnalyzer,
+} from './aws-services';
 
 const DEFAULT_ANALYZERS: Analyzer[] = [
+  // DynamoDB
   new FullTableScanAnalyzer(),
   new MissingGSIAnalyzer(),
   new HotPartitionAnalyzer(),
+  // PostgreSQL
   new MissingIndexAnalyzer(),
   new NplusOneAnalyzer(),
   new LargeSelectAnalyzer(),
+  // MySQL
   new MissingMySQLIndexAnalyzer(),
   new MySQLFullTableScanAnalyzer(),
+  // MongoDB
   new MissingMongoIndexAnalyzer(),
   new MongoCollectionScanAnalyzer(),
+  // IaC drift
   new IaCDriftAnalyzer(),
+  // SQS / messaging
+  new MissingDLQAnalyzer(),
+  new UnencryptedQueueAnalyzer(),
+  new LargeQueueBacklogAnalyzer(),
+  // Secrets Manager
+  new MissingSecretRotationAnalyzer(),
+  // CloudWatch Logs
+  new MissingLogRetentionAnalyzer(),
+  // Lambda
+  new LambdaDefaultMemoryAnalyzer(),
+  new LambdaHighTimeoutAnalyzer(),
 ];
 
 export async function runAllAnalyzers(
@@ -45,10 +79,8 @@ export async function runAllAnalyzers(
     }
   }
 
-  // Sort findings by severity: high -> medium -> low
   const severityOrder = { high: 0, medium: 1, low: 2 };
   allFindings.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-
   return allFindings;
 }
 

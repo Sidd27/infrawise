@@ -13,49 +13,43 @@ export const InfrawiseConfigSchema = z.object({
     })
     .optional()
     .default({}),
-  dynamodb: z
-    .object({
-      includeTables: z.array(z.string()).optional(),
-    })
-    .optional(),
-  postgres: z
-    .object({
-      enabled: z.boolean().optional().default(false),
-      connectionString: z.string().optional(),
-    })
-    .optional(),
-  mysql: z
-    .object({
-      enabled: z.boolean().optional().default(false),
-      connectionString: z.string().optional(),
-    })
-    .optional(),
-  mongodb: z
-    .object({
-      enabled: z.boolean().optional().default(false),
-      connectionString: z.string().optional(),
-      databases: z.array(z.string()).optional(),
-    })
-    .optional(),
-  terraform: z
-    .object({
-      enabled: z.boolean().optional().default(true),
-    })
-    .optional(),
-  analysis: z
-    .object({
-      sampleSize: z.number().int().positive().optional().default(100),
-    })
-    .optional(),
+  dynamodb: z.object({ includeTables: z.array(z.string()).optional() }).optional(),
+  postgres: z.object({
+    enabled: z.boolean().optional().default(false),
+    connectionString: z.string().optional(),
+  }).optional(),
+  mysql: z.object({
+    enabled: z.boolean().optional().default(false),
+    connectionString: z.string().optional(),
+  }).optional(),
+  mongodb: z.object({
+    enabled: z.boolean().optional().default(false),
+    connectionString: z.string().optional(),
+    databases: z.array(z.string()).optional(),
+  }).optional(),
+  terraform: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  sqs: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  sns: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  ssm: z.object({
+    enabled: z.boolean().optional().default(true),
+    paths: z.array(z.string()).optional(),
+  }).optional(),
+  secretsManager: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  lambda: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  cloudwatchLogs: z.object({
+    enabled: z.boolean().optional().default(false),
+    logGroupPrefixes: z.array(z.string()).optional(),
+    windowHours: z.number().int().positive().optional().default(24),
+  }).optional(),
+  analysis: z.object({
+    sampleSize: z.number().int().positive().optional().default(100),
+  }).optional(),
 });
 
 export type ValidatedConfig = z.infer<typeof InfrawiseConfigSchema>;
 
 export class ConfigError extends Error {
-  constructor(
-    message: string,
-    public readonly details?: string[],
-  ) {
+  constructor(message: string, public readonly details?: string[]) {
     super(message);
     this.name = 'ConfigError';
   }
@@ -67,33 +61,24 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
     : path.resolve(process.cwd(), 'infrawise.yaml');
 
   if (!fs.existsSync(resolvedPath)) {
-    throw new ConfigError(
-      `Configuration file not found at: ${resolvedPath}`,
-      [
-        'Run `infrawise init` to generate a configuration file',
-        `Or specify a path with --config <path>`,
-      ],
-    );
+    throw new ConfigError(`Configuration file not found at: ${resolvedPath}`, [
+      'Run `infrawise init` to generate a configuration file',
+      `Or specify a path with --config <path>`,
+    ]);
   }
 
   let rawContent: string;
   try {
     rawContent = fs.readFileSync(resolvedPath, 'utf-8');
   } catch (err) {
-    throw new ConfigError(`Unable to read configuration file: ${resolvedPath}`, [
-      'Check file permissions',
-      String(err),
-    ]);
+    throw new ConfigError(`Unable to read configuration file: ${resolvedPath}`, [String(err)]);
   }
 
   let parsedYaml: unknown;
   try {
     parsedYaml = yaml.load(rawContent);
   } catch (err) {
-    throw new ConfigError(`Invalid YAML in configuration file: ${resolvedPath}`, [
-      'Check the YAML syntax',
-      String(err),
-    ]);
+    throw new ConfigError(`Invalid YAML in configuration file: ${resolvedPath}`, [String(err)]);
   }
 
   const result = InfrawiseConfigSchema.safeParse(parsedYaml);
@@ -106,15 +91,13 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
 }
 
 export function generateDefaultConfig(projectName: string, options?: Partial<InfrawiseConfig>): string {
-  const config = {
+  const config: Record<string, unknown> = {
     project: projectName,
     aws: {
       profile: options?.aws?.profile ?? 'default',
       region: options?.aws?.region ?? 'us-east-1',
     },
-    dynamodb: {
-      includeTables: options?.dynamodb?.includeTables ?? [],
-    },
+    dynamodb: { includeTables: options?.dynamodb?.includeTables ?? [] },
     postgres: {
       enabled: options?.postgres?.enabled ?? false,
       connectionString: options?.postgres?.connectionString ?? '',
@@ -128,12 +111,21 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
       connectionString: options?.mongodb?.connectionString ?? '',
       databases: options?.mongodb?.databases ?? [],
     },
-    terraform: {
-      enabled: options?.terraform?.enabled ?? true,
+    terraform: { enabled: options?.terraform?.enabled ?? true },
+    sqs: { enabled: options?.sqs?.enabled ?? true },
+    sns: { enabled: options?.sns?.enabled ?? true },
+    ssm: {
+      enabled: options?.ssm?.enabled ?? true,
+      paths: options?.ssm?.paths ?? [],
     },
-    analysis: {
-      sampleSize: options?.analysis?.sampleSize ?? 100,
+    secretsManager: { enabled: options?.secretsManager?.enabled ?? true },
+    lambda: { enabled: options?.lambda?.enabled ?? true },
+    cloudwatchLogs: {
+      enabled: options?.cloudwatchLogs?.enabled ?? false,
+      logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],
+      windowHours: options?.cloudwatchLogs?.windowHours ?? 24,
     },
+    analysis: { sampleSize: options?.analysis?.sampleSize ?? 100 },
   };
 
   return yaml.dump(config, { lineWidth: 120 });

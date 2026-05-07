@@ -7,6 +7,7 @@ import type {
   PostgresTableMetadata,
   MySQLTableMetadata,
   MongoCollectionMetadata,
+  ServicesMeta,
 } from '@infrawise/shared';
 
 export function buildGraph(
@@ -15,175 +16,216 @@ export function buildGraph(
   postgresMeta: PostgresTableMetadata[],
   mysqlMeta: MySQLTableMetadata[] = [],
   mongoMeta: MongoCollectionMetadata[] = [],
+  servicesMeta: ServicesMeta = {},
 ): SystemGraph {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
 
-  // Add table nodes from DynamoDB metadata
+  function addNode(node: GraphNode): void {
+    if (!nodeIds.has(node.id)) {
+      nodes.push(node);
+      nodeIds.add(node.id);
+    }
+  }
+
+  // ── Database tables ──────────────────────────────────────────────────────
+
   for (const table of dynamoMeta) {
     const nodeId = `table:dynamo:${table.tableName}`;
-    if (!nodeIds.has(nodeId)) {
-      nodes.push({
-        id: nodeId,
-        type: 'table',
-        name: table.tableName,
-        databaseType: 'dynamodb',
-      });
-      nodeIds.add(nodeId);
-    }
-
-    // Add index nodes for each GSI
+    addNode({ id: nodeId, type: 'table', name: table.tableName, databaseType: 'dynamodb' });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.tableName}:${indexName}`;
-      if (!nodeIds.has(indexNodeId)) {
-        nodes.push({ id: indexNodeId, type: 'index', name: indexName });
-        nodeIds.add(indexNodeId);
-      }
-      // Edge: table uses_index
+      addNode({ id: indexNodeId, type: 'index', name: indexName });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
 
-  // Add table nodes from PostgreSQL metadata
   for (const table of postgresMeta) {
     const nodeId = `table:postgres:${table.schema}.${table.table}`;
-    if (!nodeIds.has(nodeId)) {
-      nodes.push({
-        id: nodeId,
-        type: 'table',
-        name: `${table.schema}.${table.table}`,
-        databaseType: 'postgres',
-      });
-      nodeIds.add(nodeId);
-    }
-
-    // Add index nodes
+    addNode({ id: nodeId, type: 'table', name: `${table.schema}.${table.table}`, databaseType: 'postgres' });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
-      if (!nodeIds.has(indexNodeId)) {
-        nodes.push({ id: indexNodeId, type: 'index', name: indexName });
-        nodeIds.add(indexNodeId);
-      }
+      addNode({ id: indexNodeId, type: 'index', name: indexName });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
 
-  // Add table nodes from MySQL metadata
   for (const table of mysqlMeta) {
     const nodeId = `table:mysql:${table.schema}.${table.table}`;
-    if (!nodeIds.has(nodeId)) {
-      nodes.push({
-        id: nodeId,
-        type: 'table',
-        name: `${table.schema}.${table.table}`,
-        databaseType: 'mysql',
-      });
-      nodeIds.add(nodeId);
-    }
-
-    // Add index nodes
+    addNode({ id: nodeId, type: 'table', name: `${table.schema}.${table.table}`, databaseType: 'mysql' });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
-      if (!nodeIds.has(indexNodeId)) {
-        nodes.push({ id: indexNodeId, type: 'index', name: indexName });
-        nodeIds.add(indexNodeId);
-      }
+      addNode({ id: indexNodeId, type: 'index', name: indexName });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
 
-  // Add collection nodes from MongoDB metadata
   for (const coll of mongoMeta) {
     const nodeId = `table:mongodb:${coll.database}.${coll.collection}`;
-    if (!nodeIds.has(nodeId)) {
-      nodes.push({
-        id: nodeId,
-        type: 'table',
-        name: `${coll.database}.${coll.collection}`,
-        databaseType: 'mongodb',
-      });
-      nodeIds.add(nodeId);
-    }
-
-    // Add index nodes
+    addNode({ id: nodeId, type: 'table', name: `${coll.database}.${coll.collection}`, databaseType: 'mongodb' });
     for (const idx of coll.indexes) {
-      if (idx.name === '_id_') continue; // Skip default _id index
+      if (idx.name === '_id_') continue;
       const indexNodeId = `index:${coll.database}.${coll.collection}:${idx.name}`;
-      if (!nodeIds.has(indexNodeId)) {
-        nodes.push({ id: indexNodeId, type: 'index', name: idx.name });
-        nodeIds.add(indexNodeId);
-      }
+      addNode({ id: indexNodeId, type: 'index', name: idx.name });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
 
-  // Process extracted operations — add function nodes and edges
+  // ── AWS services ──────────────────────────────────────────────────────────
+
+  for (const q of servicesMeta.sqs ?? []) {
+    addNode({
+      id: `queue:aws:${q.name}`,
+      type: 'queue',
+      name: q.name,
+      provider: 'aws',
+      hasDLQ: q.hasDLQ,
+      encrypted: q.encrypted,
+      approximateMessages: q.approximateMessages,
+      retentionDays: q.retentionDays,
+    });
+  }
+
+  for (const t of servicesMeta.sns ?? []) {
+    addNode({
+      id: `topic:aws:${t.name}`,
+      type: 'topic',
+      name: t.name,
+      provider: 'aws',
+      subscriptionCount: t.subscriptionCount,
+      encrypted: t.encrypted,
+    });
+  }
+
+  for (const s of servicesMeta.secrets ?? []) {
+    addNode({
+      id: `secret:aws:${s.name}`,
+      type: 'secret',
+      name: s.name,
+      provider: 'aws',
+      rotationEnabled: s.rotationEnabled,
+      rotationDays: s.rotationDays,
+    });
+  }
+
+  for (const p of servicesMeta.ssm ?? []) {
+    addNode({
+      id: `parameter:aws:${p.name}`,
+      type: 'parameter',
+      name: p.name,
+      provider: 'aws',
+      paramType: p.type,
+      tier: p.tier,
+    });
+  }
+
+  for (const lg of servicesMeta.logs ?? []) {
+    addNode({
+      id: `log_group:aws:${lg.logGroupName}`,
+      type: 'log_group',
+      name: lg.logGroupName,
+      provider: 'aws',
+      retentionDays: lg.retentionDays,
+      errorCount: lg.errorCount,
+      topErrorPatterns: lg.topErrorPatterns,
+    });
+  }
+
+  for (const fn of servicesMeta.lambda ?? []) {
+    addNode({
+      id: `lambda:aws:${fn.name}`,
+      type: 'lambda',
+      name: fn.name,
+      runtime: fn.runtime,
+      memoryMB: fn.memoryMB,
+      timeoutSec: fn.timeoutSec,
+      envVarKeys: fn.envVarKeys,
+    });
+  }
+
+  // ── Code operations (functions + edges) ───────────────────────────────────
+
   for (const op of operations) {
     const funcNodeId = `function:${op.filePath}:${op.functionName}`;
     if (!nodeIds.has(funcNodeId)) {
-      nodes.push({
-        id: funcNodeId,
-        type: 'function',
-        name: op.functionName,
-        file: op.filePath,
-      });
+      nodes.push({ id: funcNodeId, type: 'function', name: op.functionName, file: op.filePath });
       nodeIds.add(funcNodeId);
     }
 
-    // Resolve target table node id
+    // AWS service operations create edges to service nodes
+    if (op.databaseType === 'sqs') {
+      const queueId = `queue:aws:${op.target}`;
+      if (!nodeIds.has(queueId)) {
+        addNode({ id: queueId, type: 'queue', name: op.target, provider: 'aws', hasDLQ: false, encrypted: false });
+      }
+      edges.push({ from: funcNodeId, to: queueId, type: 'publishes_to' });
+      continue;
+    }
+
+    if (op.databaseType === 'sns') {
+      const topicId = `topic:aws:${op.target}`;
+      if (!nodeIds.has(topicId)) {
+        addNode({ id: topicId, type: 'topic', name: op.target, provider: 'aws', encrypted: false });
+      }
+      edges.push({ from: funcNodeId, to: topicId, type: 'publishes_to' });
+      continue;
+    }
+
+    if (op.databaseType === 'ssm') {
+      const paramId = `parameter:aws:${op.target}`;
+      if (!nodeIds.has(paramId)) {
+        addNode({ id: paramId, type: 'parameter', name: op.target, provider: 'aws', paramType: 'String', tier: 'Standard' });
+      }
+      edges.push({ from: funcNodeId, to: paramId, type: 'reads_parameter' });
+      continue;
+    }
+
+    if (op.databaseType === 'secretsmanager') {
+      const secretId = `secret:aws:${op.target}`;
+      if (!nodeIds.has(secretId)) {
+        addNode({ id: secretId, type: 'secret', name: op.target, provider: 'aws', rotationEnabled: false });
+      }
+      edges.push({ from: funcNodeId, to: secretId, type: 'reads_secret' });
+      continue;
+    }
+
+    if (op.databaseType === 'lambda') {
+      const lambdaId = `lambda:aws:${op.target}`;
+      if (!nodeIds.has(lambdaId)) {
+        addNode({ id: lambdaId, type: 'lambda', name: op.target });
+      }
+      edges.push({ from: funcNodeId, to: lambdaId, type: 'triggers' });
+      continue;
+    }
+
+    // Database operations
     let tableNodeId: string | undefined;
     if (op.databaseType === 'dynamodb') {
       tableNodeId = `table:dynamo:${op.target}`;
-      // If the table isn't in metadata, still add it
       if (!nodeIds.has(tableNodeId)) {
-        nodes.push({
-          id: tableNodeId,
-          type: 'table',
-          name: op.target,
-          databaseType: 'dynamodb',
-        });
-        nodeIds.add(tableNodeId);
+        addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
       }
     } else if (op.databaseType === 'mysql') {
-      const qualifiedTarget = op.target.includes('.') ? op.target : `default.${op.target}`;
-      tableNodeId = `table:mysql:${qualifiedTarget}`;
+      const q = op.target.includes('.') ? op.target : `default.${op.target}`;
+      tableNodeId = `table:mysql:${q}`;
       if (!nodeIds.has(tableNodeId)) {
-        nodes.push({
-          id: tableNodeId,
-          type: 'table',
-          name: qualifiedTarget,
-          databaseType: 'mysql',
-        });
-        nodeIds.add(tableNodeId);
+        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
       }
     } else if (op.databaseType === 'mongodb') {
-      const qualifiedTarget = op.target.includes('.') ? op.target : `default.${op.target}`;
-      tableNodeId = `table:mongodb:${qualifiedTarget}`;
+      const q = op.target.includes('.') ? op.target : `default.${op.target}`;
+      tableNodeId = `table:mongodb:${q}`;
       if (!nodeIds.has(tableNodeId)) {
-        nodes.push({
-          id: tableNodeId,
-          type: 'table',
-          name: qualifiedTarget,
-          databaseType: 'mongodb',
-        });
-        nodeIds.add(tableNodeId);
+        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });
       }
     } else {
-      // postgres — target might be "schema.table" or just "table"
-      const qualifiedTarget = op.target.includes('.') ? op.target : `public.${op.target}`;
-      tableNodeId = `table:postgres:${qualifiedTarget}`;
+      // postgres
+      const q = op.target.includes('.') ? op.target : `public.${op.target}`;
+      tableNodeId = `table:postgres:${q}`;
       if (!nodeIds.has(tableNodeId)) {
-        const parts = qualifiedTarget.split('.');
-        nodes.push({
-          id: tableNodeId,
-          type: 'table',
-          name: qualifiedTarget,
-          databaseType: 'postgres',
-        });
-        nodeIds.add(tableNodeId);
-        // Also add a synthetic postgres meta entry if not already tracked
-        if (!postgresMeta.find((t) => `${t.schema}.${t.table}` === qualifiedTarget)) {
+        const parts = q.split('.');
+        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'postgres' });
+        if (!postgresMeta.find((t) => `${t.schema}.${t.table}` === q)) {
           postgresMeta.push({
             schema: parts[0] ?? 'public',
             table: parts[1] ?? op.target,
@@ -195,7 +237,6 @@ export function buildGraph(
       }
     }
 
-    // Determine edge type based on operation
     const edgeType = resolveEdgeType(op.operationType);
     edges.push({ from: funcNodeId, to: tableNodeId, type: edgeType });
   }
@@ -203,25 +244,49 @@ export function buildGraph(
   return { nodes, edges };
 }
 
-function resolveEdgeType(operationType: string): GraphEdge['type'] {
+function resolveEdgeType(operationType: string): Extract<GraphEdge, { type: 'query' | 'scan' | 'joins' }>['type'] {
   const op = operationType.toLowerCase();
   if (op === 'scan' || op === 'scancommand') return 'scan';
   if (op === 'join' || op === 'joins') return 'joins';
   return 'query';
 }
 
+// ── Typed node selectors ─────────────────────────────────────────────────────
+
 export function getTableNodes(graph: SystemGraph): Extract<GraphNode, { type: 'table' }>[] {
   return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'table' }> => n.type === 'table');
 }
 
 export function getFunctionNodes(graph: SystemGraph): Extract<GraphNode, { type: 'function' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'function' }> => n.type === 'function',
-  );
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'function' }> => n.type === 'function');
 }
 
 export function getIndexNodes(graph: SystemGraph): Extract<GraphNode, { type: 'index' }>[] {
   return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'index' }> => n.type === 'index');
+}
+
+export function getQueueNodes(graph: SystemGraph): Extract<GraphNode, { type: 'queue' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'queue' }> => n.type === 'queue');
+}
+
+export function getTopicNodes(graph: SystemGraph): Extract<GraphNode, { type: 'topic' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'topic' }> => n.type === 'topic');
+}
+
+export function getSecretNodes(graph: SystemGraph): Extract<GraphNode, { type: 'secret' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'secret' }> => n.type === 'secret');
+}
+
+export function getParameterNodes(graph: SystemGraph): Extract<GraphNode, { type: 'parameter' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'parameter' }> => n.type === 'parameter');
+}
+
+export function getLogGroupNodes(graph: SystemGraph): Extract<GraphNode, { type: 'log_group' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'log_group' }> => n.type === 'log_group');
+}
+
+export function getLambdaNodes(graph: SystemGraph): Extract<GraphNode, { type: 'lambda' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda');
 }
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '@infrawise/core';
@@ -7,6 +8,14 @@ import { validateDynamoAccess } from '@infrawise/adapters-dynamodb';
 import { validatePostgresAccess } from '@infrawise/adapters-postgres';
 import { validateMySQLAccess } from '@infrawise/adapters-mysql';
 import { validateMongoAccess } from '@infrawise/adapters-mongodb';
+import {
+  validateSQSAccess,
+  validateSNSAccess,
+  validateSSMAccess,
+  validateSecretsAccess,
+  validateLambdaAccess,
+} from '@infrawise/adapters-aws-services';
+import { validateLogsAccess } from '@infrawise/adapters-logs';
 import { printHeader } from '../utils';
 
 interface CheckResult {
@@ -25,9 +34,7 @@ async function runCheck(label: string, fn: () => Promise<CheckResult>): Promise<
     case 'warn': spin.warn(chalk.yellow(result.name) + chalk.dim(`  ${result.message}`)); break;
     case 'skip': spin.info(chalk.dim(`${result.name}  ${result.message}`)); break;
   }
-  if (result.detail) {
-    console.log(chalk.dim(`       ${result.detail}`));
-  }
+  if (result.detail) console.log(chalk.dim(`       ${result.detail}`));
   return result;
 }
 
@@ -51,17 +58,13 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
   // Config valid
   let config: ReturnType<typeof loadConfig> | undefined;
   results.push(await runCheck('Validating config...', async () => {
-    if (!fs.existsSync(configPath)) {
-      return { name: 'Config validation', status: 'skip', message: 'No config file' };
-    }
+    if (!fs.existsSync(configPath)) return { name: 'Config validation', status: 'skip', message: 'No config file' };
     try {
       config = loadConfig(options.config);
       return { name: 'Config validation', status: 'pass', message: `project: ${config.project}` };
     } catch (err) {
       return {
-        name: 'Config validation',
-        status: 'fail',
-        message: 'Invalid config',
+        name: 'Config validation', status: 'fail', message: 'Invalid config',
         detail: err instanceof Error ? err.message : String(err),
       };
     }
@@ -80,24 +83,109 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     };
   }));
 
-  // DynamoDB access
+  const awsCfg = { region: config?.aws?.region, profile: config?.aws?.profile };
+
+  // DynamoDB
   results.push(await runCheck('Testing DynamoDB access...', async () => {
-    if (!config) return { name: 'DynamoDB access', status: 'skip', message: 'No valid config' };
+    if (!config) return { name: 'DynamoDB', status: 'skip', message: 'No valid config' };
     try {
       const ok = await validateDynamoAccess(config);
       return {
-        name: 'DynamoDB access',
-        status: ok ? 'pass' : 'fail',
-        message: ok
-          ? `Connected (profile: ${config.aws?.profile ?? 'default'})`
-          : 'Cannot connect',
+        name: 'DynamoDB', status: ok ? 'pass' : 'fail',
+        message: ok ? `Connected (profile: ${config.aws?.profile ?? 'default'})` : 'Cannot connect',
         detail: ok ? undefined : 'Check IAM: dynamodb:ListTables, dynamodb:DescribeTable',
       };
     } catch (err) {
+      return { name: 'DynamoDB', status: 'fail', message: err instanceof Error ? err.message : String(err) };
+    }
+  }));
+
+  // SQS
+  results.push(await runCheck('Testing SQS access...', async () => {
+    if (config?.sqs?.enabled === false) return { name: 'SQS', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateSQSAccess(awsCfg);
+      return { name: 'SQS', status: 'pass', message: 'Connected' };
+    } catch (err) {
       return {
-        name: 'DynamoDB access',
-        status: 'fail',
+        name: 'SQS', status: 'warn',
         message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: sqs:ListQueues, sqs:GetQueueAttributes',
+      };
+    }
+  }));
+
+  // SNS
+  results.push(await runCheck('Testing SNS access...', async () => {
+    if (config?.sns?.enabled === false) return { name: 'SNS', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateSNSAccess(awsCfg);
+      return { name: 'SNS', status: 'pass', message: 'Connected' };
+    } catch (err) {
+      return {
+        name: 'SNS', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: sns:ListTopics, sns:GetTopicAttributes, sns:ListSubscriptionsByTopic',
+      };
+    }
+  }));
+
+  // SSM
+  results.push(await runCheck('Testing SSM Parameter Store access...', async () => {
+    if (config?.ssm?.enabled === false) return { name: 'SSM', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateSSMAccess(awsCfg);
+      return { name: 'SSM', status: 'pass', message: 'Connected (metadata only)' };
+    } catch (err) {
+      return {
+        name: 'SSM', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: ssm:DescribeParameters',
+      };
+    }
+  }));
+
+  // Secrets Manager
+  results.push(await runCheck('Testing Secrets Manager access...', async () => {
+    if (config?.secretsManager?.enabled === false) return { name: 'Secrets Manager', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateSecretsAccess(awsCfg);
+      return { name: 'Secrets Manager', status: 'pass', message: 'Connected (names/rotation only)' };
+    } catch (err) {
+      return {
+        name: 'Secrets Manager', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: secretsmanager:ListSecrets',
+      };
+    }
+  }));
+
+  // Lambda
+  results.push(await runCheck('Testing Lambda access...', async () => {
+    if (config?.lambda?.enabled === false) return { name: 'Lambda', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateLambdaAccess(awsCfg);
+      return { name: 'Lambda', status: 'pass', message: 'Connected' };
+    } catch (err) {
+      return {
+        name: 'Lambda', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: lambda:ListFunctions',
+      };
+    }
+  }));
+
+  // CloudWatch Logs
+  results.push(await runCheck('Testing CloudWatch Logs access...', async () => {
+    if (!config?.cloudwatchLogs?.enabled) return { name: 'CloudWatch Logs', status: 'skip', message: 'Not enabled in config' };
+    try {
+      await validateLogsAccess(awsCfg);
+      return { name: 'CloudWatch Logs', status: 'pass', message: 'Connected' };
+    } catch (err) {
+      return {
+        name: 'CloudWatch Logs', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: logs:DescribeLogGroups, logs:FilterLogEvents',
       };
     }
   }));
@@ -110,17 +198,12 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     try {
       const ok = await validatePostgresAccess(config.postgres.connectionString);
       return {
-        name: 'PostgreSQL',
-        status: ok ? 'pass' : 'fail',
+        name: 'PostgreSQL', status: ok ? 'pass' : 'fail',
         message: ok ? 'Connected' : 'Cannot connect',
-        detail: ok ? undefined : 'Check connection string, security group, and credentials',
+        detail: ok ? undefined : 'Check connection string and security group',
       };
     } catch (err) {
-      return {
-        name: 'PostgreSQL',
-        status: 'fail',
-        message: err instanceof Error ? err.message : String(err),
-      };
+      return { name: 'PostgreSQL', status: 'fail', message: err instanceof Error ? err.message : String(err) };
     }
   }));
 
@@ -132,17 +215,12 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     try {
       const ok = await validateMySQLAccess(config.mysql.connectionString);
       return {
-        name: 'MySQL',
-        status: ok ? 'pass' : 'fail',
+        name: 'MySQL', status: ok ? 'pass' : 'fail',
         message: ok ? 'Connected' : 'Cannot connect',
-        detail: ok ? undefined : 'Check connection string, host, port 3306, and credentials',
+        detail: ok ? undefined : 'Check connection string, host, port 3306',
       };
     } catch (err) {
-      return {
-        name: 'MySQL',
-        status: 'fail',
-        message: err instanceof Error ? err.message : String(err),
-      };
+      return { name: 'MySQL', status: 'fail', message: err instanceof Error ? err.message : String(err) };
     }
   }));
 
@@ -154,29 +232,45 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     try {
       const ok = await validateMongoAccess(config.mongodb.connectionString);
       return {
-        name: 'MongoDB',
-        status: ok ? 'pass' : 'fail',
+        name: 'MongoDB', status: ok ? 'pass' : 'fail',
         message: ok ? 'Connected' : 'Cannot connect',
-        detail: ok ? undefined : 'Check connection string, host, port 27017, and credentials',
+        detail: ok ? undefined : 'Check connection string and port 27017',
       };
     } catch (err) {
-      return {
-        name: 'MongoDB',
-        status: 'fail',
-        message: err instanceof Error ? err.message : String(err),
-      };
+      return { name: 'MongoDB', status: 'fail', message: err instanceof Error ? err.message : String(err) };
     }
   }));
 
-  // TypeScript project
+  // Project type
   results.push(await runCheck('Detecting project type...', async () => {
     const hasTsConfig = fs.existsSync(path.join(process.cwd(), 'tsconfig.json'));
     const hasPkg = fs.existsSync(path.join(process.cwd(), 'package.json'));
     return {
       name: 'Project type',
       status: hasTsConfig ? 'pass' : 'warn',
-      message: hasTsConfig ? 'TypeScript (tsconfig.json found)' : hasPkg ? 'JavaScript (no tsconfig.json)' : 'Unknown project',
+      message: hasTsConfig ? 'TypeScript' : hasPkg ? 'JavaScript (no tsconfig.json)' : 'Unknown',
       detail: hasTsConfig ? undefined : 'Scanner works best with TypeScript projects',
+    };
+  }));
+
+  // IaC detection
+  results.push(await runCheck('Detecting IaC files...', async () => {
+    const cwd = process.cwd();
+    const hasTF = fs.existsSync(path.join(cwd, 'main.tf')) || fs.readdirSync(cwd).some((f) => f.endsWith('.tf'));
+    const hasCFN = fs.existsSync(path.join(cwd, 'template.yaml')) || fs.existsSync(path.join(cwd, 'template.json'));
+    const hasCDK = fs.existsSync(path.join(cwd, 'cdk.json'));
+    const hasCDKOut = fs.existsSync(path.join(cwd, 'cdk.out'));
+
+    const found: string[] = [];
+    if (hasTF) found.push('Terraform');
+    if (hasCFN) found.push('CloudFormation');
+    if (hasCDK) found.push(`CDK${hasCDKOut ? ' (synthesized)' : ' (run cdk synth)'}`);
+
+    return {
+      name: 'IaC files',
+      status: found.length > 0 ? 'pass' : 'warn',
+      message: found.length > 0 ? found.join(', ') : 'No Terraform/CFN/CDK files detected',
+      detail: found.length === 0 ? 'IaC analysis will be skipped without TF/CFN/CDK files' : undefined,
     };
   }));
 
@@ -203,9 +297,5 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     console.log(`  ${chalk.red.bold(`${failed} check(s) failed`)}  ${chalk.dim(`${passed} passed, ${warned} warning(s)`)}`);
   }
   console.log('');
-
   if (failed > 0) process.exit(1);
 }
-
-// lazy import os to avoid top-level side-effect
-import * as os from 'os';
