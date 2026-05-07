@@ -1,0 +1,64 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write   # required for npm provenance
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Set version on CLI package
+        working-directory: packages/cli
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Verify CLI binary
+        run: |
+          test -f packages/cli/dist/index.js
+          node packages/cli/dist/index.js --version
+
+      - name: Copy README into CLI package
+        run: cp README.md packages/cli/README.md
+
+      - name: Dry run publish
+        working-directory: packages/cli
+        run: npm publish --dry-run --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm
+        working-directory: packages/cli
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
