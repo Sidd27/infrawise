@@ -1,46 +1,39 @@
-import * as readline from 'readline';
-import { readAWSProfiles, GREEN, BOLD, RESET, CYAN, YELLOW, RED } from '../utils';
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import ora from 'ora';
+import { readAWSProfiles, log, printHeader } from '../utils';
 import { validateDynamoAccess } from '@infrawise/adapters-dynamodb';
 import type { InfrawiseConfig } from '@infrawise/shared';
 
-function promptSelect(question: string, options: string[]): Promise<string> {
-  console.log(`\n${question}`);
-  options.forEach((opt, i) => console.log(`  ${CYAN}${i + 1})${RESET} ${opt}`));
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(`Select (1-${options.length}): `, (answer) => {
-      rl.close();
-      const idx = parseInt(answer, 10) - 1;
-      if (idx >= 0 && idx < options.length) {
-        resolve(options[idx]!);
-      } else {
-        resolve(options[0]!);
-      }
-    });
-  });
-}
-
 export async function runAuth(): Promise<void> {
-  console.log(`${BOLD}AWS Authentication${RESET}\n`);
+  printHeader('AWS Authentication');
 
   const profiles = readAWSProfiles();
 
   if (profiles.length === 0) {
-    console.log(`${RED}No AWS profiles found.${RESET}`);
-    console.log('\nTo configure AWS credentials:');
-    console.log('  Run: aws configure');
-    console.log('  Or manually edit: ~/.aws/credentials');
+    log.fail('No AWS profiles found');
+    console.log('');
+    log.info('Run ' + chalk.cyan('aws configure') + ' to set up credentials');
+    log.info('Or manually edit ' + chalk.dim('~/.aws/credentials'));
+    console.log('');
     return;
   }
 
-  console.log(`Found ${profiles.length} AWS profile(s):`);
+  log.success(`Found ${profiles.length} profile(s)`);
+  console.log('');
 
-  const selectedProfile = await promptSelect('Select a profile to validate:', profiles);
+  const { selectedProfile } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedProfile',
+      message: 'Select a profile to validate:',
+      choices: profiles,
+    },
+  ]);
 
-  console.log(`\nValidating profile "${selectedProfile}"...`);
+  console.log('');
+  const spin = ora({ text: chalk.dim(`Validating "${selectedProfile}"...`), color: 'cyan' }).start();
 
-  // Test DynamoDB access with selected profile
   const testConfig: InfrawiseConfig = {
     project: 'auth-test',
     aws: { profile: selectedProfile, region: 'us-east-1' },
@@ -49,16 +42,19 @@ export async function runAuth(): Promise<void> {
   const isValid = await validateDynamoAccess(testConfig);
 
   if (isValid) {
-    console.log(`\n${GREEN}✓${RESET} Profile "${BOLD}${selectedProfile}${RESET}" is valid and has DynamoDB access.`);
-    console.log(`\nUpdate your infrawise.yaml:`);
-    console.log(`  ${CYAN}aws:`);
-    console.log(`    profile: ${selectedProfile}${RESET}`);
+    spin.succeed(chalk.green(`Profile "${chalk.bold(selectedProfile)}" is valid`));
+    console.log('');
+    console.log(chalk.dim('  Update your infrawise.yaml:'));
+    console.log(chalk.cyan(`  aws:\n    profile: ${selectedProfile}`));
   } else {
-    console.log(`\n${YELLOW}⚠${RESET} Profile "${BOLD}${selectedProfile}${RESET}" could not access DynamoDB.`);
-    console.log('\nPossible issues:');
-    console.log('  - Missing IAM permissions (need dynamodb:ListTables at minimum)');
-    console.log('  - Expired credentials — run: aws sso login');
-    console.log('  - Wrong region — check your AWS config');
-    console.log('\nRun: infrawise doctor for a full diagnostic');
+    spin.fail(chalk.red(`Profile "${chalk.bold(selectedProfile)}" cannot access DynamoDB`));
+    console.log('');
+    log.warn('Possible causes:');
+    log.dim('Missing IAM permissions — need dynamodb:ListTables, dynamodb:DescribeTable');
+    log.dim('Expired SSO — run: aws sso login');
+    log.dim('Wrong region — check your AWS config');
+    console.log('');
+    log.info(`Run ${chalk.cyan('infrawise doctor')} for a full diagnostic`);
   }
+  console.log('');
 }

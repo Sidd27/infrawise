@@ -1,19 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import chalk from 'chalk';
 import type { Finding } from '@infrawise/shared';
+
+// ─── AWS helpers ─────────────────────────────────────────────────────────────
 
 export function readAWSProfiles(): string[] {
   const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
   const configPath = path.join(os.homedir(), '.aws', 'config');
-
   const profiles = new Set<string>();
 
-  function parseProfiles(filePath: string, prefix = ''): void {
+  function parseFile(filePath: string): void {
     if (!fs.existsSync(filePath)) return;
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n');
-    for (const line of lines) {
+    for (const line of fs.readFileSync(filePath, 'utf-8').split('\n')) {
       const match = line.match(/^\[(.+)\]$/);
       if (match?.[1]) {
         let name = match[1];
@@ -23,25 +23,19 @@ export function readAWSProfiles(): string[] {
     }
   }
 
-  parseProfiles(credentialsPath);
-  parseProfiles(configPath);
-
+  parseFile(credentialsPath);
+  parseFile(configPath);
   return profiles.size > 0 ? [...profiles] : ['default'];
 }
 
 export function detectAWSRegion(): string {
-  // Check environment variables first
   if (process.env.AWS_DEFAULT_REGION) return process.env.AWS_DEFAULT_REGION;
   if (process.env.AWS_REGION) return process.env.AWS_REGION;
-
-  // Try reading from config file
   const configPath = path.join(os.homedir(), '.aws', 'config');
   if (fs.existsSync(configPath)) {
-    const content = fs.readFileSync(configPath, 'utf-8');
-    const match = content.match(/region\s*=\s*(.+)/);
+    const match = fs.readFileSync(configPath, 'utf-8').match(/region\s*=\s*(.+)/);
     if (match?.[1]) return match[1].trim();
   }
-
   return 'us-east-1';
 }
 
@@ -51,58 +45,87 @@ export function detectRepoType(repoPath: string): 'typescript' | 'javascript' | 
   return 'unknown';
 }
 
-export function severityColor(severity: Finding['severity']): string {
+// ─── Banner ──────────────────────────────────────────────────────────────────
+
+export function printBanner(): void {
+  const line1 = chalk.bold.hex('#6366f1')('  infrawise');
+  const version = chalk.dim(' v0.1.0');
+  const tagline = chalk.dim('  Infrastructure Intelligence Platform\n');
+  console.log(`\n${line1}${version}`);
+  console.log(tagline);
+}
+
+// ─── Section header ──────────────────────────────────────────────────────────
+
+export function printHeader(title: string): void {
+  console.log(chalk.bold(`\n${title}`));
+  console.log(chalk.dim('─'.repeat(title.length + 2)));
+}
+
+// ─── Status lines ────────────────────────────────────────────────────────────
+
+export const log = {
+  success: (msg: string, detail?: string) => {
+    console.log(`  ${chalk.green('✓')} ${msg}${detail ? chalk.dim(`  ${detail}`) : ''}`);
+  },
+  fail: (msg: string, detail?: string) => {
+    console.log(`  ${chalk.red('✗')} ${chalk.red(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`);
+  },
+  warn: (msg: string, detail?: string) => {
+    console.log(`  ${chalk.yellow('⚠')} ${chalk.yellow(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`);
+  },
+  skip: (msg: string, detail?: string) => {
+    console.log(`  ${chalk.dim('−')} ${chalk.dim(msg)}${detail ? chalk.dim(`  ${detail}`) : ''}`);
+  },
+  info: (msg: string) => {
+    console.log(`  ${chalk.cyan('›')} ${msg}`);
+  },
+  dim: (msg: string) => {
+    console.log(chalk.dim(`  ${msg}`));
+  },
+};
+
+// ─── Findings ────────────────────────────────────────────────────────────────
+
+function severityBadge(severity: Finding['severity']): string {
   switch (severity) {
-    case 'high':
-      return '\x1b[31m'; // red
-    case 'medium':
-      return '\x1b[33m'; // yellow
-    case 'low':
-      return '\x1b[36m'; // cyan
-    default:
-      return '\x1b[0m';
+    case 'high':   return chalk.bgRed.white.bold(` HIGH `);
+    case 'medium': return chalk.bgYellow.black.bold(` MED  `);
+    case 'low':    return chalk.bgCyan.black.bold(` LOW  `);
   }
 }
 
-export const RESET = '\x1b[0m';
-export const BOLD = '\x1b[1m';
-export const DIM = '\x1b[2m';
-export const GREEN = '\x1b[32m';
-export const RED = '\x1b[31m';
-export const YELLOW = '\x1b[33m';
-export const CYAN = '\x1b[36m';
-export const BLUE = '\x1b[34m';
-
-export function printBanner(): void {
-  console.log(`${BOLD}${BLUE}`);
-  console.log('  ___        __                  _          ');
-  console.log(' |_ _|_ __  / _|_ __ __ ___      _(_)___  ___ ');
-  console.log('  | || \'_ \\| |_| \'__/ _` \\ \\ /\\ / / / __|/ _ \\');
-  console.log('  | || | | |  _| | | (_| |\\ V  V /| \\__ \\  __/');
-  console.log(' |___|_| |_|_| |_|  \\__,_| \\_/\\_/ |_|___/\\___|');
-  console.log(`${RESET}`);
-  console.log(`${DIM}  Infrastructure Intelligence Platform v0.1.0${RESET}\n`);
+function severityColor(severity: Finding['severity']): chalk.Chalk {
+  switch (severity) {
+    case 'high':   return chalk.red;
+    case 'medium': return chalk.yellow;
+    case 'low':    return chalk.cyan;
+  }
 }
 
 export function printFinding(finding: Finding, index: number): void {
   const color = severityColor(finding.severity);
-  const badge = `[${finding.severity.toUpperCase()}]`;
+  const badge = severityBadge(finding.severity);
+  const num = chalk.dim(`${index + 1}.`);
 
-  console.log(`\n${BOLD}${index + 1}. ${color}${badge}${RESET} ${BOLD}${finding.issue}${RESET}`);
-  console.log(`   ${DIM}${finding.description}${RESET}`);
-  console.log(`   ${GREEN}Recommendation:${RESET} ${finding.recommendation}`);
+  console.log(`\n  ${num} ${badge}  ${chalk.bold(finding.issue)}`);
+  console.log(chalk.dim(`       ${finding.description}`));
+  console.log(`       ${chalk.green('→')} ${finding.recommendation}`);
 }
 
-export function printSummaryTable(findings: Finding[]): void {
-  const high = findings.filter((f) => f.severity === 'high').length;
+export function printSummaryBox(findings: Finding[]): void {
+  const high   = findings.filter((f) => f.severity === 'high').length;
   const medium = findings.filter((f) => f.severity === 'medium').length;
-  const low = findings.filter((f) => f.severity === 'low').length;
+  const low    = findings.filter((f) => f.severity === 'low').length;
 
-  console.log(`\n${BOLD}Summary${RESET}`);
-  console.log('─'.repeat(40));
-  console.log(`  Total Issues:  ${BOLD}${findings.length}${RESET}`);
-  console.log(`  ${RED}High:${RESET}          ${high}`);
-  console.log(`  ${YELLOW}Medium:${RESET}        ${medium}`);
-  console.log(`  ${CYAN}Low:${RESET}           ${low}`);
-  console.log('─'.repeat(40));
+  console.log('');
+  console.log(chalk.dim('  ┌─────────────────────────────┐'));
+  console.log(chalk.dim('  │') + chalk.bold('  Analysis Summary             ') + chalk.dim('│'));
+  console.log(chalk.dim('  ├─────────────────────────────┤'));
+  console.log(chalk.dim('  │') + `  ${chalk.red('●')} High     ${chalk.red.bold(String(high).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(chalk.dim('  │') + `  ${chalk.yellow('●')} Medium   ${chalk.yellow.bold(String(medium).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(chalk.dim('  │') + `  ${chalk.cyan('●')} Low      ${chalk.cyan.bold(String(low).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(chalk.dim('  ├─────────────────────────────┤'));
+  console.log(chalk.dim('  │') + `  Total    ${chalk.bold(String(findings.length).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(chalk.dim('  └─────────────────────────────┘'));
 }

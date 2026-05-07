@@ -1,105 +1,94 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
+import chalk from 'chalk';
+import inquirer from 'inquirer';
 import { generateDefaultConfig } from '@infrawise/core';
-import { readAWSProfiles, detectAWSRegion, detectRepoType, GREEN, BOLD, RESET, CYAN, YELLOW } from '../utils';
-
-function prompt(question: string, defaultValue?: string): Promise<string> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    const displayDefault = defaultValue ? ` (${defaultValue})` : '';
-    rl.question(`${question}${displayDefault}: `, (answer) => {
-      rl.close();
-      resolve(answer.trim() || defaultValue || '');
-    });
-  });
-}
-
-function promptSelect(question: string, options: string[]): Promise<string> {
-  console.log(`\n${question}`);
-  options.forEach((opt, i) => console.log(`  ${CYAN}${i + 1})${RESET} ${opt}`));
-
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(`Select (1-${options.length}): `, (answer) => {
-      rl.close();
-      const idx = parseInt(answer, 10) - 1;
-      if (idx >= 0 && idx < options.length) {
-        resolve(options[idx]!);
-      } else {
-        resolve(options[0]!);
-      }
-    });
-  });
-}
+import { readAWSProfiles, detectAWSRegion, detectRepoType, log, printHeader } from '../utils';
 
 export async function runInit(options: { force?: boolean } = {}): Promise<void> {
   const cwd = process.cwd();
   const configPath = path.join(cwd, 'infrawise.yaml');
 
   if (fs.existsSync(configPath) && !options.force) {
-    console.log(`${YELLOW}infrawise.yaml already exists.${RESET} Use --force to overwrite.`);
+    console.log(`\n  ${chalk.yellow('⚠')} ${chalk.yellow('infrawise.yaml already exists.')}  ${chalk.dim('Use --force to overwrite.')}\n`);
     return;
   }
 
-  console.log(`${BOLD}Initializing Infrawise configuration...${RESET}\n`);
+  printHeader('Initialize Infrawise');
 
-  // Detect repo info
   const repoType = detectRepoType(cwd);
   const repoName = path.basename(cwd);
-
-  console.log(`${GREEN}✓${RESET} Detected repository: ${BOLD}${repoName}${RESET}`);
-  console.log(`${GREEN}✓${RESET} Repository type: ${BOLD}${repoType}${RESET}`);
-
-  // AWS profile selection
   const profiles = readAWSProfiles();
-  let selectedProfile: string;
-
-  if (profiles.length === 1) {
-    selectedProfile = profiles[0]!;
-    console.log(`${GREEN}✓${RESET} AWS profile: ${BOLD}${selectedProfile}${RESET}`);
-  } else {
-    console.log(`${GREEN}✓${RESET} Found ${profiles.length} AWS profile(s)`);
-    selectedProfile = await promptSelect('Select AWS profile:', profiles);
-  }
-
   const detectedRegion = detectAWSRegion();
-  const projectName = await prompt(`Project name`, repoName);
-  const region = await prompt(`AWS region`, detectedRegion);
 
-  // Ask about DynamoDB tables
-  const tablesInput = await prompt(
-    `DynamoDB tables to include (comma-separated, leave empty to include all)`,
-    '',
-  );
-  const includeTables = tablesInput
-    ? tablesInput.split(',').map((t) => t.trim()).filter(Boolean)
+  log.success(`Repository detected`, repoName);
+  log.success(`Type`, repoType);
+  log.success(`AWS profiles found`, String(profiles.length));
+  console.log('');
+
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'project',
+      message: 'Project name:',
+      default: repoName,
+    },
+    {
+      type: 'list',
+      name: 'awsProfile',
+      message: 'AWS profile:',
+      choices: profiles,
+      default: profiles[0],
+    },
+    {
+      type: 'input',
+      name: 'region',
+      message: 'AWS region:',
+      default: detectedRegion,
+    },
+    {
+      type: 'input',
+      name: 'dynamoTables',
+      message: 'DynamoDB tables to include:',
+      default: '',
+      suffix: chalk.dim(' (comma-separated, leave blank for all)'),
+    },
+    {
+      type: 'confirm',
+      name: 'pgEnabled',
+      message: 'Enable PostgreSQL analysis?',
+      default: false,
+    },
+    {
+      type: 'input',
+      name: 'pgConnectionString',
+      message: 'PostgreSQL connection string:',
+      default: 'postgresql://localhost:5432/mydb',
+      when: (a) => a.pgEnabled,
+    },
+  ]);
+
+  const includeTables = answers.dynamoTables
+    ? answers.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
     : [];
 
-  // Ask about PostgreSQL
-  const pgEnabledInput = await prompt(`Enable PostgreSQL analysis? (yes/no)`, 'no');
-  const pgEnabled = pgEnabledInput.toLowerCase().startsWith('y');
-
-  let pgConnectionString = '';
-  if (pgEnabled) {
-    pgConnectionString = await prompt(
-      `PostgreSQL connection string`,
-      'postgresql://localhost:5432/mydb',
-    );
-  }
-
-  // Generate config
-  const configContent = generateDefaultConfig(projectName, {
-    aws: { profile: selectedProfile, region },
+  const configContent = generateDefaultConfig(answers.project, {
+    aws: { profile: answers.awsProfile, region: answers.region },
     dynamodb: { includeTables },
-    postgres: { enabled: pgEnabled, connectionString: pgConnectionString },
+    postgres: {
+      enabled: answers.pgEnabled,
+      connectionString: answers.pgConnectionString ?? '',
+    },
   });
 
   fs.writeFileSync(configPath, configContent, 'utf-8');
 
-  console.log(`\n${GREEN}✓${RESET} Created ${BOLD}infrawise.yaml${RESET}`);
-  console.log(`\n${BOLD}Next steps:${RESET}`);
-  console.log(`  1. Review the generated configuration file`);
-  console.log(`  2. Run ${CYAN}infrawise analyze${RESET} to analyze your infrastructure`);
-  console.log(`  3. Run ${CYAN}infrawise dev${RESET} to start the MCP server`);
+  console.log('');
+  log.success(`Created ${chalk.bold('infrawise.yaml')}`);
+  console.log('');
+  console.log(chalk.bold('  Next steps:'));
+  log.info(`Run ${chalk.cyan('infrawise doctor')} to validate your setup`);
+  log.info(`Run ${chalk.cyan('infrawise analyze')} to scan your infrastructure`);
+  log.info(`Run ${chalk.cyan('infrawise dev')} to start the MCP server`);
+  console.log('');
 }

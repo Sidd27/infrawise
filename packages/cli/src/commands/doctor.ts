@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import chalk from 'chalk';
+import ora from 'ora';
 import { loadConfig } from '@infrawise/core';
 import { validateDynamoAccess } from '@infrawise/adapters-dynamodb';
 import { validatePostgresAccess } from '@infrawise/adapters-postgres';
-import { GREEN, RED, YELLOW, BOLD, RESET, DIM, CYAN } from '../utils';
+import { log, printHeader } from '../utils';
 
 interface CheckResult {
   name: string;
@@ -12,188 +14,152 @@ interface CheckResult {
   detail?: string;
 }
 
-function printCheck(result: CheckResult): void {
-  const icon =
-    result.status === 'pass'
-      ? `${GREEN}✓${RESET}`
-      : result.status === 'fail'
-        ? `${RED}✗${RESET}`
-        : result.status === 'warn'
-          ? `${YELLOW}⚠${RESET}`
-          : `${DIM}−${RESET}`;
-
-  const color =
-    result.status === 'pass'
-      ? GREEN
-      : result.status === 'fail'
-        ? RED
-        : result.status === 'warn'
-          ? YELLOW
-          : DIM;
-
-  console.log(`  ${icon} ${color}${result.name}${RESET}: ${result.message}`);
-  if (result.detail) {
-    console.log(`    ${DIM}${result.detail}${RESET}`);
+async function runCheck(label: string, fn: () => Promise<CheckResult>): Promise<CheckResult> {
+  const spin = ora({ text: chalk.dim(label), color: 'cyan' }).start();
+  const result = await fn();
+  switch (result.status) {
+    case 'pass': spin.succeed(chalk.green(result.name) + chalk.dim(`  ${result.message}`)); break;
+    case 'fail': spin.fail(chalk.red(result.name) + chalk.dim(`  ${result.message}`)); break;
+    case 'warn': spin.warn(chalk.yellow(result.name) + chalk.dim(`  ${result.message}`)); break;
+    case 'skip': spin.info(chalk.dim(`${result.name}  ${result.message}`)); break;
   }
+  if (result.detail) {
+    console.log(chalk.dim(`       ${result.detail}`));
+  }
+  return result;
 }
 
 export async function runDoctor(options: { config?: string } = {}): Promise<void> {
-  console.log(`${BOLD}Infrawise Doctor${RESET}\n`);
-  console.log('Running diagnostic checks...\n');
+  printHeader('Infrawise Doctor');
 
+  const configPath = path.resolve(options.config ?? 'infrawise.yaml');
   const results: CheckResult[] = [];
 
-  // Check 1: Config file
-  const configPath = path.resolve(options.config ?? 'infrawise.yaml');
-  const configExists = fs.existsSync(configPath);
-  results.push({
-    name: 'Configuration file',
-    status: configExists ? 'pass' : 'fail',
-    message: configExists ? `Found at ${configPath}` : `Not found at ${configPath}`,
-    detail: configExists ? undefined : 'Run: infrawise init',
-  });
+  // Config file
+  results.push(await runCheck('Checking config file...', async () => {
+    const exists = fs.existsSync(configPath);
+    return {
+      name: 'Config file',
+      status: exists ? 'pass' : 'fail',
+      message: exists ? configPath : `Not found at ${configPath}`,
+      detail: exists ? undefined : 'Run: infrawise init',
+    };
+  }));
 
-  let config;
-  if (configExists) {
+  // Config valid
+  let config: ReturnType<typeof loadConfig> | undefined;
+  results.push(await runCheck('Validating config...', async () => {
+    if (!fs.existsSync(configPath)) {
+      return { name: 'Config validation', status: 'skip', message: 'No config file' };
+    }
     try {
       config = loadConfig(options.config);
-      results.push({
-        name: 'Configuration validation',
-        status: 'pass',
-        message: `Valid (project: ${config.project})`,
-      });
+      return { name: 'Config validation', status: 'pass', message: `project: ${config.project}` };
     } catch (err) {
-      results.push({
-        name: 'Configuration validation',
+      return {
+        name: 'Config validation',
         status: 'fail',
-        message: 'Invalid configuration',
+        message: 'Invalid config',
         detail: err instanceof Error ? err.message : String(err),
-      });
+      };
     }
-  } else {
-    results.push({
-      name: 'Configuration validation',
-      status: 'skip',
-      message: 'Skipped (no config file)',
-    });
-  }
+  }));
 
-  // Check 2: AWS credentials
-  const awsCredsPath = path.join(process.env.HOME ?? '~', '.aws', 'credentials');
-  const awsConfigPath = path.join(process.env.HOME ?? '~', '.aws', 'config');
-  const hasAwsCreds = fs.existsSync(awsCredsPath) || fs.existsSync(awsConfigPath);
+  // AWS credentials
+  results.push(await runCheck('Checking AWS credentials...', async () => {
+    const home = process.env.HOME ?? os.homedir();
+    const hasCreds = fs.existsSync(path.join(home, '.aws', 'credentials')) ||
+                     fs.existsSync(path.join(home, '.aws', 'config'));
+    return {
+      name: 'AWS credentials',
+      status: hasCreds ? 'pass' : 'warn',
+      message: hasCreds ? 'Found' : 'Not found — may use env vars or IAM role',
+      detail: hasCreds ? undefined : 'Run: aws configure',
+    };
+  }));
 
-  results.push({
-    name: 'AWS credentials file',
-    status: hasAwsCreds ? 'pass' : 'warn',
-    message: hasAwsCreds ? 'Found' : 'Not found — using environment variables or IAM role',
-    detail: hasAwsCreds ? undefined : 'Run: aws configure to set up credentials',
-  });
-
-  // Check 3: DynamoDB access
-  if (config) {
+  // DynamoDB access
+  results.push(await runCheck('Testing DynamoDB access...', async () => {
+    if (!config) return { name: 'DynamoDB access', status: 'skip', message: 'No valid config' };
     try {
-      const canAccess = await validateDynamoAccess(config);
-      results.push({
+      const ok = await validateDynamoAccess(config);
+      return {
         name: 'DynamoDB access',
-        status: canAccess ? 'pass' : 'fail',
-        message: canAccess
-          ? `Access confirmed (profile: ${config.aws?.profile ?? 'default'})`
-          : 'Cannot access DynamoDB',
-        detail: canAccess
-          ? undefined
-          : 'Check IAM permissions: dynamodb:ListTables, dynamodb:DescribeTable',
-      });
+        status: ok ? 'pass' : 'fail',
+        message: ok
+          ? `Connected (profile: ${config.aws?.profile ?? 'default'})`
+          : 'Cannot connect',
+        detail: ok ? undefined : 'Check IAM: dynamodb:ListTables, dynamodb:DescribeTable',
+      };
     } catch (err) {
-      results.push({
+      return {
         name: 'DynamoDB access',
         status: 'fail',
-        message: 'Connection error',
-        detail: err instanceof Error ? err.message : String(err),
-      });
+        message: err instanceof Error ? err.message : String(err),
+      };
     }
-  } else {
-    results.push({
-      name: 'DynamoDB access',
-      status: 'skip',
-      message: 'Skipped (no valid config)',
-    });
-  }
+  }));
 
-  // Check 4: PostgreSQL connectivity
-  if (config?.postgres?.enabled && config.postgres.connectionString) {
+  // PostgreSQL
+  results.push(await runCheck('Testing PostgreSQL...', async () => {
+    if (!config?.postgres?.enabled || !config.postgres.connectionString) {
+      return { name: 'PostgreSQL', status: 'skip', message: 'Not configured' };
+    }
     try {
-      const canConnect = await validatePostgresAccess(config.postgres.connectionString);
-      results.push({
-        name: 'PostgreSQL connectivity',
-        status: canConnect ? 'pass' : 'fail',
-        message: canConnect ? 'Connection successful' : 'Cannot connect to PostgreSQL',
-        detail: canConnect ? undefined : 'Check connection string, network access, and credentials',
-      });
+      const ok = await validatePostgresAccess(config.postgres.connectionString);
+      return {
+        name: 'PostgreSQL',
+        status: ok ? 'pass' : 'fail',
+        message: ok ? 'Connected' : 'Cannot connect',
+        detail: ok ? undefined : 'Check connection string, security group, and credentials',
+      };
     } catch (err) {
-      results.push({
-        name: 'PostgreSQL connectivity',
+      return {
+        name: 'PostgreSQL',
         status: 'fail',
-        message: 'Connection error',
-        detail: err instanceof Error ? err.message : String(err),
-      });
+        message: err instanceof Error ? err.message : String(err),
+      };
     }
-  } else {
-    results.push({
-      name: 'PostgreSQL connectivity',
-      status: 'skip',
-      message: config?.postgres?.enabled === false ? 'Disabled in config' : 'Not configured',
-    });
-  }
+  }));
 
-  // Check 5: TypeScript project detection
-  const hasTsConfig = fs.existsSync(path.join(process.cwd(), 'tsconfig.json'));
-  const hasPackageJson = fs.existsSync(path.join(process.cwd(), 'package.json'));
+  // TypeScript project
+  results.push(await runCheck('Detecting project type...', async () => {
+    const hasTsConfig = fs.existsSync(path.join(process.cwd(), 'tsconfig.json'));
+    const hasPkg = fs.existsSync(path.join(process.cwd(), 'package.json'));
+    return {
+      name: 'Project type',
+      status: hasTsConfig ? 'pass' : 'warn',
+      message: hasTsConfig ? 'TypeScript (tsconfig.json found)' : hasPkg ? 'JavaScript (no tsconfig.json)' : 'Unknown project',
+      detail: hasTsConfig ? undefined : 'Scanner works best with TypeScript projects',
+    };
+  }));
 
-  results.push({
-    name: 'TypeScript project',
-    status: hasTsConfig ? 'pass' : hasPackageJson ? 'warn' : 'warn',
-    message: hasTsConfig
-      ? 'tsconfig.json found'
-      : hasPackageJson
-        ? 'package.json found but no tsconfig.json'
-        : 'No package.json or tsconfig.json found',
-    detail: hasTsConfig
-      ? undefined
-      : 'Scanner works best with TypeScript projects (tsconfig.json)',
-  });
-
-  // Check 6: Cache directory
-  const cacheDir = path.join(process.cwd(), '.infrawise', 'cache');
-  const hasCached = fs.existsSync(path.join(cacheDir, 'graph.json'));
-
-  results.push({
-    name: 'Analysis cache',
-    status: hasCached ? 'pass' : 'warn',
-    message: hasCached ? `Cached results found` : 'No cached results',
-    detail: hasCached ? undefined : `Run: ${CYAN}infrawise analyze${RESET} to generate results`,
-  });
-
-  // Print all results
-  for (const result of results) {
-    printCheck(result);
-  }
+  // Cache
+  results.push(await runCheck('Checking analysis cache...', async () => {
+    const cached = fs.existsSync(path.join(process.cwd(), '.infrawise', 'cache', 'graph.json'));
+    return {
+      name: 'Analysis cache',
+      status: cached ? 'pass' : 'warn',
+      message: cached ? 'Cached results found' : 'No cache — run infrawise analyze first',
+    };
+  }));
 
   // Summary
   const passed = results.filter((r) => r.status === 'pass').length;
   const failed = results.filter((r) => r.status === 'fail').length;
   const warned = results.filter((r) => r.status === 'warn').length;
 
-  console.log('\n' + '─'.repeat(50));
-
+  console.log('');
+  console.log(chalk.dim('  ' + '─'.repeat(40)));
   if (failed === 0) {
-    console.log(
-      `${GREEN}${BOLD}All checks passed${RESET} (${passed} passed, ${warned} warnings)`,
-    );
+    console.log(`  ${chalk.green.bold('All checks passed')}  ${chalk.dim(`${passed} passed, ${warned} warning(s)`)}`);
   } else {
-    console.log(
-      `${RED}${failed} check(s) failed${RESET}, ${passed} passed, ${warned} warnings`,
-    );
-    process.exit(1);
+    console.log(`  ${chalk.red.bold(`${failed} check(s) failed`)}  ${chalk.dim(`${passed} passed, ${warned} warning(s)`)}`);
   }
+  console.log('');
+
+  if (failed > 0) process.exit(1);
 }
+
+// lazy import os to avoid top-level side-effect
+import * as os from 'os';
