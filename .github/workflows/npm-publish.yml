@@ -51,8 +51,8 @@ jobs:
       - name: Copy README into CLI package
         run: cp README.md packages/cli/README.md
 
-      - name: Clear npm auth token (OIDC takes over)
-        run: npm config delete //registry.npmjs.org/:_authToken
+      - name: Clear npm auth token for OIDC
+        run: sed -i '/:_authToken/d' "$NPM_CONFIG_USERCONFIG"
 
       - name: Publish to npm
         working-directory: packages/cli
