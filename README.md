@@ -364,7 +364,7 @@ The analysis is entirely deterministic — no LLM is involved in extracting or a
 
 | Requirement | Version |
 |---|---|
-| Node.js | 22+ |
+| Node.js | 24+ |
 | pnpm | 9+ |
 | AWS CLI | any (for integration testing) |
 
