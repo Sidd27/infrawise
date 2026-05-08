@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for npm provenance
+  id-token: write   # required for OIDC trusted publishing
 
 jobs:
   publish:
@@ -51,10 +51,6 @@ jobs:
       - name: Copy README into CLI package
         run: cp README.md packages/cli/README.md
 
-      - name: Dry run publish
-        working-directory: packages/cli
-        run: npm publish --dry-run --access public
-
       - name: Publish to npm
         working-directory: packages/cli
-        run: npm publish --access public --provenance
+        run: npm publish --access public
