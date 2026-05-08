@@ -1,0 +1,55 @@
+project: infrawise-demo
+
+aws:
+  profile: default
+  region: us-east-1
+
+dynamodb:
+  includeTables:
+    - Orders
+    - Users
+    - LegacyOrders
+
+postgres:
+  enabled: true
+  connectionString: postgresql://demo:demo@localhost:5432/demodb
+
+mysql:
+  enabled: true
+  connectionString: mysql://demo:demo@localhost:3306/demodb
+
+mongodb:
+  enabled: true
+  connectionString: mongodb://localhost:27017
+  databases:
+    - appdb
+
+terraform:
+  enabled: true
+
+sqs:
+  enabled: true
+
+sns:
+  enabled: true
+
+ssm:
+  enabled: true
+  paths:
+    - /demo
+
+secretsManager:
+  enabled: true
+
+lambda:
+  enabled: true
+
+cloudwatchLogs:
+  enabled: true
+  logGroupPrefixes:
+    - /aws/lambda
+    - /app
+  windowHours: 24
+
+analysis:
+  sampleSize: 100
