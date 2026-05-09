@@ -337,6 +337,7 @@ async function handleMcp(body: JsonRpcRequest): Promise<unknown> {
     const { name, arguments: args = {} } = params as { name: string; arguments?: ToolArgs };
     const tool = TOOLS.find((t) => t.name === name);
     if (!tool) return rpcErr(id, -32601, `Unknown tool: ${name}`);
+    logger.info(`→ ${name}${Object.keys(args).length ? `  ${JSON.stringify(args)}` : ''}`);
     try {
       return ok(id, await tool.handler(args));
     } catch (e) {

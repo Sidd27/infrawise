@@ -30,7 +30,7 @@ echo "  ✓ Postgres seeded"
 
 echo ""
 echo "▶ Seeding MySQL..."
-docker compose exec -T mysql mysql -h 127.0.0.1 -u demo -pdemo demodb < seed/mysql.sql
+docker compose exec -T mysql mysql -u demo -pdemo demodb < seed/mysql.sql
 echo "  ✓ MySQL seeded"
 
 echo ""
