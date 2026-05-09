@@ -1,6 +1,6 @@
 {
   "name": "infrawise",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
   "keywords": [
     "infrastructure",
