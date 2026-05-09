@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import type { SystemGraph, Finding } from '../types';
 import { logger } from '../core';
+import { summarizeFindings } from '../analyzers';
 import {
   getTableNodes,
   getFunctionNodes,
@@ -64,12 +65,7 @@ const TOOLS: Tool[] = [
           secrets: secrets.length, parameters: parameters.length,
           logGroups: logGroups.length, lambdas: lambdas.length,
           totalNodes: currentGraph.nodes.length, totalEdges: currentGraph.edges.length,
-          findings: {
-            total: currentFindings.length,
-            high: currentFindings.filter((f) => f.severity === 'high').length,
-            medium: currentFindings.filter((f) => f.severity === 'medium').length,
-            low: currentFindings.filter((f) => f.severity === 'low').length,
-          },
+          findings: summarizeFindings(currentFindings),
         },
         databases: tables.map((t) => ({ name: t.name, type: t.databaseType })),
         queues: queues.map((q) => ({ name: q.name, hasDLQ: q.hasDLQ, encrypted: q.encrypted, approximateMessages: q.approximateMessages })),
@@ -94,10 +90,7 @@ const TOOLS: Tool[] = [
         totalNodes: currentGraph.nodes.length, totalEdges: currentGraph.edges.length,
         tables: getTableNodes(currentGraph).length, functions: getFunctionNodes(currentGraph).length,
         queues: getQueueNodes(currentGraph).length, scans: getScanEdges(currentGraph).length,
-        totalFindings: currentFindings.length,
-        highSeverity: currentFindings.filter((f) => f.severity === 'high').length,
-        mediumSeverity: currentFindings.filter((f) => f.severity === 'medium').length,
-        lowSeverity: currentFindings.filter((f) => f.severity === 'low').length,
+        ...summarizeFindings(currentFindings),
       },
     }),
   },

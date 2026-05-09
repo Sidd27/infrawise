@@ -237,6 +237,9 @@ secretsManager:
 lambda:
   enabled: true
 
+rds:
+  enabled: false
+
 cloudwatchLogs:
   enabled: false
   logGroupPrefixes: []
@@ -378,18 +381,12 @@ The analysis is entirely deterministic — no LLM is involved in extracting or a
 
 ```
 src/
-  shared/       Types shared across the whole codebase
+  types.ts      Shared type definitions
   core/         Config (Zod + YAML), logger (Pino), local cache
   graph/        Graph engine — nodes, edges, builder
-  adapters/
-    dynamodb/   DynamoDB extractor (AWS SDK v3)
-    postgres/   PostgreSQL extractor (pg)
-    mysql/      MySQL extractor (mysql2)
-    mongodb/    MongoDB extractor (mongodb driver)
-    aws/        SQS, SNS, SSM, Secrets Manager, Lambda, RDS extractors
-    logs/       CloudWatch Logs extractor
-    terraform/  Terraform / CloudFormation / CDK IaC schema extractor
-  analyzers/    22 rule-based analyzers
+  adapters/     Flat extractors: dynamodb.ts, postgres.ts, mysql.ts,
+                mongodb.ts, aws.ts, logs.ts, terraform.ts
+  analyzers/    23 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP HTTP server (plain JSON-RPC, no SDK)
   cli/          CLI commands (Commander.js)
@@ -446,6 +443,8 @@ Tests live in `src/**/__tests__/`:
 - `src/core/__tests__/` — config validation, cache
 - `src/graph/__tests__/` — graph builder
 - `src/analyzers/__tests__/` — all analyzers
+- `src/server/__tests__/` — MCP server (Fastify inject, all 13 tools)
+- `src/context/__tests__/` — repository scanner
 
 ### Adding a new analyzer
 
@@ -462,9 +461,9 @@ export class MyAnalyzer implements Analyzer {
 
 ### Adding a new database adapter
 
-1. Create your extractor in `src/adapters/yourdb/`
+1. Create your extractor as `src/adapters/yourdb.ts`
 2. Export a function returning `Promise<YourTableMetadata[]>`
-3. Add the metadata type to `src/shared/index.ts` if needed
+3. Add the metadata type to `src/types.ts` if needed
 4. Wire it into `src/cli/commands/analyze.ts`
 
 ### Releasing
@@ -490,8 +489,9 @@ The CLI reads its version from root `package.json` at runtime, so `infrawise --v
 
 ### PR checklist
 
-- `pnpm test` passes
+- `pnpm lint` passes (no errors)
 - `pnpm typecheck` passes
+- `pnpm test` passes
 - New analyzers have unit tests with mock graph data
 - No hardcoded AWS regions or credentials
 

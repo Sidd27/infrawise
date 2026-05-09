@@ -74,10 +74,11 @@ export class NplusOneAnalyzer implements Analyzer {
       if (fromNode?.type !== 'function' || toNode?.type !== 'table') continue;
       if (toNode.databaseType !== 'postgres') continue;
 
-      if (!functionTableAccess.has(edge.from)) {
-        functionTableAccess.set(edge.from, new Map());
+      let tableAccess = functionTableAccess.get(edge.from);
+      if (!tableAccess) {
+        tableAccess = new Map();
+        functionTableAccess.set(edge.from, tableAccess);
       }
-      const tableAccess = functionTableAccess.get(edge.from)!;
       tableAccess.set(edge.to, (tableAccess.get(edge.to) ?? 0) + 1);
     }
 

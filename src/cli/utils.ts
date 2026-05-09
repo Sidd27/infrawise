@@ -104,13 +104,6 @@ function severityBadge(severity: Finding['severity']): string {
   }
 }
 
-function severityColor(severity: Finding['severity']): chalk.Chalk {
-  switch (severity) {
-    case 'high':   return chalk.red;
-    case 'medium': return chalk.yellow;
-    case 'low':    return chalk.cyan;
-  }
-}
 
 export function printFinding(finding: Finding, index: number): void {
   const badge = severityBadge(finding.severity);

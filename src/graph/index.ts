@@ -173,85 +173,57 @@ export function buildGraph(
     // AWS service operations create edges to service nodes
     if (op.databaseType === 'sqs') {
       const queueId = `queue:aws:${op.target}`;
-      if (!nodeIds.has(queueId)) {
-        addNode({ id: queueId, type: 'queue', name: op.target, provider: 'aws', hasDLQ: false, encrypted: false });
-      }
+      addNode({ id: queueId, type: 'queue', name: op.target, provider: 'aws', hasDLQ: false, encrypted: false });
       edges.push({ from: funcNodeId, to: queueId, type: 'publishes_to' });
       continue;
     }
 
     if (op.databaseType === 'sns') {
       const topicId = `topic:aws:${op.target}`;
-      if (!nodeIds.has(topicId)) {
-        addNode({ id: topicId, type: 'topic', name: op.target, provider: 'aws', encrypted: false });
-      }
+      addNode({ id: topicId, type: 'topic', name: op.target, provider: 'aws', encrypted: false });
       edges.push({ from: funcNodeId, to: topicId, type: 'publishes_to' });
       continue;
     }
 
     if (op.databaseType === 'ssm') {
       const paramId = `parameter:aws:${op.target}`;
-      if (!nodeIds.has(paramId)) {
-        addNode({ id: paramId, type: 'parameter', name: op.target, provider: 'aws', paramType: 'String', tier: 'Standard' });
-      }
+      addNode({ id: paramId, type: 'parameter', name: op.target, provider: 'aws', paramType: 'String', tier: 'Standard' });
       edges.push({ from: funcNodeId, to: paramId, type: 'reads_parameter' });
       continue;
     }
 
     if (op.databaseType === 'secretsmanager') {
       const secretId = `secret:aws:${op.target}`;
-      if (!nodeIds.has(secretId)) {
-        addNode({ id: secretId, type: 'secret', name: op.target, provider: 'aws', rotationEnabled: false });
-      }
+      addNode({ id: secretId, type: 'secret', name: op.target, provider: 'aws', rotationEnabled: false });
       edges.push({ from: funcNodeId, to: secretId, type: 'reads_secret' });
       continue;
     }
 
     if (op.databaseType === 'lambda') {
       const lambdaId = `lambda:aws:${op.target}`;
-      if (!nodeIds.has(lambdaId)) {
-        addNode({ id: lambdaId, type: 'lambda', name: op.target });
-      }
+      addNode({ id: lambdaId, type: 'lambda', name: op.target });
       edges.push({ from: funcNodeId, to: lambdaId, type: 'triggers' });
       continue;
     }
 
     // Database operations
-    let tableNodeId: string | undefined;
+    let tableNodeId: string;
     if (op.databaseType === 'dynamodb') {
       tableNodeId = `table:dynamo:${op.target}`;
-      if (!nodeIds.has(tableNodeId)) {
-        addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
-      }
+      addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
     } else if (op.databaseType === 'mysql') {
       const q = op.target.includes('.') ? op.target : `default.${op.target}`;
       tableNodeId = `table:mysql:${q}`;
-      if (!nodeIds.has(tableNodeId)) {
-        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
-      }
+      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
     } else if (op.databaseType === 'mongodb') {
       const q = op.target.includes('.') ? op.target : `default.${op.target}`;
       tableNodeId = `table:mongodb:${q}`;
-      if (!nodeIds.has(tableNodeId)) {
-        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });
-      }
+      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });
     } else {
       // postgres
       const q = op.target.includes('.') ? op.target : `public.${op.target}`;
       tableNodeId = `table:postgres:${q}`;
-      if (!nodeIds.has(tableNodeId)) {
-        const parts = q.split('.');
-        addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'postgres' });
-        if (!postgresMeta.find((t) => `${t.schema}.${t.table}` === q)) {
-          postgresMeta.push({
-            schema: parts[0] ?? 'public',
-            table: parts[1] ?? op.target,
-            columns: [],
-            indexes: [],
-            primaryKeys: [],
-          });
-        }
-      }
+      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'postgres' });
     }
 
     const edgeType = resolveEdgeType(op.operationType);
@@ -306,9 +278,6 @@ export function getLambdaNodes(graph: SystemGraph): Extract<GraphNode, { type: '
   return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda');
 }
 
-export function getDatabaseInstanceNodes(graph: SystemGraph): Extract<GraphNode, { type: 'database_instance' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'database_instance' }> => n.type === 'database_instance');
-}
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);

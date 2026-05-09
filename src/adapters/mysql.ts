@@ -69,25 +69,26 @@ export async function extractMySQLMetadata(
     const columnMap = new Map<string, string[]>();
     for (const row of columnRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
-      if (!columnMap.has(key)) columnMap.set(key, []);
-      columnMap.get(key)!.push(row['COLUMN_NAME'] as string);
+      let cols = columnMap.get(key);
+      if (!cols) { cols = []; columnMap.set(key, cols); }
+      cols.push(row['COLUMN_NAME'] as string);
     }
 
     const indexMap = new Map<string, string[]>();
     for (const row of indexRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
-      if (!indexMap.has(key)) indexMap.set(key, []);
+      let idxs = indexMap.get(key);
+      if (!idxs) { idxs = []; indexMap.set(key, idxs); }
       const idxName = row['INDEX_NAME'] as string;
-      if (!indexMap.get(key)!.includes(idxName)) {
-        indexMap.get(key)!.push(idxName);
-      }
+      if (!idxs.includes(idxName)) idxs.push(idxName);
     }
 
     const pkMap = new Map<string, string[]>();
     for (const row of pkRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
-      if (!pkMap.has(key)) pkMap.set(key, []);
-      pkMap.get(key)!.push(row['COLUMN_NAME'] as string);
+      let pks = pkMap.get(key);
+      if (!pks) { pks = []; pkMap.set(key, pks); }
+      pks.push(row['COLUMN_NAME'] as string);
     }
 
     // Assemble results

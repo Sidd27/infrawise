@@ -133,10 +133,12 @@ export class HotPartitionAnalyzer implements Analyzer {
       const targetNode = graph.nodes.find((n) => n.id === edge.to);
       if (targetNode?.type !== 'table' || targetNode.databaseType !== 'dynamodb') continue;
 
-      if (!tableAccessCount.has(edge.to)) {
-        tableAccessCount.set(edge.to, new Set());
+      let accessors = tableAccessCount.get(edge.to);
+      if (!accessors) {
+        accessors = new Set();
+        tableAccessCount.set(edge.to, accessors);
       }
-      tableAccessCount.get(edge.to)!.add(edge.from);
+      accessors.add(edge.from);
     }
 
     for (const [tableId, accessors] of tableAccessCount) {

@@ -1,26 +1,5 @@
 import type { Analyzer, SystemGraph, Finding } from '../types';
 import { logger } from '../core';
-import { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
-import { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
-import { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
-import { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
-import { IaCDriftAnalyzer } from './terraform';
-import {
-  MissingDLQAnalyzer,
-  UnencryptedQueueAnalyzer,
-  LargeQueueBacklogAnalyzer,
-  MissingSecretRotationAnalyzer,
-  MissingLogRetentionAnalyzer,
-  LambdaDefaultMemoryAnalyzer,
-  LambdaHighTimeoutAnalyzer,
-} from './aws-services';
-import {
-  RDSPubliclyAccessibleAnalyzer,
-  RDSNoBackupAnalyzer,
-  RDSUnencryptedAnalyzer,
-  RDSNoDeletionProtectionAnalyzer,
-  RDSNoMultiAZAnalyzer,
-} from './rds';
 
 export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
 export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
@@ -44,45 +23,9 @@ export {
   RDSNoMultiAZAnalyzer,
 } from './rds';
 
-const DEFAULT_ANALYZERS: Analyzer[] = [
-  // DynamoDB
-  new FullTableScanAnalyzer(),
-  new MissingGSIAnalyzer(),
-  new HotPartitionAnalyzer(),
-  // PostgreSQL
-  new MissingIndexAnalyzer(),
-  new NplusOneAnalyzer(),
-  new LargeSelectAnalyzer(),
-  // MySQL
-  new MissingMySQLIndexAnalyzer(),
-  new MySQLFullTableScanAnalyzer(),
-  // MongoDB
-  new MissingMongoIndexAnalyzer(),
-  new MongoCollectionScanAnalyzer(),
-  // IaC drift
-  new IaCDriftAnalyzer(),
-  // SQS / messaging
-  new MissingDLQAnalyzer(),
-  new UnencryptedQueueAnalyzer(),
-  new LargeQueueBacklogAnalyzer(),
-  // Secrets Manager
-  new MissingSecretRotationAnalyzer(),
-  // CloudWatch Logs
-  new MissingLogRetentionAnalyzer(),
-  // Lambda
-  new LambdaDefaultMemoryAnalyzer(),
-  new LambdaHighTimeoutAnalyzer(),
-  // RDS
-  new RDSPubliclyAccessibleAnalyzer(),
-  new RDSNoBackupAnalyzer(),
-  new RDSUnencryptedAnalyzer(),
-  new RDSNoDeletionProtectionAnalyzer(),
-  new RDSNoMultiAZAnalyzer(),
-];
-
 export async function runAllAnalyzers(
   graph: SystemGraph,
-  analyzers: Analyzer[] = DEFAULT_ANALYZERS,
+  analyzers: Analyzer[],
 ): Promise<Finding[]> {
   const allFindings: Finding[] = [];
 
@@ -104,16 +47,8 @@ export async function runAllAnalyzers(
   return allFindings;
 }
 
-export function summarizeFindings(findings: Finding[]): {
-  total: number;
-  high: number;
-  medium: number;
-  low: number;
-} {
-  return {
-    total: findings.length,
-    high: findings.filter((f) => f.severity === 'high').length,
-    medium: findings.filter((f) => f.severity === 'medium').length,
-    low: findings.filter((f) => f.severity === 'low').length,
-  };
+export function summarizeFindings(findings: Finding[]): { total: number; high: number; medium: number; low: number } {
+  const counts = { total: findings.length, high: 0, medium: 0, low: 0 };
+  for (const f of findings) counts[f.severity]++;
+  return counts;
 }

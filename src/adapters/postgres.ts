@@ -81,22 +81,25 @@ export async function extractPostgresMetadata(
       const columnMap = new Map<string, string[]>();
       for (const row of columnsResult.rows) {
         const key = `${row.table_schema}.${row.table_name}`;
-        if (!columnMap.has(key)) columnMap.set(key, []);
-        columnMap.get(key)!.push(row.column_name);
+        let cols = columnMap.get(key);
+        if (!cols) { cols = []; columnMap.set(key, cols); }
+        cols.push(row.column_name);
       }
 
       const indexMap = new Map<string, string[]>();
       for (const row of indexesResult.rows) {
         const key = `${row.schemaname}.${row.tablename}`;
-        if (!indexMap.has(key)) indexMap.set(key, []);
-        indexMap.get(key)!.push(row.indexname);
+        let idxs = indexMap.get(key);
+        if (!idxs) { idxs = []; indexMap.set(key, idxs); }
+        idxs.push(row.indexname);
       }
 
       const pkMap = new Map<string, string[]>();
       for (const row of primaryKeysResult.rows) {
         const key = `${row.table_schema}.${row.table_name}`;
-        if (!pkMap.has(key)) pkMap.set(key, []);
-        pkMap.get(key)!.push(row.column_name);
+        let pks = pkMap.get(key);
+        if (!pks) { pks = []; pkMap.set(key, pks); }
+        pks.push(row.column_name);
       }
 
       // Assemble results
