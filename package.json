@@ -1,26 +1,97 @@
 {
-  "name": "infrawise-monorepo",
-  "version": "0.1.0",
-  "private": true,
-  "packageManager": "pnpm@10.11.0",
+  "name": "infrawise",
+  "version": "0.1.2",
+  "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
+  "keywords": [
+    "infrastructure",
+    "aws",
+    "dynamodb",
+    "sqs",
+    "sns",
+    "lambda",
+    "cloudwatch",
+    "secrets-manager",
+    "ssm",
+    "postgresql",
+    "mysql",
+    "mongodb",
+    "mcp",
+    "claude",
+    "claude-code",
+    "analysis",
+    "cli",
+    "devtools",
+    "terraform",
+    "cloudformation",
+    "cdk"
+  ],
+  "homepage": "https://github.com/Sidd27/infrawise#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sidd27/infrawise.git"
+  },
+  "license": "MIT",
+  "bin": {
+    "infrawise": "dist/cli/index.js"
+  },
+  "main": "dist/cli/index.js",
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=9.0.0"
   },
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "build": "turbo run build",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "dev": "turbo run dev"
+    "build": "tsc --noEmit false --outDir dist",
+    "test": "vitest run --passWithNoTests",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint src",
+    "typecheck": "tsc",
+    "dev": "node dist/cli/index.js dev",
+    "release": "node scripts/release.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-lambda": "^3.0.0",
+    "@aws-sdk/client-rds": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-sns": "^3.0.0",
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@aws-sdk/client-ssm": "^3.0.0",
+    "@aws-sdk/credential-providers": "^3.0.0",
+    "@fastify/cors": "^9.0.0",
+    "chalk": "^4.1.2",
+    "commander": "^12.0.0",
+    "fastify": "^4.26.0",
+    "inquirer": "^8.2.7",
+    "js-yaml": "^4.1.0",
+    "mongodb": "^6.5.0",
+    "mysql2": "^3.9.0",
+    "ora": "^5.4.1",
+    "pg": "^8.11.0",
+    "pino": "^8.19.0",
+    "pino-pretty": "^11.0.0",
+    "ts-morph": "^22.0.0",
+    "typescript": "^5.9.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.4.0",
-    "eslint": "^8.57.0",
+    "@types/inquirer": "^8.2.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "prettier": "^3.2.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "eslint": "^8.57.0",
+    "typescript": "^5.9.3",
     "vitest": "^1.5.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

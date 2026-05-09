@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          package-manager-cache: false
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -36,21 +36,18 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Set version on CLI package
-        working-directory: packages/cli
+      - name: Set version in package.json
         run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
 
-      - name: Build all packages
+      - name: Build
         run: pnpm build
 
       - name: Verify CLI binary
         run: |
-          test -f packages/cli/dist/index.js
-          node packages/cli/dist/index.js --version
-
-      - name: Copy README into CLI package
-        run: cp README.md packages/cli/README.md
+          test -f dist/cli/index.js
+          node dist/cli/index.js --version
 
       - name: Publish to npm
-        working-directory: packages/cli
         run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

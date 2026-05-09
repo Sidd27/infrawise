@@ -1,11 +1,29 @@
+# Dependencies & build
 node_modules/
 dist/
-.turbo/
-.infrawise/cache/
-*.log
+
+# TypeScript
 *.tsbuildinfo
+
+# Infrawise cache (anywhere in the tree)
+**/.infrawise/cache/
+
+# Demo configs (contain local credentials / connection strings)
+demo/aws/infrawise.yaml
+demo/local/infrawise.yaml
+
+# Environment & secrets
 .env
 .env.local
-coverage/
+.env*.local
+
+# Logs
+*.log
+
+# Editor & OS
 .DS_Store
-demo/
+CLAUDE.md
+.claude/settings.local.json
+
+# Test coverage
+coverage/

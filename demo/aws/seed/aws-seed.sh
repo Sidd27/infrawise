@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENDPOINT="http://localhost:4566"
+REGION="us-east-1"
+AWS="aws --endpoint-url=$ENDPOINT --region=$REGION"
+
+echo "🌱 Seeding AWS resources in LocalStack..."
+
+# ── DynamoDB ────────────────────────────────────────────────────────────────
+
+echo "  → DynamoDB tables"
+
+# Orders table — no GSI (triggers MissingGSIAnalyzer)
+$AWS dynamodb create-table \
+  --table-name Orders \
+  --attribute-definitions AttributeName=orderId,AttributeType=S \
+  --key-schema AttributeName=orderId,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --no-cli-pager 2>/dev/null || true
+
+# Users table — has GSI (control)
+$AWS dynamodb create-table \
+  --table-name Users \
+  --attribute-definitions \
+    AttributeName=userId,AttributeType=S \
+    AttributeName=email,AttributeType=S \
+  --key-schema AttributeName=userId,KeyType=HASH \
+  --global-secondary-indexes '[{
+    "IndexName": "EmailIndex",
+    "KeySchema": [{"AttributeName": "email","KeyType": "HASH"}],
+    "Projection": {"ProjectionType": "ALL"}
+  }]' \
+  --billing-mode PAY_PER_REQUEST \
+  --no-cli-pager 2>/dev/null || true
+
+# LegacyOrders — deployed but NOT in Terraform (IaC drift)
+$AWS dynamodb create-table \
+  --table-name LegacyOrders \
+  --attribute-definitions AttributeName=id,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --no-cli-pager 2>/dev/null || true
+
+# ── SQS ─────────────────────────────────────────────────────────────────────
+
+echo "  → SQS queues"
+
+$AWS sqs create-queue --queue-name orders-dlq --no-cli-pager 2>/dev/null || true
+ORDERS_DLQ_ARN=$($AWS sqs get-queue-attributes \
+  --queue-url "$ENDPOINT/000000000000/orders-dlq" \
+  --attribute-names QueueArn \
+  --query 'Attributes.QueueArn' --output text)
+
+# orders-queue — no DLQ, not encrypted (triggers MissingDLQAnalyzer + UnencryptedQueueAnalyzer)
+$AWS sqs create-queue --queue-name orders-queue --no-cli-pager 2>/dev/null || true
+
+# payment-events — no DLQ (triggers MissingDLQAnalyzer)
+$AWS sqs create-queue --queue-name payment-events --no-cli-pager 2>/dev/null || true
+
+# notifications-queue — has DLQ + encrypted (control)
+$AWS sqs create-queue \
+  --queue-name notifications-queue \
+  --attributes "{
+    \"RedrivePolicy\": \"{\\\"deadLetterTargetArn\\\":\\\"$ORDERS_DLQ_ARN\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\",
+    \"SqsManagedSseEnabled\": \"true\"
+  }" \
+  --no-cli-pager 2>/dev/null || true
+
+# temp-processing-queue — deployed but NOT in Terraform (IaC drift)
+$AWS sqs create-queue --queue-name temp-processing-queue --no-cli-pager 2>/dev/null || true
+
+# ── SNS ─────────────────────────────────────────────────────────────────────
+
+echo "  → SNS topics"
+
+$AWS sns create-topic --name order-events --no-cli-pager 2>/dev/null || true
+$AWS sns create-topic --name inventory-alerts --no-cli-pager 2>/dev/null || true
+
+# ── SSM Parameter Store ──────────────────────────────────────────────────────
+
+echo "  → SSM parameters"
+
+$AWS ssm put-parameter --name "/demo/database-url" \
+  --value "postgres://demo:demo@localhost:5432/demodb" \
+  --type SecureString --overwrite --no-cli-pager 2>/dev/null || true
+
+$AWS ssm put-parameter --name "/demo/api-key" \
+  --value "sk-demo-1234567890" \
+  --type SecureString --overwrite --no-cli-pager 2>/dev/null || true
+
+$AWS ssm put-parameter --name "/demo/feature-flags" \
+  --value '{"newCheckout":true}' \
+  --type String --overwrite --no-cli-pager 2>/dev/null || true
+
+# ── Secrets Manager ──────────────────────────────────────────────────────────
+
+echo "  → Secrets Manager"
+
+$AWS secretsmanager create-secret \
+  --name "demo/db-password" \
+  --secret-string '{"password":"super-secret-123"}' \
+  --no-cli-pager 2>/dev/null || true
+
+$AWS secretsmanager create-secret \
+  --name "demo/stripe-api-key" \
+  --secret-string '{"key":"sk_test_demo"}' \
+  --no-cli-pager 2>/dev/null || true
+
+# ── Lambda ───────────────────────────────────────────────────────────────────
+
+echo "  → Lambda functions"
+
+TMPDIR=$(mktemp -d)
+echo 'exports.handler = async (e) => ({ statusCode: 200 });' > "$TMPDIR/index.js"
+(cd "$TMPDIR" && zip -q function.zip index.js)
+
+# processOrders — 128MB default memory (triggers LambdaDefaultMemoryAnalyzer)
+$AWS lambda create-function \
+  --function-name processOrders \
+  --runtime nodejs20.x \
+  --role arn:aws:iam::000000000000:role/demo-role \
+  --handler index.handler \
+  --zip-file "fileb://$TMPDIR/function.zip" \
+  --memory-size 128 --timeout 30 \
+  --no-cli-pager 2>/dev/null || true
+
+# generateReport — 128MB + 300s timeout (triggers both Lambda analyzers)
+$AWS lambda create-function \
+  --function-name generateReport \
+  --runtime nodejs20.x \
+  --role arn:aws:iam::000000000000:role/demo-role \
+  --handler index.handler \
+  --zip-file "fileb://$TMPDIR/function.zip" \
+  --memory-size 128 --timeout 300 \
+  --no-cli-pager 2>/dev/null || true
+
+# sendNotification — well configured (control)
+$AWS lambda create-function \
+  --function-name sendNotification \
+  --runtime nodejs20.x \
+  --role arn:aws:iam::000000000000:role/demo-role \
+  --handler index.handler \
+  --zip-file "fileb://$TMPDIR/function.zip" \
+  --memory-size 512 --timeout 15 \
+  --no-cli-pager 2>/dev/null || true
+
+rm -rf "$TMPDIR"
+
+# ── CloudWatch Log Groups ────────────────────────────────────────────────────
+
+echo "  → CloudWatch log groups"
+
+$AWS logs create-log-group --log-group-name "/aws/lambda/processOrders" --no-cli-pager 2>/dev/null || true
+$AWS logs create-log-group --log-group-name "/aws/lambda/generateReport" --no-cli-pager 2>/dev/null || true
+
+$AWS logs create-log-group --log-group-name "/app/audit-logs" --no-cli-pager 2>/dev/null || true
+$AWS logs put-retention-policy --log-group-name "/app/audit-logs" --retention-in-days 400 --no-cli-pager 2>/dev/null || true
+
+$AWS logs create-log-group --log-group-name "/app/api" --no-cli-pager 2>/dev/null || true
+$AWS logs put-retention-policy --log-group-name "/app/api" --retention-in-days 90 --no-cli-pager 2>/dev/null || true
+
+echo ""
+echo "✅ AWS seed complete"
+echo "   DynamoDB : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
+echo "   SQS      : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), temp-processing-queue (IaC drift)"
+echo "   Secrets  : db-password + stripe-api-key (no rotation)"
+echo "   Lambda   : processOrders (128MB), generateReport (128MB+300s timeout)"
+echo "   Logs     : processOrders + generateReport (no retention), audit-logs (400 days)"
