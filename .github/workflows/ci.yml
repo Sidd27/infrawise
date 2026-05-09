@@ -38,7 +38,7 @@ jobs:
         run: |
           test -f dist/cli/index.js
           test -f dist/server/index.js
-          test -f dist/shared/index.js
+          test -f dist/types.js
 
       - name: Lint
         run: pnpm lint

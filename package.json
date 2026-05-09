@@ -47,7 +47,7 @@
     "lint": "eslint src",
     "typecheck": "tsc",
     "dev": "node dist/cli/index.js dev",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.0.0",
