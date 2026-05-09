@@ -10,6 +10,7 @@ export const InfrawiseConfigSchema = z.object({
     .object({
       profile: z.string().optional().default('default'),
       region: z.string().optional().default('us-east-1'),
+      endpoint: z.string().optional(),
     })
     .optional()
     .default({}),
@@ -97,6 +98,7 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
     aws: {
       profile: options?.aws?.profile ?? 'default',
       region: options?.aws?.region ?? 'us-east-1',
+      ...(options?.aws?.endpoint ? { endpoint: options.aws.endpoint } : {}),
     },
     dynamodb: { enabled: options?.dynamodb?.enabled ?? true, includeTables: options?.dynamodb?.includeTables ?? [] },
     postgres: {

@@ -203,6 +203,7 @@ export interface InfrawiseConfig {
   aws?: {
     profile?: string;
     region?: string;
+    endpoint?: string;
   };
   dynamodb?: {
     enabled?: boolean;

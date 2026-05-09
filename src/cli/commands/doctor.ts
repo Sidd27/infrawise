@@ -4,7 +4,7 @@ import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '../../core';
-import { validateDynamoAccess } from '../../adapters/dynamodb';
+import { probeDynamoAccess } from '../../adapters/dynamodb';
 import { validatePostgresAccess } from '../../adapters/postgres';
 import { validateMySQLAccess } from '../../adapters/mysql';
 import { validateMongoAccess } from '../../adapters/mongodb';
@@ -83,21 +83,21 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
     };
   }));
 
-  const awsCfg = { region: config?.aws?.region, profile: config?.aws?.profile };
+  const awsCfg = { region: config?.aws?.region, profile: config?.aws?.profile, endpoint: config?.aws?.endpoint };
 
   // DynamoDB
   results.push(await runCheck('Testing DynamoDB access...', async () => {
     if (!config) return { name: 'DynamoDB', status: 'skip', message: 'No valid config' };
     if (config.dynamodb?.enabled !== true) return { name: 'DynamoDB', status: 'skip', message: 'Disabled in config' };
     try {
-      const ok = await validateDynamoAccess(config);
-      return {
-        name: 'DynamoDB', status: ok ? 'pass' : 'warn',
-        message: ok ? `Connected (profile: ${config.aws?.profile ?? 'default'})` : 'Cannot connect',
-        detail: ok ? undefined : 'Check IAM: dynamodb:ListTables, dynamodb:DescribeTable',
-      };
+      await probeDynamoAccess(config);
+      return { name: 'DynamoDB', status: 'pass', message: `Connected (profile: ${config.aws?.profile ?? 'default'})` };
     } catch (err) {
-      return { name: 'DynamoDB', status: 'warn', message: err instanceof Error ? err.message : String(err) };
+      return {
+        name: 'DynamoDB', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: dynamodb:ListTables, dynamodb:DescribeTable',
+      };
     }
   }));
 
@@ -257,7 +257,11 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
   // IaC detection
   results.push(await runCheck('Detecting IaC files...', async () => {
     const cwd = process.cwd();
-    const hasTF = fs.existsSync(path.join(cwd, 'main.tf')) || fs.readdirSync(cwd).some((f) => f.endsWith('.tf'));
+    const hasTfFile = (dir: string) => fs.existsSync(dir) && fs.readdirSync(dir).some((f) => f.endsWith('.tf'));
+    const hasTF = hasTfFile(cwd) || fs.readdirSync(cwd).some((entry) => {
+      const full = path.join(cwd, entry);
+      return fs.statSync(full).isDirectory() && hasTfFile(full);
+    });
     const hasCFN = fs.existsSync(path.join(cwd, 'template.yaml')) || fs.existsSync(path.join(cwd, 'template.json'));
     const hasCDK = fs.existsSync(path.join(cwd, 'cdk.json'));
     const hasCDKOut = fs.existsSync(path.join(cwd, 'cdk.out'));

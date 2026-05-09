@@ -52,7 +52,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   const repoPath = options.repo ?? process.cwd();
-  const awsCfg = { region: config.aws?.region, profile: config.aws?.profile };
+  const awsCfg = { region: config.aws?.region, profile: config.aws?.profile, endpoint: config.aws?.endpoint };
 
   const dynamoMeta: Awaited<ReturnType<typeof extractDynamoMetadata>> = [];
   const postgresMeta: Awaited<ReturnType<typeof extractPostgresMetadata>> = [];

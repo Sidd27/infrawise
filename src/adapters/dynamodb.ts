@@ -11,12 +11,16 @@ import { DynamoDBError, logger } from '../core';
 function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
   const region = config.aws?.region ?? 'us-east-1';
   const profile = config.aws?.profile;
+  const endpoint = config.aws?.endpoint;
 
   const clientConfig: ConstructorParameters<typeof DynamoDBClient>[0] = { region };
 
-  if (profile) {
-    clientConfig.credentials = fromIni({ profile });
-  }
+  if (endpoint) clientConfig.endpoint = endpoint;
+  if (profile) clientConfig.credentials = fromIni({ profile });
+  else if (endpoint) clientConfig.credentials = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
+  };
 
   return new DynamoDBClient(clientConfig);
 }
@@ -114,4 +118,9 @@ export async function validateDynamoAccess(config: InfrawiseConfig): Promise<boo
   } catch {
     return false;
   }
+}
+
+export async function probeDynamoAccess(config: InfrawiseConfig): Promise<void> {
+  const client = createDynamoClient(config);
+  await client.send(new ListTablesCommand({ Limit: 1 }));
 }

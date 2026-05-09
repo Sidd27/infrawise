@@ -39,13 +39,19 @@ import { logger } from '../core';
 interface AWSConfig {
   region?: string;
   profile?: string;
+  endpoint?: string;
 }
 
 function clientConfig(cfg: AWSConfig) {
   const region = cfg.region ?? 'us-east-1';
-  return cfg.profile
-    ? { region, credentials: fromIni({ profile: cfg.profile }) }
-    : { region };
+  const base: Record<string, unknown> = { region };
+  if (cfg.endpoint) base.endpoint = cfg.endpoint;
+  if (cfg.profile) base.credentials = fromIni({ profile: cfg.profile });
+  else if (cfg.endpoint) base.credentials = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
+  };
+  return base;
 }
 
 // ─── SQS ─────────────────────────────────────────────────────────────────────

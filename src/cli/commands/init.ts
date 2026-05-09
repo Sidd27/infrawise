@@ -38,7 +38,13 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
       type: 'list',
       name: 'awsProfile',
       message: 'AWS profile:',
-      choices: profiles,
+      choices: [
+        new inquirer.Separator('── no profile ──'),
+        { name: 'Environment variables  (CI/CD, real AWS)', value: '__env__' },
+        { name: 'LocalStack  (local development)', value: '__localstack__' },
+        new inquirer.Separator('── named profiles ──'),
+        ...profiles,
+      ],
       default: profiles[0],
     },
     {
@@ -47,25 +53,19 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
       message: 'AWS region:',
       default: detectedRegion,
     },
+    {
+      type: 'input',
+      name: 'endpoint',
+      message: 'LocalStack endpoint:',
+      default: 'http://localhost:4566',
+      when: (a) => a.awsProfile === '__localstack__',
+    },
   ]);
 
   // ── Databases ──────────────────────────────────────────────────────────────
   console.log('\n  ' + chalk.bold('Databases'));
+  console.log(chalk.dim('  Self-hosted databases (PostgreSQL, MySQL, MongoDB).'));
   const databases = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'dynamoEnabled',
-      message: 'Enable DynamoDB analysis?',
-      default: true,
-    },
-    {
-      type: 'input',
-      name: 'dynamoTables',
-      message: 'DynamoDB tables to include:',
-      default: '',
-      suffix: chalk.dim(' (comma-separated, blank = all)'),
-      when: (a) => a.dynamoEnabled,
-    },
     {
       type: 'confirm',
       name: 'pgEnabled',
@@ -109,8 +109,22 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
 
   // ── AWS services ───────────────────────────────────────────────────────────
   console.log('\n  ' + chalk.bold('AWS Services'));
-  console.log(chalk.dim('  Infrawise will introspect these services — credentials from the AWS profile above.'));
+  console.log(chalk.dim('  Infrawise will introspect these services using the credentials configured above.'));
   const services = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'dynamoEnabled',
+      message: 'Introspect DynamoDB?',
+      default: true,
+    },
+    {
+      type: 'input',
+      name: 'dynamoTables',
+      message: 'DynamoDB tables to include:',
+      default: '',
+      suffix: chalk.dim(' (comma-separated, blank = all)'),
+      when: (a) => a.dynamoEnabled,
+    },
     {
       type: 'confirm',
       name: 'sqsEnabled',
@@ -166,8 +180,8 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
   ]);
 
   // ── Build config ───────────────────────────────────────────────────────────
-  const includeTables = databases.dynamoTables
-    ? databases.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
+  const includeTables = services.dynamoTables
+    ? services.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
     : [];
 
   const ssmPaths = services.ssmPaths
@@ -178,9 +192,14 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     ? services.logGroupPrefixes.split(',').map((p: string) => p.trim()).filter(Boolean)
     : [];
 
+  const isLocalStack = core.awsProfile === '__localstack__';
+  const isEnvVars = core.awsProfile === '__env__';
+  const resolvedProfile = isLocalStack || isEnvVars ? '' : core.awsProfile;
+  const resolvedEndpoint = isLocalStack ? (core.endpoint || 'http://localhost:4566') : undefined;
+
   const configContent = generateDefaultConfig(core.project, {
-    aws: { profile: core.awsProfile, region: core.region },
-    dynamodb: { enabled: databases.dynamoEnabled, includeTables },
+    aws: { profile: resolvedProfile, region: core.region, endpoint: resolvedEndpoint },
+    dynamodb: { enabled: services.dynamoEnabled, includeTables },
     postgres: { enabled: databases.pgEnabled, connectionString: databases.pgConnectionString ?? '' },
     mysql: { enabled: databases.mysqlEnabled, connectionString: databases.mysqlConnectionString ?? '' },
     mongodb: { enabled: databases.mongoEnabled, connectionString: databases.mongoConnectionString ?? '' },
