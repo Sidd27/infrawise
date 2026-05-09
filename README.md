@@ -7,27 +7,37 @@
 
 **Understand your infrastructure, not just your code.**
 
-Infrawise is a CLI tool that scans your TypeScript codebase, maps every function-to-database relationship into a graph, detects anti-patterns (full table scans, missing indexes, hot partitions, N+1 queries), and exposes all of it as an MCP server — so AI coding assistants like Claude Code have live, deterministic knowledge of your infrastructure when helping you write database code.
+Infrawise gives AI coding assistants deterministic infrastructure awareness.
+
+It statically analyzes your codebase, cloud infrastructure, and database schemas, then exposes that context through MCP so tools like Claude Code can understand your actual tables, indexes, query patterns, and service relationships instead of guessing from source files alone.
 
 ---
 
 ## Why this exists
 
-When AI coding assistants help you write database queries, they read your source files but have no knowledge of your actual infrastructure. They don't know your DynamoDB partition keys, which GSIs exist, or which functions are already doing expensive scans. They guess.
+AI coding assistants can read your source files but have no deterministic knowledge of your infrastructure. They do not know which GSIs exist, how tables are partitioned, which functions already trigger scans, or where indexes are missing. So they guess.
 
-Infrawise fixes that. It runs a static analysis of your repo, builds an infrastructure graph, and starts a local MCP server. Claude Code can then call tools like `get_graph_summary`, `analyze_function`, and `suggest_gsi` in real time — giving it exact knowledge of your schema and access patterns before writing a single line of database code.
+Infrawise replaces guessing with infrastructure-aware context.
 
-**Without Infrawise**, Claude might:
+**Without Infrawise**, an AI assistant might:
 - Suggest a `.scan()` on your Orders table that has 50M rows
 - Recommend adding a GSI on `status` that you already have
 - Write a `SELECT *` when you need to keep query cost low
 - Not notice that 5 functions are already hammering the same partition key
 
-**With Infrawise**, Claude knows:
+**With Infrawise**, it knows:
 - Your exact table schemas, partition keys, sort keys, and GSIs
 - Which functions query which tables and how
-- Which patterns are already flagged as high severity in your codebase
-- The exact `CREATE INDEX` SQL or GSI config for your specific tables — not generic advice
+- Which patterns are already flagged as high severity
+- The exact `CREATE INDEX` SQL or GSI config for your tables — not generic advice
+
+---
+
+## What Infrawise is not
+
+Infrawise is not an AI agent framework, an infrastructure provisioning tool, an observability platform, or a cloud management dashboard.
+
+It is a deterministic infrastructure intelligence layer for AI-assisted development.
 
 ---
 
@@ -55,14 +65,6 @@ infrawise init
 ```
 
 Detects your AWS profile and region, asks a few questions, writes `infrawise.yaml`. That's the only file it creates in your project.
-
-```
-✔ Detected repository: payments-service
-✔ Repository type: typescript
-✔ AWS profile: default
-✔ Found DynamoDB tables: Orders, Users, Sessions
-✔ Created infrawise.yaml
-```
 
 **2. Validate everything is connected**
 
@@ -93,9 +95,7 @@ Findings (3 total)
 
 ---
 
-## Using with Claude Code
-
-This is where Infrawise becomes most useful. Once wired up, Claude Code has live access to your infrastructure graph — it stops guessing and starts knowing.
+## Using with AI coding assistants
 
 ### Step 1: Start the MCP server
 
@@ -111,9 +111,9 @@ MCP endpoint:      http://localhost:3000/mcp
 Available tools:   http://localhost:3000/mcp/tools
 ```
 
-### Step 2: Add to Claude Code settings
+### Step 2: Add to your editor settings
 
-Edit `.claude/settings.json` in your repo (project-level) or `~/.claude/settings.json` (global):
+**Claude Code** — edit `.claude/settings.json` in your repo (project-level) or `~/.claude/settings.json` (global):
 
 ```json
 {
@@ -125,9 +125,7 @@ Edit `.claude/settings.json` in your repo (project-level) or `~/.claude/settings
 }
 ```
 
-Restart Claude Code. The tools are now available in every conversation.
-
-Alternatively, let Claude Code manage the server lifecycle automatically:
+To let Claude Code manage the server lifecycle automatically:
 
 ```json
 {
@@ -140,11 +138,11 @@ Alternatively, let Claude Code manage the server lifecycle automatically:
 }
 ```
 
-### Step 3: What Claude can now do
+**Cursor** and **Windsurf** — add `http://localhost:3000/mcp` as an MCP server in editor settings.
 
-Claude gains 13 tools it calls silently while helping you:
+### MCP tools
 
-| Tool | What it gives Claude |
+| Tool | What it provides |
 |---|---|
 | `get_infra_overview` | Complete snapshot — all services, counts, and high-severity findings |
 | `get_graph_summary` | Full infrastructure graph — all nodes, edges, and findings |
@@ -159,24 +157,6 @@ Claude gains 13 tools it calls silently while helping you:
 | `get_parameter_overview` | SSM Parameter Store — names, types, tiers (values never included) |
 | `get_lambda_overview` | Lambda functions — runtime, memory, timeout, env var key names |
 | `get_log_errors` | CloudWatch error patterns and counts (no raw log messages) |
-
-### What changes in practice
-
-**Before Infrawise:**
-> You: "Write a function to get all orders by userId"
-> Claude: *writes a DynamoDB `.scan()` filtered client-side — no schema context*
-
-**After Infrawise:**
-> You: "Write a function to get all orders by userId"
-> Claude: *calls `get_graph_summary` → sees Orders has a `userId-index` GSI → writes a `.query()` against the GSI → notes `listAllOrders()` already does a full scan and flags it proactively*
-
-### Using with other AI editors
-
-Infrawise works with any editor or tool that supports MCP or can call an HTTP API:
-
-- **Cursor** — add `http://localhost:3000/mcp` as an MCP server in Cursor settings
-- **Windsurf** — same, via MCP server configuration
-- **Any Claude API project** — call the endpoint directly from your own tooling
 
 ---
 
@@ -290,13 +270,13 @@ For Amazon RDS: allow inbound on port 5432 from your machine's IP in the securit
 
 ---
 
-## Language support
+## Analysis capabilities
 
-Infrawise has two analysis layers with different language requirements:
+Infrawise has two analysis layers:
 
-### Infrastructure-level analysis — any project, any language
+### Infrastructure analysis (all languages)
 
-The following analyzers work purely from infrastructure metadata (AWS APIs, database schema introspection, IaC files). They have no dependency on your application code or language:
+Works from AWS APIs, database schema introspection, and IaC files — no dependency on application code:
 
 | Service | What it checks |
 |---|---|
@@ -310,9 +290,9 @@ The following analyzers work purely from infrastructure metadata (AWS APIs, data
 | CloudWatch Logs | Log groups with no retention policy |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state |
 
-### Code-level analysis — TypeScript and JavaScript only
+### Code correlation analysis (TypeScript / JavaScript)
 
-The repository scanner uses [ts-morph](https://ts-morph.com/) for static AST analysis. It detects which functions call which tables and how, enabling pattern detection that requires correlating code with infrastructure:
+Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions call which tables and how:
 
 | Analyzer | Severity | What it detects |
 |---|---|---|
@@ -327,15 +307,25 @@ The repository scanner uses [ts-morph](https://ts-morph.com/) for static AST ana
 | Missing Mongo Index | Medium | Collections queried without secondary indexes |
 | Collection Scan | High | `find()` calls without filter predicates |
 
-**Non-TypeScript/JavaScript projects** still get full value from all infrastructure-level analyzers. The code correlation layer (which functions hit which tables, N+1 patterns) is skipped — run `infrawise analyze` and it will report 0 code operations while still surfacing all schema, configuration, and IaC findings.
+Non-TypeScript/JavaScript projects still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) is skipped.
 
-The scanner detects these patterns in TypeScript and JavaScript files:
+The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, and AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda.
 
-- **DynamoDB** — AWS SDK v3 (`client.send(new QueryCommand(...))`) and v2-style (`dynamoDb.scan(...)`)
-- **PostgreSQL** — `pg` pool/client queries, Prisma, Knex
-- **MySQL** — `mysql2` connection/pool queries, Knex with MySQL dialect
-- **MongoDB** — driver `collection.find/findOne/aggregate`, Mongoose models
-- **SQS / SNS / SSM / Secrets / Lambda** — AWS SDK v3 command pattern
+---
+
+## How it works
+
+1. Infrawise scans your repository and infrastructure metadata
+2. A graph engine maps services, schemas, indexes, and query patterns
+3. Rule-based analyzers detect infrastructure and query anti-patterns
+4. The resulting context is exposed through MCP
+5. AI coding assistants query this context while generating code
+
+---
+
+## Deterministic analysis
+
+Infrawise does not use an LLM to analyze your infrastructure. All extraction and analysis are deterministic: AST parsing, schema introspection, rule-based analyzers, and graph correlation. LLMs are only consumers of the generated context through MCP.
 
 ---
 
@@ -348,7 +338,7 @@ The scanner detects these patterns in TypeScript and JavaScript files:
 
 ---
 
-## Architecture
+## Architecture overview
 
 ```
 Your repo (any language)          Your repo (TS/JS only)
@@ -375,8 +365,6 @@ Your repo (any language)          Your repo (TS/JS only)
                └──────────────────┘ ◄── Windsurf
 ```
 
-The analysis is entirely deterministic — no LLM is involved in extracting or analyzing your infrastructure. AI is only at the consumption layer.
-
 ### Source layout
 
 ```
@@ -394,15 +382,28 @@ src/
 
 ---
 
+## Current limitations
+
+- Code-level correlation supports TypeScript and JavaScript only
+- Dynamically constructed queries may not always be resolved statically
+- Runtime tracing is not yet implemented
+- Large monorepos may require future incremental analysis optimization
+
+---
+
 ## Roadmap
 
-- [x] MySQL adapter
-- [x] MongoDB adapter
-- [x] Terraform / CloudFormation schema correlation
-- [ ] Latency tracing integration
-- [ ] VS Code extension
-- [ ] Kubernetes workload graph
-- [ ] Infra drift detection
+### Planned
+- Runtime tracing integration
+- Incremental analysis for large monorepos
+- Kubernetes workload graphing
+- VS Code extension
+- Infrastructure drift detection
+
+### Under consideration
+- OpenTelemetry integration
+- CI/CD reporting mode
+- Multi-repository graph correlation
 
 ---
 
@@ -410,16 +411,7 @@ src/
 
 ### Prerequisites
 
-| Requirement | Version |
-|---|---|
-| Node.js | 24+ |
-| pnpm | 9+ |
-| AWS CLI | any (for integration testing) |
-
-```bash
-# Install pnpm if you don't have it
-npm install -g pnpm
-```
+Node.js 24+, pnpm 9+, AWS CLI (for integration testing).
 
 ### Setup
 
@@ -433,18 +425,11 @@ pnpm build
 ### Development workflow
 
 ```bash
-pnpm build        # build all packages
+pnpm build        # compile
 pnpm test         # run all tests
 pnpm typecheck    # TypeScript strict check
 pnpm lint         # ESLint
 ```
-
-Tests live in `src/**/__tests__/`:
-- `src/core/__tests__/` — config validation, cache
-- `src/graph/__tests__/` — graph builder
-- `src/analyzers/__tests__/` — all analyzers
-- `src/server/__tests__/` — MCP server (Fastify inject, all 13 tools)
-- `src/context/__tests__/` — repository scanner
 
 ### Adding a new analyzer
 
@@ -468,7 +453,7 @@ export class MyAnalyzer implements Analyzer {
 
 ### Releasing
 
-The git tag is the source of truth. The version in root `package.json` and the tag must always match — the release script does both atomically.
+The git tag is the source of truth. The version in root `package.json` and the tag must always match.
 
 ```bash
 pnpm release patch    # 0.1.2 → 0.1.3  (bug fixes)
@@ -479,17 +464,11 @@ pnpm release 1.5.0    # explicit version
 git push origin main --tags
 ```
 
-**What happens after push:**
-
-1. `release.yml` fires on the `v*.*.*` tag → creates a **draft** GitHub release with auto-generated notes
-2. Review the draft on GitHub → click **Publish release**
-3. `npm-publish.yml` fires on publish → reads the version from the tag, stamps it onto `package.json`, builds, and publishes to npm
-
-The CLI reads its version from root `package.json` at runtime, so `infrawise --version` always matches the installed package.
+Pushing a `v*.*.*` tag creates a draft GitHub release. Publishing that release triggers npm publish automatically.
 
 ### PR checklist
 
-- `pnpm lint` passes (no errors)
+- `pnpm lint` passes
 - `pnpm typecheck` passes
 - `pnpm test` passes
 - New analyzers have unit tests with mock graph data
