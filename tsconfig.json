@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "ES2024",
     "lib": ["ES2024"],
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,

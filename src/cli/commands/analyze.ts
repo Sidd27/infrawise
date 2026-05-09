@@ -18,9 +18,20 @@ import {
 import { extractLogsSummary } from '../../adapters/logs';
 import { scanRepository } from '../../context';
 import { buildGraph } from '../../graph';
-import { runAllAnalyzers, IaCDriftAnalyzer } from '../../analyzers';
+import {
+  runAllAnalyzers, IaCDriftAnalyzer,
+  FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer,
+  MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer,
+  MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer,
+  MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer,
+  MissingDLQAnalyzer, UnencryptedQueueAnalyzer, LargeQueueBacklogAnalyzer,
+  MissingSecretRotationAnalyzer, MissingLogRetentionAnalyzer,
+  LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer,
+  RDSPubliclyAccessibleAnalyzer, RDSNoBackupAnalyzer, RDSUnencryptedAnalyzer,
+  RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
+} from '../../analyzers';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils';
-import type { ServicesMeta } from '../../types';
+import type { ServicesMeta, ExtractedOperation } from '../../types';
 
 interface AnalyzeOptions {
   config?: string;
@@ -205,7 +216,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // ── Repository scan ──────────────────────────────────────────────────────────
-  let operations: import('../../types').ExtractedOperation[];
+  let operations: ExtractedOperation[];
   {
     const spin = ora({ text: chalk.dim(`Scanning ${path.basename(repoPath)} for service usage...`), color: 'cyan' }).start();
     try {
@@ -226,20 +237,9 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // ── Run analyzers ────────────────────────────────────────────────────────────
-  const findings = await (async () => {
+  let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
+  {
     const spin = ora({ text: chalk.dim('Running analyzers...'), color: 'cyan' }).start();
-    const {
-      FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer,
-      MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer,
-      MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer,
-      MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer,
-      MissingDLQAnalyzer, UnencryptedQueueAnalyzer, LargeQueueBacklogAnalyzer,
-      MissingSecretRotationAnalyzer, MissingLogRetentionAnalyzer,
-      LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer,
-      RDSPubliclyAccessibleAnalyzer, RDSNoBackupAnalyzer, RDSUnencryptedAnalyzer,
-      RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
-    } = await import('../../analyzers');
-
     const analyzers = [
       ...(config.dynamodb?.enabled === true ? [
         new FullTableScanAnalyzer(),
@@ -283,11 +283,9 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       ] : []),
       ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
     ];
-
-    const result = await runAllAnalyzers(graph, analyzers);
-    spin.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${result.length} finding(s)`));
-    return result;
-  })();
+    findings = await runAllAnalyzers(graph, analyzers);
+    spin.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${findings.length} finding(s)`));
+  }
 
   // ── Cache ─────────────────────────────────────────────────────────────────────
   writeCache('graph', graph);
