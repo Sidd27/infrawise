@@ -28,7 +28,7 @@ describe('scanRepository — DynamoDB', () => {
     const ops = await scanRepository(tmpDir);
     const op = ops.find((o) => o.target === 'Orders' && o.operationType === 'QueryCommand');
     expect(op).toBeDefined();
-    expect(op?.databaseType).toBe('dynamodb');
+    expect(op?.serviceType).toBe('dynamodb');
     expect(op?.functionName).toBe('getOrder');
   });
 
@@ -41,7 +41,7 @@ describe('scanRepository — DynamoDB', () => {
     const ops = await scanRepository(tmpDir);
     const op = ops.find((o) => o.target === 'Users' && o.operationType === 'ScanCommand');
     expect(op).toBeDefined();
-    expect(op?.databaseType).toBe('dynamodb');
+    expect(op?.serviceType).toBe('dynamodb');
   });
 
   it('detects v2-style dynamo.query()', async () => {
@@ -51,7 +51,7 @@ describe('scanRepository — DynamoDB', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.target === 'Sessions' && o.databaseType === 'dynamodb');
+    const op = ops.find((o) => o.target === 'Sessions' && o.serviceType === 'dynamodb');
     expect(op).toBeDefined();
   });
 });
@@ -64,7 +64,7 @@ describe('scanRepository — PostgreSQL', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.target === 'users' && o.databaseType === 'postgres');
+    const op = ops.find((o) => o.target === 'users' && o.serviceType === 'postgres');
     expect(op).toBeDefined();
     expect(op?.operationType).toBe('query');
   });
@@ -76,7 +76,7 @@ describe('scanRepository — PostgreSQL', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.target === 'orders' && o.databaseType === 'postgres');
+    const op = ops.find((o) => o.target === 'orders' && o.serviceType === 'postgres');
     expect(op).toBeDefined();
     expect(op?.operationType).toBe('findMany');
   });
@@ -90,7 +90,7 @@ describe('scanRepository — MySQL', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.target === 'products' && o.databaseType === 'mysql');
+    const op = ops.find((o) => o.target === 'products' && o.serviceType === 'mysql');
     expect(op).toBeDefined();
   });
 });
@@ -103,7 +103,7 @@ describe('scanRepository — MongoDB', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.target === 'items' && o.databaseType === 'mongodb');
+    const op = ops.find((o) => o.target === 'items' && o.serviceType === 'mongodb');
     expect(op).toBeDefined();
   });
 
@@ -114,7 +114,7 @@ describe('scanRepository — MongoDB', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.databaseType === 'mongodb' && o.target === 'users');
+    const op = ops.find((o) => o.serviceType === 'mongodb' && o.target === 'users');
     expect(op).toBeDefined();
   });
 });
@@ -127,7 +127,7 @@ describe('scanRepository — AWS services', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.databaseType === 'sqs' && o.target === 'orders-queue');
+    const op = ops.find((o) => o.serviceType === 'sqs' && o.target === 'orders-queue');
     expect(op).toBeDefined();
     expect(op?.functionName).toBe('enqueue');
   });
@@ -139,7 +139,7 @@ describe('scanRepository — AWS services', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.databaseType === 'sns');
+    const op = ops.find((o) => o.serviceType === 'sns');
     expect(op).toBeDefined();
     expect(op?.target).toBe('alerts');
   });
@@ -151,7 +151,7 @@ describe('scanRepository — AWS services', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.databaseType === 'secretsmanager');
+    const op = ops.find((o) => o.serviceType === 'secretsmanager');
     expect(op).toBeDefined();
     expect(op?.target).toContain('db-password');
   });
@@ -163,7 +163,45 @@ describe('scanRepository — AWS services', () => {
       }
     `);
     const ops = await scanRepository(tmpDir);
-    const op = ops.find((o) => o.databaseType === 'lambda' && o.target === 'image-processor');
+    const op = ops.find((o) => o.serviceType === 'lambda' && o.target === 'image-processor');
+    expect(op).toBeDefined();
+  });
+});
+
+describe('scanRepository — Kafka', () => {
+  it('detects kafkajs producer.send() with topic', async () => {
+    writeFixture('kafka-producer.ts', `
+      async function publishOrder(order: unknown) {
+        await producer.send({ topic: 'orders', messages: [{ value: JSON.stringify(order) }] });
+      }
+    `);
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'kafka' && o.target === 'orders');
+    expect(op).toBeDefined();
+    expect(op?.operationType).toBe('send');
+    expect(op?.functionName).toBe('publishOrder');
+  });
+
+  it('detects kafkajs consumer.subscribe() with topic', async () => {
+    writeFixture('kafka-consumer.ts', `
+      async function startConsumer() {
+        await consumer.subscribe({ topic: 'payments', fromBeginning: true });
+      }
+    `);
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'kafka' && o.target === 'payments');
+    expect(op).toBeDefined();
+    expect(op?.operationType).toBe('subscribe');
+  });
+
+  it('detects kafka-prefixed producer variable', async () => {
+    writeFixture('kafka-prefixed.ts', `
+      async function emit(msg: string) {
+        await kafkaProducer.send({ topic: 'events', messages: [{ value: msg }] });
+      }
+    `);
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'kafka' && o.target === 'events');
     expect(op).toBeDefined();
   });
 });

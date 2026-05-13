@@ -220,6 +220,9 @@ lambda:
 rds:
   enabled: false
 
+kafka:
+  enabled: false
+
 cloudwatchLogs:
   enabled: false
   logGroupPrefixes: []
@@ -284,6 +287,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | PostgreSQL / MySQL schema | Tables, indexes, column types |
 | MongoDB schema | Collections, indexes |
 | SQS | Missing DLQs, unencrypted queues, large backlogs |
+| Kafka (kafkajs) | Producer/consumer topic mapping from code |
 | Secrets Manager | Missing secret rotation |
 | Lambda | Default memory (128 MB), high timeouts |
 | RDS | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ |
@@ -309,7 +313,7 @@ Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions ca
 
 Non-TypeScript/JavaScript projects still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) is skipped.
 
-The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, and AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda.
+The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda, and `kafkajs` for Kafka topics (producer/consumer).
 
 ---
 
@@ -399,6 +403,7 @@ src/
 - Kubernetes workload graphing
 - VS Code extension
 - Infrastructure drift detection
+- MSK (Amazon Managed Streaming for Apache Kafka) — cluster metadata + topic listing via MSK API and Kafka admin client
 
 ### Under consideration
 - OpenTelemetry integration

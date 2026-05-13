@@ -55,6 +55,12 @@ const MONGO_COLLECTION_METHODS = new Set(['collection']);
 
 const SQS_COMMANDS = new Set(['SendMessageCommand', 'SendMessageBatchCommand', 'ReceiveMessageCommand', 'DeleteMessageCommand', 'sendMessage', 'sendMessageBatch', 'receiveMessage']);
 const SNS_COMMANDS = new Set(['PublishCommand', 'PublishBatchCommand', 'publish', 'publishBatch']);
+
+// kafkajs patterns — detection relies on variable naming (producer/consumer/kafka)
+const KAFKA_PRODUCER_METHODS = new Set(['send', 'sendBatch']);
+const KAFKA_CONSUMER_METHODS = new Set(['subscribe']);
+const KAFKA_CLIENT_PATTERNS = ['kafka', 'producer', 'consumer'];
+const KAFKA_TOPIC_KEYS = ['topic'];
 const SSM_COMMANDS = new Set(['GetParameterCommand', 'GetParametersCommand', 'GetParametersByPathCommand', 'getParameter', 'getParameters', 'getParametersByPath']);
 const SECRETS_COMMANDS = new Set(['GetSecretValueCommand', 'getSecretValue']);
 const LAMBDA_COMMANDS = new Set(['InvokeCommand', 'InvokeAsyncCommand', 'invoke', 'invokeAsync']);
@@ -142,7 +148,7 @@ function detectDynamoOperations(
           return {
             functionName: getEnclosingFunctionName(callExpr),
             operationType: className,
-            databaseType: 'dynamodb',
+            serviceType: 'dynamodb',
             target: tableName,
             filePath,
           };
@@ -158,7 +164,7 @@ function detectDynamoOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: methodName,
-          databaseType: 'dynamodb',
+          serviceType: 'dynamodb',
           target: tableName,
           filePath,
         };
@@ -221,7 +227,7 @@ function detectPostgresOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: 'query',
-        databaseType: 'postgres',
+        serviceType: 'postgres',
         target: tableName,
         filePath,
       };
@@ -238,7 +244,7 @@ function detectPostgresOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: methodName,
-          databaseType: 'postgres',
+          serviceType: 'postgres',
           target: modelName,
           filePath,
         };
@@ -258,7 +264,7 @@ function detectPostgresOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'postgres',
+        serviceType: 'postgres',
         target: 'unknown',
         filePath,
       };
@@ -275,7 +281,7 @@ function detectPostgresOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: methodName,
-          databaseType: 'postgres',
+          serviceType: 'postgres',
           target: tableName,
           filePath,
         };
@@ -317,7 +323,7 @@ function detectMySQLOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: 'query',
-        databaseType: 'mysql',
+        serviceType: 'mysql',
         target: tableName,
         filePath,
       };
@@ -337,7 +343,7 @@ function detectMySQLOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'mysql',
+        serviceType: 'mysql',
         target: tableName,
         filePath,
       };
@@ -397,7 +403,7 @@ function detectMongoOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: opType,
-        databaseType: 'mongodb',
+        serviceType: 'mongodb',
         target: collectionName,
         filePath,
       };
@@ -416,7 +422,7 @@ function detectMongoOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: 'query',
-        databaseType: 'mongodb',
+        serviceType: 'mongodb',
         target: collectionName,
         filePath,
       };
@@ -442,6 +448,43 @@ function extractArgValue(arg: Node, ...keys: string[]): string {
   return 'unknown';
 }
 
+function detectKafkaOperations(
+  callExpr: CallExpression,
+  filePath: string,
+): ExtractedOperation | null {
+  const expr = callExpr.getExpression();
+  const args = callExpr.getArguments();
+
+  if (!Node.isPropertyAccessExpression(expr)) return null;
+
+  const methodName = expr.getName();
+  const objText = expr.getExpression().getText().toLowerCase();
+
+  if (!KAFKA_CLIENT_PATTERNS.some((p) => objText.includes(p))) return null;
+
+  if (KAFKA_PRODUCER_METHODS.has(methodName)) {
+    return {
+      functionName: getEnclosingFunctionName(callExpr),
+      operationType: methodName,
+      serviceType: 'kafka',
+      target: args.length > 0 ? extractArgValue(args[0], ...KAFKA_TOPIC_KEYS) : 'unknown',
+      filePath,
+    };
+  }
+
+  if (KAFKA_CONSUMER_METHODS.has(methodName)) {
+    return {
+      functionName: getEnclosingFunctionName(callExpr),
+      operationType: methodName,
+      serviceType: 'kafka',
+      target: args.length > 0 ? extractArgValue(args[0], ...KAFKA_TOPIC_KEYS) : 'unknown',
+      filePath,
+    };
+  }
+
+  return null;
+}
+
 function detectAWSServiceOperations(
   callExpr: CallExpression,
   filePath: string,
@@ -460,7 +503,7 @@ function detectAWSServiceOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: className,
-          databaseType: 'sqs',
+          serviceType: 'sqs',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SQS_ARG_KEYS) : 'unknown',
           filePath,
         };
@@ -469,7 +512,7 @@ function detectAWSServiceOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: className,
-          databaseType: 'sns',
+          serviceType: 'sns',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SNS_ARG_KEYS) : 'unknown',
           filePath,
         };
@@ -478,7 +521,7 @@ function detectAWSServiceOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: className,
-          databaseType: 'ssm',
+          serviceType: 'ssm',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SSM_ARG_KEYS) : 'unknown',
           filePath,
         };
@@ -487,7 +530,7 @@ function detectAWSServiceOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: className,
-          databaseType: 'secretsmanager',
+          serviceType: 'secretsmanager',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SECRETS_ARG_KEYS) : 'unknown',
           filePath,
         };
@@ -496,7 +539,7 @@ function detectAWSServiceOperations(
         return {
           functionName: getEnclosingFunctionName(callExpr),
           operationType: className,
-          databaseType: 'lambda',
+          serviceType: 'lambda',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...LAMBDA_ARG_KEYS) : 'unknown',
           filePath,
         };
@@ -513,7 +556,7 @@ function detectAWSServiceOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'sqs',
+        serviceType: 'sqs',
         target: args.length > 0 ? extractArgValue(args[0], ...SQS_ARG_KEYS) : 'unknown',
         filePath,
       };
@@ -522,7 +565,7 @@ function detectAWSServiceOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'sns',
+        serviceType: 'sns',
         target: args.length > 0 ? extractArgValue(args[0], ...SNS_ARG_KEYS) : 'unknown',
         filePath,
       };
@@ -531,7 +574,7 @@ function detectAWSServiceOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'ssm',
+        serviceType: 'ssm',
         target: args.length > 0 ? extractArgValue(args[0], ...SSM_ARG_KEYS) : 'unknown',
         filePath,
       };
@@ -540,7 +583,7 @@ function detectAWSServiceOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'secretsmanager',
+        serviceType: 'secretsmanager',
         target: args.length > 0 ? extractArgValue(args[0], ...SECRETS_ARG_KEYS) : 'unknown',
         filePath,
       };
@@ -549,7 +592,7 @@ function detectAWSServiceOperations(
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
-        databaseType: 'lambda',
+        serviceType: 'lambda',
         target: args.length > 0 ? extractArgValue(args[0], ...LAMBDA_ARG_KEYS) : 'unknown',
         filePath,
       };
@@ -625,6 +668,12 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
       const mongoOp = detectMongoOperations(callExpr, filePath);
       if (mongoOp) {
         operations.push(mongoOp);
+        continue;
+      }
+
+      const kafkaOp = detectKafkaOperations(callExpr, filePath);
+      if (kafkaOp) {
+        operations.push(kafkaOp);
         continue;
       }
 

@@ -155,7 +155,7 @@ export function buildGraph(
       instanceClass: db.instanceClass,
       publiclyAccessible: db.publiclyAccessible,
       storageEncrypted: db.storageEncrypted,
-      backupRetentionDays: db.backupRetentionPeriod,
+      backupRetentionDays: db.backupRetentionDays,
       deletionProtection: db.deletionProtection,
       multiAZ: db.multiAZ,
     });
@@ -171,35 +171,43 @@ export function buildGraph(
     }
 
     // AWS service operations create edges to service nodes
-    if (op.databaseType === 'sqs') {
+    if (op.serviceType === 'sqs') {
       const queueId = `queue:aws:${op.target}`;
       addNode({ id: queueId, type: 'queue', name: op.target, provider: 'aws', hasDLQ: false, encrypted: false });
       edges.push({ from: funcNodeId, to: queueId, type: 'publishes_to' });
       continue;
     }
 
-    if (op.databaseType === 'sns') {
+    if (op.serviceType === 'sns') {
       const topicId = `topic:aws:${op.target}`;
       addNode({ id: topicId, type: 'topic', name: op.target, provider: 'aws', encrypted: false });
       edges.push({ from: funcNodeId, to: topicId, type: 'publishes_to' });
       continue;
     }
 
-    if (op.databaseType === 'ssm') {
+    if (op.serviceType === 'kafka') {
+      const topicId = `topic:kafka:${op.target}`;
+      addNode({ id: topicId, type: 'topic', name: op.target, provider: 'kafka', encrypted: false });
+      const edgeType = op.operationType === 'subscribe' ? 'subscribes_to' : 'publishes_to';
+      edges.push({ from: funcNodeId, to: topicId, type: edgeType });
+      continue;
+    }
+
+    if (op.serviceType === 'ssm') {
       const paramId = `parameter:aws:${op.target}`;
       addNode({ id: paramId, type: 'parameter', name: op.target, provider: 'aws', paramType: 'String', tier: 'Standard' });
       edges.push({ from: funcNodeId, to: paramId, type: 'reads_parameter' });
       continue;
     }
 
-    if (op.databaseType === 'secretsmanager') {
+    if (op.serviceType === 'secretsmanager') {
       const secretId = `secret:aws:${op.target}`;
       addNode({ id: secretId, type: 'secret', name: op.target, provider: 'aws', rotationEnabled: false });
       edges.push({ from: funcNodeId, to: secretId, type: 'reads_secret' });
       continue;
     }
 
-    if (op.databaseType === 'lambda') {
+    if (op.serviceType === 'lambda') {
       const lambdaId = `lambda:aws:${op.target}`;
       addNode({ id: lambdaId, type: 'lambda', name: op.target });
       edges.push({ from: funcNodeId, to: lambdaId, type: 'triggers' });
@@ -208,14 +216,14 @@ export function buildGraph(
 
     // Database operations
     let tableNodeId: string;
-    if (op.databaseType === 'dynamodb') {
+    if (op.serviceType === 'dynamodb') {
       tableNodeId = `table:dynamo:${op.target}`;
       addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
-    } else if (op.databaseType === 'mysql') {
+    } else if (op.serviceType === 'mysql') {
       const q = op.target.includes('.') ? op.target : `default.${op.target}`;
       tableNodeId = `table:mysql:${q}`;
       addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
-    } else if (op.databaseType === 'mongodb') {
+    } else if (op.serviceType === 'mongodb') {
       const q = op.target.includes('.') ? op.target : `default.${op.target}`;
       tableNodeId = `table:mongodb:${q}`;
       addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });

@@ -285,7 +285,7 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
           instanceClass: db.DBInstanceClass ?? '',
           publiclyAccessible: db.PubliclyAccessible ?? false,
           storageEncrypted: db.StorageEncrypted ?? false,
-          backupRetentionPeriod: db.BackupRetentionPeriod ?? 0,
+          backupRetentionDays: db.BackupRetentionPeriod ?? 0,
           deletionProtection: db.DeletionProtection ?? false,
           multiAZ: db.MultiAZ ?? false,
           dbInstanceStatus: db.DBInstanceStatus ?? '',

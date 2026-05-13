@@ -58,7 +58,7 @@ function topPatterns(
     .map(([pattern, count]) => ({ pattern, count }));
 }
 
-export async function extractLogsSummary(cfg: LogsConfig = {}): Promise<LogGroupSummary[]> {
+export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGroupSummary[]> {
   const client = new CloudWatchLogsClient(clientConfig(cfg));
   const windowMs = (cfg.windowHours ?? 24) * 60 * 60 * 1000;
   const startTime = Date.now() - windowMs;

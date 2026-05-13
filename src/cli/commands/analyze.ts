@@ -15,7 +15,7 @@ import {
   extractLambdaMetadata,
   extractRDSMetadata,
 } from '../../adapters/aws';
-import { extractLogsSummary } from '../../adapters/logs';
+import { extractLogsMetadata } from '../../adapters/logs';
 import { scanRepository } from '../../context';
 import { buildGraph } from '../../graph';
 import {
@@ -184,7 +184,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   if (config.cloudwatchLogs?.enabled) {
     const spin = ora({ text: chalk.dim('Sampling CloudWatch Logs (errors only, max 50 groups)...'), color: 'cyan' }).start();
     try {
-      const result = await extractLogsSummary({
+      const result = await extractLogsMetadata({
         ...awsCfg,
         logGroupPrefixes: config.cloudwatchLogs.logGroupPrefixes,
         windowHours: config.cloudwatchLogs.windowHours,

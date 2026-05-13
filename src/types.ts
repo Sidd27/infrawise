@@ -154,7 +154,7 @@ export interface RDSInstanceMetadata {
   instanceClass: string;
   publiclyAccessible: boolean;
   storageEncrypted: boolean;
-  backupRetentionPeriod: number;
+  backupRetentionDays: number;
   deletionProtection: boolean;
   multiAZ: boolean;
   dbInstanceStatus: string;
@@ -176,7 +176,7 @@ export interface ServicesMeta {
 export interface ExtractedOperation {
   functionName: string;
   operationType: string;
-  databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb' | 'sqs' | 'sns' | 'ssm' | 'secretsmanager' | 'lambda';
+  serviceType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb' | 'sqs' | 'sns' | 'ssm' | 'secretsmanager' | 'lambda' | 'kafka';
   target: string;
   filePath: string;
 }
@@ -242,6 +242,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   rds?: {
+    enabled?: boolean;
+  };
+  kafka?: {
     enabled?: boolean;
   };
   cloudwatchLogs?: {

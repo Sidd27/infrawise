@@ -53,21 +53,21 @@ const mockOperations: ExtractedOperation[] = [
   {
     functionName: 'getOrder',
     operationType: 'query',
-    databaseType: 'dynamodb',
+    serviceType: 'dynamodb',
     target: 'Orders',
     filePath: 'src/orders.ts',
   },
   {
     functionName: 'listAllOrders',
     operationType: 'scan',
-    databaseType: 'dynamodb',
+    serviceType: 'dynamodb',
     target: 'Orders',
     filePath: 'src/orders.ts',
   },
   {
     functionName: 'getPayments',
     operationType: 'query',
-    databaseType: 'postgres',
+    serviceType: 'postgres',
     target: 'public.payments',
     filePath: 'src/payments.ts',
   },
@@ -118,8 +118,8 @@ describe('buildGraph', () => {
 
   it('does not create duplicate nodes for same table', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'fn1', operationType: 'query', databaseType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
-      { functionName: 'fn2', operationType: 'query', databaseType: 'dynamodb', target: 'Orders', filePath: 'b.ts' },
+      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
+      { functionName: 'fn2', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'b.ts' },
     ];
     const graph = buildGraph(ops, mockDynamoMeta, []);
     const ordersNodes = graph.nodes.filter((n) => n.type === 'table' && 'name' in n && n.name === 'Orders');
@@ -128,8 +128,8 @@ describe('buildGraph', () => {
 
   it('computes edge frequency correctly', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'fn1', operationType: 'query', databaseType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
-      { functionName: 'fn1', operationType: 'query', databaseType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
+      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
+      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
     ];
     const graph = buildGraph(ops, mockDynamoMeta, []);
     const freq = getEdgeFrequency(graph);
@@ -228,7 +228,7 @@ describe('buildGraph', () => {
 
   it('creates publishes_to edge for SQS operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'sendOrder', operationType: 'send', databaseType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
+      { functionName: 'sendOrder', operationType: 'send', serviceType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
     ];
     const graph = buildGraph(ops, [], []);
     const edge = graph.edges.find((e) => e.type === 'publishes_to');
@@ -238,7 +238,7 @@ describe('buildGraph', () => {
 
   it('creates triggers edge for Lambda invocation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'handler', operationType: 'invoke', databaseType: 'lambda', target: 'processOrders', filePath: 'src/handler.ts' },
+      { functionName: 'handler', operationType: 'invoke', serviceType: 'lambda', target: 'processOrders', filePath: 'src/handler.ts' },
     ];
     const graph = buildGraph(ops, [], []);
     const edge = graph.edges.find((e) => e.type === 'triggers');
@@ -248,7 +248,7 @@ describe('buildGraph', () => {
 
   it('creates reads_secret edge for Secrets Manager operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'getSecret', operationType: 'getSecretValue', databaseType: 'secretsmanager', target: 'db-password', filePath: 'src/secrets.ts' },
+      { functionName: 'getSecret', operationType: 'getSecretValue', serviceType: 'secretsmanager', target: 'db-password', filePath: 'src/secrets.ts' },
     ];
     const graph = buildGraph(ops, [], []);
     expect(graph.edges.some((e) => e.type === 'reads_secret')).toBe(true);
@@ -256,10 +256,32 @@ describe('buildGraph', () => {
 
   it('creates reads_parameter edge for SSM operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'getParam', operationType: 'getParameter', databaseType: 'ssm', target: '/app/db-url', filePath: 'src/config.ts' },
+      { functionName: 'getParam', operationType: 'getParameter', serviceType: 'ssm', target: '/app/db-url', filePath: 'src/config.ts' },
     ];
     const graph = buildGraph(ops, [], []);
     expect(graph.edges.some((e) => e.type === 'reads_parameter')).toBe(true);
+  });
+
+  it('creates publishes_to edge and kafka topic node for kafka producer operation', () => {
+    const ops: ExtractedOperation[] = [
+      { functionName: 'publishOrder', operationType: 'send', serviceType: 'kafka', target: 'orders', filePath: 'src/orders.ts' },
+    ];
+    const graph = buildGraph(ops, [], []);
+    const topicNode = graph.nodes.find((n) => n.type === 'topic' && n.name === 'orders');
+    expect(topicNode).toBeDefined();
+    expect((topicNode as Extract<typeof topicNode, { type: 'topic' }>)?.provider).toBe('kafka');
+    const edge = graph.edges.find((e) => e.type === 'publishes_to');
+    expect(edge?.to).toBe('topic:kafka:orders');
+  });
+
+  it('creates subscribes_to edge for kafka consumer operation', () => {
+    const ops: ExtractedOperation[] = [
+      { functionName: 'startConsumer', operationType: 'subscribe', serviceType: 'kafka', target: 'payments', filePath: 'src/consumer.ts' },
+    ];
+    const graph = buildGraph(ops, [], []);
+    const edge = graph.edges.find((e) => e.type === 'subscribes_to');
+    expect(edge).toBeDefined();
+    expect(edge?.to).toBe('topic:kafka:payments');
   });
 
   it('does not duplicate service nodes when operation target already exists in servicesMeta', () => {
@@ -267,7 +289,7 @@ describe('buildGraph', () => {
       sqs: [{ name: 'orders-queue', hasDLQ: true, encrypted: true, approximateMessages: 0 }],
     };
     const ops: ExtractedOperation[] = [
-      { functionName: 'sendOrder', operationType: 'send', databaseType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
+      { functionName: 'sendOrder', operationType: 'send', serviceType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
     ];
     const graph = buildGraph(ops, [], [], [], [], services);
     const queueNodes = graph.nodes.filter((n) => n.type === 'queue' && n.name === 'orders-queue');
@@ -278,8 +300,8 @@ describe('buildGraph', () => {
 describe('edge selectors', () => {
   const graph = buildGraph(
     [
-      { functionName: 'getOrder', operationType: 'query', databaseType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
-      { functionName: 'listOrders', operationType: 'scan', databaseType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
+      { functionName: 'getOrder', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
+      { functionName: 'listOrders', operationType: 'scan', serviceType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
     ],
     [{ tableName: 'Orders', partitionKey: 'orderId', indexes: [] }],
     [],
