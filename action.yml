@@ -1,0 +1,61 @@
+name: 'Infrawise'
+description: 'Infrastructure-aware code analysis — detects DynamoDB scans, missing indexes, unencrypted queues, and more'
+author: 'Sidd27'
+
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'infrawise version to install (default: latest)'
+    default: 'latest'
+  fail-on:
+    description: 'Exit with code 1 if findings at or above this severity exist (high, medium, low, never)'
+    default: 'high'
+  config:
+    description: 'Path to infrawise.yaml — auto-generated with AWS services enabled if not present'
+    default: 'infrawise.yaml'
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install infrawise
+      shell: bash
+      run: npm install -g infrawise@${{ inputs.version }}
+
+    - name: Generate config if missing
+      shell: bash
+      run: |
+        if [ ! -f "${{ inputs.config }}" ]; then
+          REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+          PROJECT="$(basename "$GITHUB_WORKSPACE")"
+          cat > "${{ inputs.config }}" <<INFRAWISE_EOF
+        project: ${PROJECT}
+        aws:
+          region: ${REGION}
+        dynamodb:
+          enabled: true
+        sqs:
+          enabled: true
+        sns:
+          enabled: true
+        ssm:
+          enabled: true
+        secretsManager:
+          enabled: true
+        lambda:
+          enabled: true
+        rds:
+          enabled: true
+        INFRAWISE_EOF
+          echo "  Generated infrawise.yaml (region: ${REGION})"
+        fi
+
+    - name: Run infrawise analysis
+      shell: bash
+      run: infrawise analyze --ci --fail-on=${{ inputs.fail-on }} --config=${{ inputs.config }}

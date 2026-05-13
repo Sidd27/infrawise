@@ -76,6 +76,12 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
     throw new ConfigError(`Unable to read configuration file: ${resolvedPath}`, [String(err)]);
   }
 
+  // Expand ${ENV_VAR} references — lets users store secrets in env, not in the YAML file
+  rawContent = rawContent.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, name: string) => {
+    const val = process.env[name];
+    return val !== undefined ? val : match;
+  });
+
   let parsedYaml: unknown;
   try {
     parsedYaml = yaml.load(rawContent);
