@@ -57,4 +57,5 @@ try {
 }
 
 console.log(`\nTagged v${next} and ${majorTag}. Push with:\n`);
-console.log(`  git push origin main --tags --force\n`);
+console.log(`  git push origin main v${next}`);
+console.log(`  git push origin ${majorTag} --force\n`);

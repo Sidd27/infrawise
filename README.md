@@ -511,7 +511,8 @@ pnpm release minor    # 0.1.2 → 0.2.0  (new features, backwards compatible)
 pnpm release major    # 0.1.2 → 1.0.0  (breaking changes)
 pnpm release 1.5.0    # explicit version
 
-git push origin main --tags
+git push origin main v1.2.3
+git push origin v1 --force   # update the floating major tag
 ```
 
 Pushing a `v*.*.*` tag creates a draft GitHub release. Publishing that release triggers npm publish automatically.
