@@ -1,4 +1,4 @@
-name: 'Infrawise'
+name: 'Infrawise Analysis'
 description: 'Infrastructure-aware code analysis — detects DynamoDB scans, missing indexes, unencrypted queues, and more'
 author: 'Sidd27'
 
