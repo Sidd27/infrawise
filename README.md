@@ -174,7 +174,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Sidd27/infrawise@v1
+      - uses: Sidd27/infrawise@v0
         with:
           fail-on: high        # fail the PR on high severity findings (default)
         env:
