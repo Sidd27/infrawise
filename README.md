@@ -1,6 +1,7 @@
 # Infrawise
 
 [![npm version](https://img.shields.io/npm/v/infrawise)](https://www.npmjs.com/package/infrawise)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Infrawise%20Analysis-blue?logo=github)](https://github.com/marketplace/actions/infrawise-analysis)
 [![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
 [![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
