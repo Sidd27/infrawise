@@ -9,11 +9,10 @@
 // with notes generated from commit messages since the previous tag.
 
 import { execSync, spawnSync } from 'child_process';
-import { readFileSync, writeFileSync, writeSync, openSync, closeSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
-import { join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const arg = process.argv[2];
@@ -45,6 +44,19 @@ if (arg === 'patch') {
 pkg.version = next;
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`infrawise: ${prev} → ${next}`);
+
+// ── Bump server.json if it exists (MCP Registry manifest, gitignored) ─────────
+
+const serverJsonPath = resolve(__dirname, '../server.json');
+if (existsSync(serverJsonPath)) {
+  const serverJson = JSON.parse(readFileSync(serverJsonPath, 'utf8'));
+  serverJson.version = next;
+  if (Array.isArray(serverJson.packages)) {
+    for (const pkg of serverJson.packages) pkg.version = next;
+  }
+  writeFileSync(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
+  console.log(`server.json: bumped to ${next}`);
+}
 
 execSync('git add package.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
