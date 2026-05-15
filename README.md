@@ -494,7 +494,7 @@ pnpm release 1.5.0    # explicit version
 git push origin main v1.2.3
 ```
 
-Pushing a `v*.*.*` tag creates a draft GitHub release. Publishing that release triggers npm publish automatically.
+`pnpm release` bumps the version, tags, and creates a draft GitHub release with notes generated from commit messages. Push the tag, then publish the draft on GitHub to trigger npm publish.
 
 ### PR checklist
 

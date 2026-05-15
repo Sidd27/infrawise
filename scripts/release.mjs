@@ -5,13 +5,15 @@
 //   pnpm release major        → 0.1.2 → 1.0.0
 //   pnpm release 1.2.3        → explicit version
 //
-// Bumps root package.json, commits, and creates a git tag.
-// CI reads the tag and stamps the version on publish — tag is the source of truth.
+// Bumps root package.json, commits, tags, and creates a draft GitHub release
+// with notes generated from commit messages since the previous tag.
 
-import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
+import { execSync, spawnSync } from 'child_process';
+import { readFileSync, writeFileSync, writeSync, openSync, closeSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const arg = process.argv[2];
@@ -48,5 +50,53 @@ execSync('git add package.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
 execSync(`git tag v${next}`, { stdio: 'inherit' });
 
-console.log(`\nTagged v${next}. Push with:\n`);
-console.log(`  git push origin main v${next}\n`);
+// ── Generate release notes from commits since previous tag ────────────────────
+
+const prevTag = `v${prev}`;
+let commits;
+try {
+  commits = execSync(`git log ${prevTag}..HEAD --pretty=format:"%s" --no-merges`, { encoding: 'utf8' })
+    .trim().split('\n')
+    .filter(l => l && !l.startsWith('chore: release') && !l.startsWith('chore(deps)'));
+} catch {
+  commits = [];
+}
+
+const strip = (prefix, line) => line.replace(new RegExp(`^${prefix}:\\s*`), '');
+
+const features = commits.filter(l => l.startsWith('feat'));
+const fixes    = commits.filter(l => l.startsWith('fix'));
+const chores   = commits.filter(l => /^(chore|docs|refactor|perf|test)/.test(l));
+const other    = commits.filter(l => !l.startsWith('feat') && !l.startsWith('fix') && !/^(chore|docs|refactor|perf|test)/.test(l));
+
+const sections = [];
+if (features.length) sections.push(`## What's New\n${features.map(l => `- ${strip('feat(\\w+)?', l)}`).join('\n')}`);
+if (fixes.length)    sections.push(`## Bug Fixes\n${fixes.map(l => `- ${strip('fix(\\w+)?', l)}`).join('\n')}`);
+if (chores.length)   sections.push(`## Maintenance\n${chores.map(l => `- ${l}`).join('\n')}`);
+if (other.length)    sections.push(`## Other\n${other.map(l => `- ${l}`).join('\n')}`);
+
+const notes = sections.length
+  ? sections.join('\n\n')
+  : `Release v${next}`;
+
+// ── Push commits and tag ──────────────────────────────────────────────────────
+
+console.log('\nPushing to origin...');
+execSync(`git push origin main v${next}`, { stdio: 'inherit' });
+
+// ── Create draft GitHub release via gh CLI ────────────────────────────────────
+
+const notesFile = join(tmpdir(), `infrawise-release-${next}.md`);
+writeFileSync(notesFile, notes, 'utf8');
+
+const ghResult = spawnSync(
+  'gh', ['release', 'create', `v${next}`, '--draft', '--title', `Infrawise v${next}`, '--notes-file', notesFile],
+  { stdio: 'inherit' }
+);
+
+if (ghResult.status === 0) {
+  console.log(`\nDraft release ready — publish it on GitHub to trigger npm publish:`);
+  console.log(`  https://github.com/Sidd27/infrawise/releases/tag/v${next}\n`);
+} else {
+  console.log(`\n(gh release creation failed — create the release manually on GitHub)\n`);
+}
