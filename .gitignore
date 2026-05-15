@@ -27,5 +27,3 @@ demo/local/infrawise.yaml
 # Test coverage
 coverage/
 
-# MCP Registry publish manifest (local only)
-server.json
