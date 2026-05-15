@@ -1,11 +1,9 @@
 # Infrawise
 
-<table><tr>
-<td><a href="https://www.npmjs.com/package/infrawise"><img src="https://img.shields.io/npm/v/infrawise" alt="npm version"></a></td>
-<td><a href="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg" alt="Publish to npm"></a></td>
-<td><a href="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg" alt="CI"></a></td>
-<td><a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a></td>
-</tr></table>
+[![npm version](https://img.shields.io/npm/v/infrawise)](https://www.npmjs.com/package/infrawise)
+[![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
+[![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Understand your infrastructure, not just your code.**
 
