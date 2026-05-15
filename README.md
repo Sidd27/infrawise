@@ -483,18 +483,14 @@ export class MyAnalyzer implements Analyzer {
 
 ### Releasing
 
-The git tag is the source of truth. The version in root `package.json` and the tag must always match.
-
 ```bash
 pnpm release patch    # 0.1.2 → 0.1.3  (bug fixes)
 pnpm release minor    # 0.1.2 → 0.2.0  (new features, backwards compatible)
 pnpm release major    # 0.1.2 → 1.0.0  (breaking changes)
 pnpm release 1.5.0    # explicit version
-
-git push origin main v1.2.3
 ```
 
-`pnpm release` bumps the version, tags, and creates a draft GitHub release with notes generated from commit messages. Push the tag, then publish the draft on GitHub to trigger npm publish.
+Bumps `package.json`, commits, tags, pushes, and creates a draft GitHub release with notes from commit messages. Then publish the draft on GitHub to trigger npm publish.
 
 ### PR checklist
 
