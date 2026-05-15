@@ -22,7 +22,6 @@ demo/local/infrawise.yaml
 
 # Editor & OS
 .DS_Store
-CLAUDE.md
 .claude/settings.local.json
 
 # Test coverage
