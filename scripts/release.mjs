@@ -48,14 +48,5 @@ execSync('git add package.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
 execSync(`git tag v${next}`, { stdio: 'inherit' });
 
-// Floating major tag for GitHub Action users (e.g. uses: Sidd27/infrawise@v1)
-const majorTag = `v${next.split('.')[0]}`;
-try {
-  execSync(`git tag -f ${majorTag}`, { stdio: 'inherit' });
-} catch {
-  // ignore if tag doesn't exist yet
-}
-
-console.log(`\nTagged v${next} and ${majorTag}. Push with:\n`);
-console.log(`  git push origin main v${next}`);
-console.log(`  git push origin ${majorTag} --force\n`);
+console.log(`\nTagged v${next}. Push with:\n`);
+console.log(`  git push origin main v${next}\n`);
