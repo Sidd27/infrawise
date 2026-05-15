@@ -1,6 +1,7 @@
 {
   "name": "infrawise",
   "version": "0.4.2",
+  "mcpName": "io.github.Sidd27/infrawise",
   "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
   "keywords": [
     "infrastructure",
@@ -60,6 +61,7 @@
     "@aws-sdk/client-ssm": "^3.0.0",
     "@aws-sdk/credential-providers": "^3.0.0",
     "@fastify/cors": "^9.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "chalk": "^4.1.2",
     "commander": "^14.0.3",
     "fastify": "^4.26.0",

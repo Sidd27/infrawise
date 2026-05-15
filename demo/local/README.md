@@ -2,7 +2,7 @@
 
 Tests infrawise against real database engines running locally in Docker. No cloud account or tokens needed — just Docker.
 
-**Databases covered:** PostgreSQL · MySQL · MongoDB
+**Covered:** PostgreSQL · MySQL · MongoDB · Kafka (kafkajs code detection — no broker needed)
 
 ---
 
@@ -81,6 +81,14 @@ Then add to your Claude Code MCP config:
 | `activity_logs` | No indexes on `userId` or `action` |
 | `notifications` | No indexes on `recipientId` or `status` |
 | `users` | Indexed on email + role — control |
+
+### Kafka (`event-service.ts` — AST analysis, no broker needed)
+Infrawise detects kafkajs producer/consumer patterns from code, no live Kafka broker required.
+
+| Topic | Usage |
+|---|---|
+| `order-events` | Producer (`publishOrderCreated`) + consumer (`startFulfillmentConsumer`) |
+| `payment-events` | Producer (`publishPaymentProcessed`) |
 
 ---
 

@@ -41,16 +41,12 @@ program
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('-r, --repo <path>', 'Path to repository to scan', process.cwd())
   .option('--no-cache', 'Skip reading/writing the cache')
-  .option('--ci', 'CI mode: GitHub annotations output, job summary, exit code on findings')
-  .option('--fail-on <severity>', 'Exit 1 if findings at or above this severity (high|medium|low|never)', 'high')
   .action(async (options) => {
-    if (!options.ci) printBanner();
+    printBanner();
     await runAnalyze({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       repo: options.repo,
       noCache: !options.cache,
-      ci: options.ci ?? false,
-      failOn: options.failOn ?? 'high',
     });
   });
 

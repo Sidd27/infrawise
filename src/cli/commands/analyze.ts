@@ -1,8 +1,7 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, writeCache } from '../../core';
+import { loadConfig, formatError, writeCache, readCache } from '../../core';
 import { extractDynamoMetadata } from '../../adapters/dynamodb';
 import { extractPostgresMetadata } from '../../adapters/postgres';
 import { extractMySQLMetadata } from '../../adapters/mysql';
@@ -32,88 +31,37 @@ import {
   RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
 } from '../../analyzers';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils';
-import type { Finding, ServicesMeta, ExtractedOperation, InfrawiseConfig } from '../../types';
+import type { Finding, ServicesMeta, ExtractedOperation, InfrawiseConfig,
+  DynamoTableMetadata, PostgresTableMetadata, MySQLTableMetadata, MongoCollectionMetadata } from '../../types';
 
-const SEVERITY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1, never: 0 };
+interface CachedMeta {
+  dynamoMeta: DynamoTableMetadata[];
+  postgresMeta: PostgresTableMetadata[];
+  mysqlMeta: MySQLTableMetadata[];
+  mongoMeta: MongoCollectionMetadata[];
+  servicesMeta: ServicesMeta;
+}
 
 interface AnalyzeOptions {
   config?: string;
   repo?: string;
   noCache?: boolean;
-  ci?: boolean;
-  failOn?: 'high' | 'medium' | 'low' | 'never';
 }
 
-function mkSpinner(text: string, ci: boolean) {
-  if (ci) {
-    return {
-      succeed: (msg: string) => console.log(`  ✓ ${msg}`),
-      warn: (msg: string) => console.log(`  ⚠ ${msg}`),
-    };
-  }
+function mkSpinner(text: string) {
   return ora({ text: chalk.dim(text), color: 'cyan' }).start();
 }
 
-function emitCIOutput(findings: Finding[], failOn: string): void {
-  for (const f of findings) {
-    const level = f.severity === 'high' ? 'error' : f.severity === 'medium' ? 'warning' : 'notice';
-    console.log(`::${level} title=Infrawise [${f.severity.toUpperCase()}]::${f.issue} — ${f.description}`);
-  }
-
-  const summaryPath = process.env['GITHUB_STEP_SUMMARY'];
-  if (summaryPath) {
-    const high   = findings.filter((f) => f.severity === 'high').length;
-    const medium = findings.filter((f) => f.severity === 'medium').length;
-    const low    = findings.filter((f) => f.severity === 'low').length;
-
-    const rows = findings.map((f) => {
-      const icon = f.severity === 'high' ? '🔴' : f.severity === 'medium' ? '🟡' : '🔵';
-      return `| ${icon} ${f.severity.toUpperCase()} | ${f.issue} | ${f.recommendation} |`;
-    }).join('\n');
-
-    const summary = findings.length === 0
-      ? '## ✅ Infrawise — no issues found\n'
-      : [
-        '## Infrawise Analysis',
-        '',
-        `**${high} high · ${medium} medium · ${low} low**`,
-        '',
-        '| Severity | Issue | Recommendation |',
-        '|---|---|---|',
-        rows,
-      ].join('\n');
-
-    fs.appendFileSync(summaryPath, summary + '\n');
-  }
-
-  const threshold = SEVERITY_RANK[failOn] ?? 3;
-  const maxFound = Math.max(0, ...findings.map((f) => SEVERITY_RANK[f.severity] ?? 0));
-  if (maxFound >= threshold && threshold > 0) {
-    process.exit(1);
-  }
-}
-
 export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
-  const ci = options.ci ?? false;
-  const failOn = options.failOn ?? 'high';
-
-  if (!ci) printHeader('Running Analysis');
+  printHeader('Running Analysis');
 
   let config;
-  let isFallback = false;
   try {
     config = loadConfig(options.config);
-    if (!ci) log.success('Config loaded', options.config ?? 'infrawise.yaml');
+    log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
-    const isNotFound = err instanceof Error && err.message.includes('not found at');
-    if (ci && isNotFound) {
-      config = { project: path.basename(process.cwd()) } as InfrawiseConfig;
-      isFallback = true;
-      console.log('  ✓ No infrawise.yaml — running code-only analysis (repo scan + IaC)');
-    } else {
-      console.error(formatError(err));
-      process.exit(1);
-    }
+    console.error(formatError(err));
+    process.exit(1);
   }
 
   const repoPath = options.repo ?? process.cwd();
@@ -127,7 +75,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── DynamoDB ────────────────────────────────────────────────────────────────
   if (config.dynamodb?.enabled === true) {
-    const s = mkSpinner('Extracting DynamoDB tables...', ci);
+    const s = mkSpinner('Extracting DynamoDB tables...');
     try {
       const result = await extractDynamoMetadata(config);
       dynamoMeta.push(...result);
@@ -139,7 +87,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── PostgreSQL ──────────────────────────────────────────────────────────────
   if (config.postgres?.enabled && config.postgres.connectionString) {
-    const s = mkSpinner('Extracting PostgreSQL schema...', ci);
+    const s = mkSpinner('Extracting PostgreSQL schema...');
     try {
       const result = await extractPostgresMetadata(config.postgres.connectionString);
       postgresMeta.push(...result);
@@ -151,7 +99,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── MySQL ───────────────────────────────────────────────────────────────────
   if (config.mysql?.enabled && config.mysql.connectionString) {
-    const s = mkSpinner('Extracting MySQL schema...', ci);
+    const s = mkSpinner('Extracting MySQL schema...');
     try {
       const result = await extractMySQLMetadata(config.mysql.connectionString);
       mysqlMeta.push(...result);
@@ -163,7 +111,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── MongoDB ─────────────────────────────────────────────────────────────────
   if (config.mongodb?.enabled && config.mongodb.connectionString) {
-    const s = mkSpinner('Extracting MongoDB schema...', ci);
+    const s = mkSpinner('Extracting MongoDB schema...');
     try {
       const result = await extractMongoMetadata(config.mongodb.connectionString, config.mongodb.databases);
       mongoMeta.push(...result);
@@ -175,7 +123,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── SQS ─────────────────────────────────────────────────────────────────────
   if (config.sqs?.enabled === true) {
-    const s = mkSpinner('Extracting SQS queues...', ci);
+    const s = mkSpinner('Extracting SQS queues...');
     try {
       const result = await extractSQSMetadata(awsCfg);
       servicesMeta.sqs = result;
@@ -187,7 +135,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── SNS ─────────────────────────────────────────────────────────────────────
   if (config.sns?.enabled === true) {
-    const s = mkSpinner('Extracting SNS topics...', ci);
+    const s = mkSpinner('Extracting SNS topics...');
     try {
       const result = await extractSNSMetadata(awsCfg);
       servicesMeta.sns = result;
@@ -199,7 +147,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── SSM Parameter Store ──────────────────────────────────────────────────────
   if (config.ssm?.enabled === true) {
-    const s = mkSpinner('Extracting SSM parameters...', ci);
+    const s = mkSpinner('Extracting SSM parameters...');
     try {
       const result = await extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths });
       servicesMeta.ssm = result;
@@ -211,7 +159,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── Secrets Manager ──────────────────────────────────────────────────────────
   if (config.secretsManager?.enabled === true) {
-    const s = mkSpinner('Extracting Secrets Manager metadata...', ci);
+    const s = mkSpinner('Extracting Secrets Manager metadata...');
     try {
       const result = await extractSecretsMetadata(awsCfg);
       servicesMeta.secrets = result;
@@ -223,7 +171,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── Lambda ───────────────────────────────────────────────────────────────────
   if (config.lambda?.enabled === true) {
-    const s = mkSpinner('Extracting Lambda functions...', ci);
+    const s = mkSpinner('Extracting Lambda functions...');
     try {
       const result = await extractLambdaMetadata(awsCfg);
       servicesMeta.lambda = result;
@@ -235,7 +183,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── RDS ──────────────────────────────────────────────────────────────────────
   if (config.rds?.enabled === true) {
-    const s = mkSpinner('Extracting RDS instances...', ci);
+    const s = mkSpinner('Extracting RDS instances...');
     try {
       const result = await extractRDSMetadata(awsCfg);
       servicesMeta.rds = result;
@@ -247,7 +195,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── CloudWatch Logs ──────────────────────────────────────────────────────────
   if (config.cloudwatchLogs?.enabled) {
-    const s = mkSpinner('Sampling CloudWatch Logs (errors only, max 50 groups)...', ci);
+    const s = mkSpinner('Sampling CloudWatch Logs (errors only, max 50 groups)...');
     try {
       const result = await extractLogsMetadata({
         ...awsCfg,
@@ -265,7 +213,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
   {
-    const s = mkSpinner('Extracting IaC schema (Terraform / CloudFormation / CDK)...', ci);
+    const s = mkSpinner('Extracting IaC schema (Terraform / CloudFormation / CDK)...');
     try {
       const iacSchema = await extractIaCSchema(repoPath);
       const total = iacSchema.dynamoTables.length + iacSchema.rdsInstances.length +
@@ -283,7 +231,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // ── Repository scan ──────────────────────────────────────────────────────────
   let operations: ExtractedOperation[];
   {
-    const s = mkSpinner(`Scanning ${path.basename(repoPath)} for service usage...`, ci);
+    const s = mkSpinner(`Scanning ${path.basename(repoPath)} for service usage...`);
     try {
       operations = await scanRepository(repoPath);
       s.succeed(chalk.green('Repository scanned') + chalk.dim(`  ${operations.length} service operation(s) found`));
@@ -296,7 +244,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // ── Build graph ──────────────────────────────────────────────────────────────
   let graph: ReturnType<typeof buildGraph>;
   {
-    const s = mkSpinner('Building infrastructure graph...', ci);
+    const s = mkSpinner('Building infrastructure graph...');
     graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta, servicesMeta);
     s.succeed(chalk.green('Graph built') + chalk.dim(`  ${graph.nodes.length} nodes, ${graph.edges.length} edges`));
   }
@@ -304,23 +252,23 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // ── Run analyzers ────────────────────────────────────────────────────────────
   let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
   {
-    const s = mkSpinner('Running analyzers...', ci);
+    const s = mkSpinner('Running analyzers...');
     const analyzers = [
-      ...(config.dynamodb?.enabled === true || isFallback ? [
+      ...(config.dynamodb?.enabled === true ? [
         new FullTableScanAnalyzer(),
         new MissingGSIAnalyzer(),
         new HotPartitionAnalyzer(),
       ] : []),
-      ...(config.postgres?.enabled || isFallback ? [
+      ...(config.postgres?.enabled ? [
         new MissingIndexAnalyzer(),
         new NplusOneAnalyzer(),
         new LargeSelectAnalyzer(),
       ] : []),
-      ...(config.mysql?.enabled || isFallback ? [
+      ...(config.mysql?.enabled ? [
         new MissingMySQLIndexAnalyzer(),
         new MySQLFullTableScanAnalyzer(),
       ] : []),
-      ...(config.mongodb?.enabled || isFallback ? [
+      ...(config.mongodb?.enabled ? [
         new MissingMongoIndexAnalyzer(),
         new MongoCollectionScanAnalyzer(),
       ] : []),
@@ -356,21 +304,17 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   writeCache('graph', graph);
   writeCache('findings', findings);
   writeCache('operations', operations);
+  writeCache('meta', { dynamoMeta, postgresMeta, mysqlMeta, mongoMeta, servicesMeta } satisfies CachedMeta);
 
   // ── Output ────────────────────────────────────────────────────────────────────
-  if (ci) {
-    emitCIOutput(findings, failOn);
-    return;
-  }
-
   console.log('');
   if (findings.length === 0) {
     console.log(`  ${chalk.green.bold('✓ No issues found!')}  ${chalk.dim('Your infrastructure looks clean.')}`);
   } else {
     console.log(chalk.bold(`  Findings`) + chalk.dim(`  ${findings.length} total`));
-    findings.forEach((f, i) => printFinding(f, i));
+    findings.forEach((f: Finding, i: number) => printFinding(f, i));
     printSummaryBox(findings);
-    if (findings.some((f) => f.severity === 'high')) {
+    if (findings.some((f: Finding) => f.severity === 'high')) {
       console.log(`\n  ${chalk.red.bold('Action required:')} ${chalk.red('High severity issues detected.')}`);
     }
   }
@@ -379,4 +323,72 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   log.dim(`Results cached in .infrawise/cache/`);
   log.info(`Run ${chalk.cyan('infrawise dev')} to explore via the MCP server`);
   console.log('');
+}
+
+export async function runCodeRefresh(
+  repoPath: string,
+  config: InfrawiseConfig,
+): Promise<{ graph: ReturnType<typeof buildGraph>; findings: Awaited<ReturnType<typeof runAllAnalyzers>> }> {
+  const cached = readCache<CachedMeta>('meta', Infinity);
+  const dynamoMeta = cached?.dynamoMeta ?? [];
+  const postgresMeta = cached?.postgresMeta ?? [];
+  const mysqlMeta = cached?.mysqlMeta ?? [];
+  const mongoMeta = cached?.mongoMeta ?? [];
+  const servicesMeta = cached?.servicesMeta ?? {};
+
+  // Re-run IaC schema (pure file scan, no AWS calls)
+  let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
+  try {
+    const iacSchema = await extractIaCSchema(repoPath);
+    iacDriftAnalyzer = new IaCDriftAnalyzer();
+    iacDriftAnalyzer.setIaCSchema(iacSchema);
+  } catch {
+    // IaC scan is best-effort
+  }
+
+  // Re-run repo scan
+  let operations: ExtractedOperation[];
+  try {
+    operations = await scanRepository(repoPath);
+  } catch {
+    operations = [];
+  }
+
+  const graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta, servicesMeta);
+
+  const analyzers = [
+    ...(config.dynamodb?.enabled === true ? [
+      new FullTableScanAnalyzer(), new MissingGSIAnalyzer(), new HotPartitionAnalyzer(),
+    ] : []),
+    ...(config.postgres?.enabled ? [
+      new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer(),
+    ] : []),
+    ...(config.mysql?.enabled ? [
+      new MissingMySQLIndexAnalyzer(), new MySQLFullTableScanAnalyzer(),
+    ] : []),
+    ...(config.mongodb?.enabled ? [
+      new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer(),
+    ] : []),
+    ...(config.sqs?.enabled === true ? [
+      new MissingDLQAnalyzer(), new UnencryptedQueueAnalyzer(), new LargeQueueBacklogAnalyzer(),
+    ] : []),
+    ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
+    ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
+    ...(config.lambda?.enabled === true ? [
+      new LambdaDefaultMemoryAnalyzer(), new LambdaHighTimeoutAnalyzer(),
+    ] : []),
+    ...(config.rds?.enabled === true ? [
+      new RDSPubliclyAccessibleAnalyzer(), new RDSNoBackupAnalyzer(), new RDSUnencryptedAnalyzer(),
+      new RDSNoDeletionProtectionAnalyzer(), new RDSNoMultiAZAnalyzer(),
+    ] : []),
+    ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
+  ];
+
+  const findings = await runAllAnalyzers(graph, analyzers);
+
+  writeCache('graph', graph);
+  writeCache('findings', findings);
+  writeCache('operations', operations);
+
+  return { graph, findings };
 }

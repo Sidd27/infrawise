@@ -8,6 +8,7 @@
 - Before any commit: run `pnpm lint && pnpm typecheck && pnpm test`. All must pass.
 - When adding a new feature (new service type, new adapter, new tool): update `demo/local/app/` with a representative usage example and update `demo/local/infrawise.yaml` if needed. Demo must always stay in sync — no need to be asked.
 - Keep `README.md` in sync with every feature change — analysis capabilities table, scanner support line, tool table, and configuration section. Do this automatically, not on request.
+- **Version must be in sync everywhere on every release.** `package.json` is the source of truth. `src/server/index.ts` reads it dynamically — no manual update needed there. `server.json` (MCP Registry manifest, gitignored) must be updated manually — bump both `version` fields inside it to match `package.json` before publishing to the registry.
 
 ## MCP tools — keep CLAUDE.md current
 
@@ -32,7 +33,7 @@ src/
   adapters/   extractors (dynamodb, postgres, mysql, mongodb, aws, logs, terraform)
   analyzers/  rule-based analyzers
   context/    ts-morph AST scanner
-  server/     Fastify MCP server (plain JSON-RPC — no SDK)
+  server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/        CLI commands
 ```
 

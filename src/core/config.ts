@@ -38,6 +38,7 @@ export const InfrawiseConfigSchema = z.object({
   secretsManager: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   lambda: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   rds: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  kafka: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cloudwatchLogs: z.object({
     enabled: z.boolean().optional().default(false),
     logGroupPrefixes: z.array(z.string()).optional(),

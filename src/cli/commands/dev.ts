@@ -1,9 +1,12 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig, formatError, readCache } from '../../core';
 import { createServer, setGraphState } from '../../server';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types';
 import { log, printHeader } from '../utils';
+import { runAnalyze, runCodeRefresh } from './analyze';
 
 interface DevOptions {
   config?: string;
@@ -74,7 +77,9 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
     process.exit(1);
   }
 
-  // Load cached state
+  const repoPath = process.cwd();
+
+  // Auto-analyze if no cache
   const cachedGraph = readCache<SystemGraph>('graph');
   const cachedFindings = readCache<Finding[]>('findings');
 
@@ -85,9 +90,12 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
     );
     setGraphState(cachedGraph, cachedFindings);
   } else {
-    log.warn('No cached analysis found');
-    log.dim(`Run ${chalk.cyan('infrawise analyze')} first for full results`);
-    setGraphState({ nodes: [], edges: [] }, []);
+    log.warn('No cache found — running analysis now...');
+    console.log('');
+    await runAnalyze({ repo: repoPath, config: options.config });
+    const freshGraph = readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] };
+    const freshFindings = readCache<Finding[]>('findings') ?? [];
+    setGraphState(freshGraph, freshFindings);
   }
 
   console.log('');
@@ -104,7 +112,6 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
 
   // URL rows
   const mcpUrl = `http://localhost:${port}/mcp`;
-  const toolsUrl = `http://localhost:${port}/mcp/tools`;
   const healthUrl = `http://localhost:${port}/health`;
 
   // Print box
@@ -113,7 +120,6 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   boxLine('  MCP Server', chalk.bold('  MCP Server'));
   boxDivider();
   boxLine(`  POST ${mcpUrl}`, `  ${chalk.dim('POST')} ${chalk.cyan(mcpUrl)}`);
-  boxLine(`  GET  ${toolsUrl}`, `  ${chalk.dim('GET')}  ${chalk.cyan(toolsUrl)}`);
   boxLine(`  GET  ${healthUrl}`, `  ${chalk.dim('GET')}  ${chalk.cyan(healthUrl)}`);
   boxDivider();
 
@@ -137,7 +143,47 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   console.log(chalk.dim('  Add via CLI:'));
   console.log(chalk.dim(`  claude mcp add --transport http infrawise ${mcpUrl}`));
   console.log('');
-  console.log(chalk.dim('  Press Ctrl+C to stop\n'));
+  console.log(chalk.dim('  Watching for file changes... Press Ctrl+C to stop\n'));
+
+  // File watch — re-run code analysis on save, skip slow AWS/DB extraction
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let refreshing = false;
+
+  const configFile = path.resolve(options.config ?? 'infrawise.yaml');
+
+  try {
+    fs.watch(repoPath, { recursive: true }, (_, filename) => {
+      if (!filename) return;
+      const abs = path.join(repoPath, filename);
+
+      if (abs === configFile) {
+        console.log(chalk.dim('\n  infrawise.yaml changed — restart to apply config changes\n'));
+        return;
+      }
+
+      const ext = path.extname(filename);
+      if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) return;
+      if (filename.includes('node_modules') || filename.startsWith('.infrawise')) return;
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (refreshing) return;
+        refreshing = true;
+        const spin = ora({ text: chalk.dim('Refreshing code analysis...'), color: 'cyan' }).start();
+        try {
+          const { graph, findings } = await runCodeRefresh(repoPath, config);
+          setGraphState(graph, findings);
+          spin.succeed(chalk.green('Analysis refreshed') + chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`));
+        } catch (err) {
+          spin.warn(chalk.yellow('Refresh failed') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+        } finally {
+          refreshing = false;
+        }
+      }, 2000);
+    });
+  } catch {
+    // fs.watch may not support recursive on all platforms — silently skip
+  }
 
   process.on('SIGINT', () => {
     console.log(chalk.dim('\n  Shutting down...\n'));

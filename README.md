@@ -2,7 +2,6 @@
 
 <table><tr>
 <td><a href="https://www.npmjs.com/package/infrawise"><img src="https://img.shields.io/npm/v/infrawise" alt="npm version"></a></td>
-<td><a href="https://github.com/marketplace/actions/infrawise-analysis"><img src="https://img.shields.io/badge/Marketplace-Infrawise%20Analysis-blue?logo=github" alt="GitHub Marketplace"></a></td>
 <td><a href="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg" alt="Publish to npm"></a></td>
 <td><a href="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg" alt="CI"></a></td>
 <td><a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a></td>
@@ -81,6 +80,8 @@ infrawise doctor
 infrawise analyze
 ```
 
+Or skip this step — `infrawise dev` auto-runs analysis if no cache exists.
+
 ```
 Findings (3 total)
 
@@ -107,11 +108,22 @@ infrawise dev
 ```
 
 ```
-✔ Tool server running
-✔ Context engine initialized
+  ✔ Config loaded          infrawise.yaml
+  ✔ Cached analysis loaded 42 nodes · 18 edges · 7 finding(s)
+  ✔ Server running
 
-MCP endpoint:      http://localhost:3000/mcp
-Available tools:   http://localhost:3000/mcp/tools
+  ┌────────────────────────────────────────────────────┐
+  │ MCP Server                                        │
+  ├────────────────────────────────────────────────────┤
+  │ POST http://localhost:3000/mcp                    │
+  │ GET  http://localhost:3000/health                 │
+  ├────────────────────────────────────────────────────┤
+  │ Tools (13 active)                                 │
+  │ get_infra_overview · get_graph_summary            │
+  │ ...                                               │
+  └────────────────────────────────────────────────────┘
+
+  Watching for file changes... Press Ctrl+C to stop
 ```
 
 ### Step 2: Add to your editor settings
@@ -163,41 +175,6 @@ To let Claude Code manage the server lifecycle automatically:
 
 ---
 
-## GitHub Action
-
-Add infrastructure analysis to any PR workflow. No `infrawise.yaml` required — the action auto-generates one from your AWS credentials.
-
-```yaml
-# .github/workflows/infrawise.yml
-name: Infrawise
-on: [pull_request]
-
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Sidd27/infrawise@v0
-        with:
-          fail-on: high        # fail the PR on high severity findings (default)
-        env:
-          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION:            ${{ secrets.AWS_REGION }}
-```
-
-If `infrawise.yaml` is not present in the repo, the action generates a minimal config with DynamoDB, Lambda, SQS, SNS, SSM, Secrets Manager, and RDS enabled — using `AWS_REGION` from the environment. Add an `infrawise.yaml` to your repo to customize which services to include or to add database connections.
-
-Findings appear as annotations on the PR diff and in the job summary.
-
-| Input | Default | Description |
-|---|---|---|
-| `version` | `latest` | infrawise version to install |
-| `fail-on` | `high` | Exit code 1 if findings at or above this severity (`high`, `medium`, `low`, `never`) |
-| `config` | `infrawise.yaml` | Path to config file — auto-generated if not present |
-
----
-
 ## CLI reference
 
 | Command | What it does |
@@ -205,7 +182,7 @@ Findings appear as annotations on the PR diff and in the job summary.
 | `infrawise init` | Detect AWS + repo, generate `infrawise.yaml` |
 | `infrawise auth` | Select or switch AWS profile |
 | `infrawise analyze` | Scan repo + AWS, build graph, print findings |
-| `infrawise dev` | Start MCP server at `http://localhost:3000/mcp` |
+| `infrawise dev` | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
 | `infrawise doctor` | Validate AWS access, DB connectivity, and config |
 
 ---
@@ -428,7 +405,7 @@ src/
                 mongodb.ts, aws.ts, logs.ts, terraform.ts
   analyzers/    23 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
-  server/       Fastify MCP HTTP server (plain JSON-RPC, no SDK)
+  server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)
 ```
 
