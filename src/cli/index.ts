@@ -2,14 +2,14 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Command } from 'commander';
-import { printBanner } from './utils';
-import { runInit } from './commands/init';
-import { runAuth } from './commands/auth';
-import { runAnalyze } from './commands/analyze';
-import { runDev } from './commands/dev';
-import { runDoctor } from './commands/doctor';
+import { printBanner } from './utils.js';
+import { runInit } from './commands/init.js';
+import { runAuth } from './commands/auth.js';
+import { runAnalyze } from './commands/analyze.js';
+import { runDev } from './commands/dev.js';
+import { runDoctor } from './commands/doctor.js';
 
-const { version } = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')) as { version: string };
+const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8')) as { version: string };
 
 const program = new Command();
 

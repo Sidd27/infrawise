@@ -118,11 +118,26 @@ describe('MCP Server — tool results', () => {
     expect(data.index.name).toBe('T-user_id-index');
   });
 
+  it('suggest_gsi sanitizes special characters in table name', async () => {
+    const data = await callTool(client, 'suggest_gsi', { table: 'my table!', attribute: 'id' });
+    expect(data.index.name).toBe('my_table_-id-index');
+    expect(data.index.name).not.toContain('!');
+  });
+
   it('postgres_index_suggestions returns CREATE INDEX SQL', async () => {
     const data = await callTool(client, 'postgres_index_suggestions', { table: 'users', column: 'email' });
     expect(data.recommendation).toContain('CREATE INDEX CONCURRENTLY');
     expect(data.recommendation).toContain('idx_users_email');
     expect(data.notes.length).toBeGreaterThan(0);
+  });
+
+  it('postgres_index_suggestions sanitizes SQL injection in table and column', async () => {
+    const data = await callTool(client, 'postgres_index_suggestions', {
+      table: "users; DROP TABLE users; --",
+      column: "email) WHERE 1=1; --",
+    });
+    // identifier positions must be word-chars only; structural parens/semicolon are fixed template
+    expect(data.recommendation).toMatch(/^CREATE INDEX CONCURRENTLY \w+ ON \w+ \(\w+\);$/);
   });
 
   it('suggest_mongo_index returns createIndex command', async () => {
@@ -131,10 +146,33 @@ describe('MCP Server — tool results', () => {
     expect(data.recommendation).toContain('userId');
   });
 
+  it('suggest_mongo_index sanitizes injection in collection and field', async () => {
+    const data = await callTool(client, 'suggest_mongo_index', {
+      collection: 'orders; db.adminCommand({shutdown:1})',
+      field: '$where: function()',
+    });
+    // collection and field identifiers must be word-chars only; structural {}: are fixed template
+    expect(data.recommendation).toMatch(/^db\.\w+\.createIndex\(\{ \w+: 1 \}\)$/);
+  });
+
+  it('suggest_mongo_index allows dot notation in field names', async () => {
+    const data = await callTool(client, 'suggest_mongo_index', { collection: 'orders', field: 'address.city' });
+    expect(data.recommendation).toContain('address.city');
+  });
+
   it('mysql_index_suggestions returns ALTER TABLE SQL', async () => {
     const data = await callTool(client, 'mysql_index_suggestions', { table: 'orders', column: 'status' });
     expect(data.recommendation).toContain('ALTER TABLE');
     expect(data.recommendation).toContain('idx_orders_status');
+  });
+
+  it('mysql_index_suggestions sanitizes SQL injection in table and column', async () => {
+    const data = await callTool(client, 'mysql_index_suggestions', {
+      table: "orders` DROP TABLE orders; --",
+      column: "status) KEY idx2 (evil",
+    });
+    // identifier positions must be word-chars only; structural parens/semicolon are fixed template
+    expect(data.recommendation).toMatch(/^ALTER TABLE \w+ ADD INDEX \w+ \(\w+\);$/);
   });
 
   it('get_queue_details returns queue metadata', async () => {

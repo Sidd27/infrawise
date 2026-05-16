@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import chalk from 'chalk';
-import type { Finding } from '../types';
+import type { Finding } from '../types.js';
 
 // ─── AWS helpers ─────────────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ export function detectRepoType(repoPath: string): 'typescript' | 'javascript' | 
 
 function readVersion(): string {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')) as { version: string };
+    const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf-8')) as { version: string };
     return pkg.version;
   } catch {
     return 'unknown';

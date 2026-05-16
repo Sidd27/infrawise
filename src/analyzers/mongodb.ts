@@ -1,5 +1,5 @@
-import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types';
-import { getScanEdges } from '../graph';
+import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types.js';
+import { getScanEdges } from '../graph/index.js';
 
 /**
  * Detects MongoDB collections that are queried without any secondary indexes.

@@ -3,20 +3,20 @@ import * as path from 'path';
 import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig } from '../../core';
-import { probeDynamoAccess } from '../../adapters/dynamodb';
-import { validatePostgresAccess } from '../../adapters/postgres';
-import { validateMySQLAccess } from '../../adapters/mysql';
-import { validateMongoAccess } from '../../adapters/mongodb';
+import { loadConfig } from '../../core/index.js';
+import { probeDynamoAccess } from '../../adapters/dynamodb.js';
+import { validatePostgresAccess } from '../../adapters/postgres.js';
+import { validateMySQLAccess } from '../../adapters/mysql.js';
+import { validateMongoAccess } from '../../adapters/mongodb.js';
 import {
   validateSQSAccess,
   validateSNSAccess,
   validateSSMAccess,
   validateSecretsAccess,
   validateLambdaAccess,
-} from '../../adapters/aws';
-import { validateLogsAccess } from '../../adapters/logs';
-import { printHeader } from '../utils';
+} from '../../adapters/aws.js';
+import { validateLogsAccess } from '../../adapters/logs.js';
+import { printHeader } from '../utils.js';
 
 interface CheckResult {
   name: string;

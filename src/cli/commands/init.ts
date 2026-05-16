@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { generateDefaultConfig } from '../../core';
-import { readAWSProfiles, detectAWSRegion, detectRepoType, log, printHeader } from '../utils';
+import { generateDefaultConfig } from '../../core/index.js';
+import { readAWSProfiles, detectAWSRegion, detectRepoType, log, printHeader } from '../utils.js';
 
 export async function runInit(options: { force?: boolean } = {}): Promise<void> {
   const cwd = process.cwd();

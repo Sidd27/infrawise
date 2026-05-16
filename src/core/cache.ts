@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { CacheEntry } from '../types';
+import type { CacheEntry } from '../types.js';
 
 const CACHE_VERSION = '1.0.0';
 const CACHE_DIR = path.join(process.cwd(), '.infrawise', 'cache');

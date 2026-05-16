@@ -1,4 +1,4 @@
-import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types';
+import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types.js';
 
 /**
  * Detects PostgreSQL table columns that are used in WHERE patterns

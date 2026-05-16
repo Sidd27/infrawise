@@ -1,5 +1,5 @@
-import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types';
-import { getScanEdges, getEdgeFrequency } from '../graph';
+import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types.js';
+import { getScanEdges, getEdgeFrequency } from '../graph/index.js';
 
 /**
  * Detects full table scans on DynamoDB tables.

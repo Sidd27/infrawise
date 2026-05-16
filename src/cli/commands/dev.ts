@@ -2,11 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, readCache } from '../../core';
-import { createServer, setGraphState } from '../../server';
-import type { SystemGraph, Finding, InfrawiseConfig } from '../../types';
-import { log, printHeader } from '../utils';
-import { runAnalyze, runCodeRefresh } from './analyze';
+import { loadConfig, formatError, readCache } from '../../core/index.js';
+import { createServer, setGraphState } from '../../server/index.js';
+import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
+import { log, printHeader } from '../utils.js';
+import { runAnalyze, runCodeRefresh } from './analyze.js';
 
 interface DevOptions {
   config?: string;

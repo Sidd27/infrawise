@@ -1,12 +1,12 @@
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, writeCache, readCache } from '../../core';
-import { extractDynamoMetadata } from '../../adapters/dynamodb';
-import { extractPostgresMetadata } from '../../adapters/postgres';
-import { extractMySQLMetadata } from '../../adapters/mysql';
-import { extractMongoMetadata } from '../../adapters/mongodb';
-import { extractIaCSchema } from '../../adapters/terraform';
+import { loadConfig, formatError, writeCache, readCache } from '../../core/index.js';
+import { extractDynamoMetadata } from '../../adapters/dynamodb.js';
+import { extractPostgresMetadata } from '../../adapters/postgres.js';
+import { extractMySQLMetadata } from '../../adapters/mysql.js';
+import { extractMongoMetadata } from '../../adapters/mongodb.js';
+import { extractIaCSchema } from '../../adapters/terraform.js';
 import {
   extractSQSMetadata,
   extractSNSMetadata,
@@ -14,10 +14,10 @@ import {
   extractSecretsMetadata,
   extractLambdaMetadata,
   extractRDSMetadata,
-} from '../../adapters/aws';
-import { extractLogsMetadata } from '../../adapters/logs';
-import { scanRepository } from '../../context';
-import { buildGraph } from '../../graph';
+} from '../../adapters/aws.js';
+import { extractLogsMetadata } from '../../adapters/logs.js';
+import { scanRepository } from '../../context/index.js';
+import { buildGraph } from '../../graph/index.js';
 import {
   runAllAnalyzers, IaCDriftAnalyzer,
   FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer,
@@ -29,10 +29,10 @@ import {
   LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer,
   RDSPubliclyAccessibleAnalyzer, RDSNoBackupAnalyzer, RDSUnencryptedAnalyzer,
   RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
-} from '../../analyzers';
-import { printFinding, printSummaryBox, log, printHeader } from '../utils';
+} from '../../analyzers/index.js';
+import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type { Finding, ServicesMeta, ExtractedOperation, InfrawiseConfig,
-  DynamoTableMetadata, PostgresTableMetadata, MySQLTableMetadata, MongoCollectionMetadata } from '../../types';
+  DynamoTableMetadata, PostgresTableMetadata, MySQLTableMetadata, MongoCollectionMetadata } from '../../types.js';
 
 interface CachedMeta {
   dynamoMeta: DynamoTableMetadata[];

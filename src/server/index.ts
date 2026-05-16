@@ -5,11 +5,11 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding } from '../types';
-import { logger } from '../core';
+import type { SystemGraph, Finding } from '../types.js';
+import { logger } from '../core/index.js';
 
-const { version } = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')) as { version: string };
-import { summarizeFindings } from '../analyzers';
+const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8')) as { version: string };
+import { summarizeFindings } from '../analyzers/index.js';
 import {
   getTableNodes,
   getFunctionNodes,
@@ -21,7 +21,7 @@ import {
   getLambdaNodes,
   getScanEdges,
   getOutgoingEdges,
-} from '../graph';
+} from '../graph/index.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -132,7 +132,8 @@ export function createMcpServer(): McpServer {
     }),
   }, logged('suggest_gsi', async ({ table: tableName, attribute }) => {
     const sanitizedAttr = attribute.replace(/[^a-zA-Z0-9_]/g, '_');
-    const indexName = `${tableName}-${sanitizedAttr}-index`;
+    const sanitizedTable = tableName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const indexName = `${sanitizedTable}-${sanitizedAttr}-index`;
     const tableNode = currentGraph.nodes.find((n) => n.type === 'table' && n.databaseType === 'dynamodb' && 'name' in n && n.name === tableName);
     return toText({
       table: tableName, attribute, found: !!tableNode,
@@ -154,10 +155,10 @@ export function createMcpServer(): McpServer {
     const indexName = `idx_${sanitizedTable}_${sanitizedCol}`;
     return toText({
       table: tableName, column,
-      recommendation: `CREATE INDEX CONCURRENTLY ${indexName} ON ${tableName} (${column});`,
+      recommendation: `CREATE INDEX CONCURRENTLY ${indexName} ON ${sanitizedTable} (${sanitizedCol});`,
       rationale: `An index on "${column}" eliminates sequential scans when filtering on this column.`,
       notes: ['Use CONCURRENTLY to avoid locking the table', 'Run ANALYZE after creation',
-        `Partial index: CREATE INDEX CONCURRENTLY ${indexName}_partial ON ${tableName} (${column}) WHERE ${column} IS NOT NULL;`],
+        `Partial index: CREATE INDEX CONCURRENTLY ${indexName}_partial ON ${sanitizedTable} (${sanitizedCol}) WHERE ${sanitizedCol} IS NOT NULL;`],
     });
   }));
 
@@ -167,16 +168,20 @@ export function createMcpServer(): McpServer {
       collection: z.string().describe('MongoDB collection name'),
       field: z.string().describe('Field name to index'),
     }),
-  }, logged('suggest_mongo_index', async ({ collection, field }) => toText({
-    collection, field,
-    recommendation: `db.${collection}.createIndex({ ${field}: 1 })`,
-    rationale: `An index on "${field}" eliminates full collection scans when filtering on this field.`,
-    notes: [
-      `Compound: db.${collection}.createIndex({ ${field}: 1, otherField: 1 })`,
-      `Text: db.${collection}.createIndex({ ${field}: "text" })`,
-      `Verify: db.${collection}.explain("executionStats").find({ ${field}: value })`,
-    ],
-  })));
+  }, logged('suggest_mongo_index', async ({ collection, field }) => {
+    const sanitizedCollection = collection.replace(/[^a-zA-Z0-9_]/g, '_');
+    const sanitizedField = field.replace(/[^a-zA-Z0-9_.]/g, '_');
+    return toText({
+      collection, field,
+      recommendation: `db.${sanitizedCollection}.createIndex({ ${sanitizedField}: 1 })`,
+      rationale: `An index on "${field}" eliminates full collection scans when filtering on this field.`,
+      notes: [
+        `Compound: db.${sanitizedCollection}.createIndex({ ${sanitizedField}: 1, otherField: 1 })`,
+        `Text: db.${sanitizedCollection}.createIndex({ ${sanitizedField}: "text" })`,
+        `Verify: db.${sanitizedCollection}.explain("executionStats").find({ ${sanitizedField}: value })`,
+      ],
+    });
+  }));
 
   mcp.registerTool('mysql_index_suggestions', {
     description: 'Get MySQL index suggestions for a table column',
@@ -190,10 +195,10 @@ export function createMcpServer(): McpServer {
     const indexName = `idx_${sanitizedTable}_${sanitizedCol}`;
     return toText({
       table: tableName, column,
-      recommendation: `ALTER TABLE ${tableName} ADD INDEX ${indexName} (${column});`,
+      recommendation: `ALTER TABLE ${sanitizedTable} ADD INDEX ${indexName} (${sanitizedCol});`,
       rationale: `An index on "${column}" eliminates full table scans when filtering on this column.`,
       notes: ['MySQL InnoDB adds indexes online (no full lock for 5.6+)', 'EXPLAIN SELECT ... to verify after adding',
-        `Composite: ALTER TABLE ${tableName} ADD INDEX idx_composite (${column}, other_column);`],
+        `Composite: ALTER TABLE ${sanitizedTable} ADD INDEX idx_composite (${sanitizedCol}, other_column);`],
     });
   }));
 

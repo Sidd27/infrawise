@@ -5,8 +5,8 @@ import {
   type TableDescription,
 } from '@aws-sdk/client-dynamodb';
 import { fromIni } from '@aws-sdk/credential-providers';
-import type { DynamoTableMetadata, InfrawiseConfig } from '../types';
-import { DynamoDBError, logger } from '../core';
+import type { DynamoTableMetadata, InfrawiseConfig } from '../types.js';
+import { DynamoDBError, logger } from '../core/index.js';
 
 function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
   const region = config.aws?.region ?? 'us-east-1';

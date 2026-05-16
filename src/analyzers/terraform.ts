@@ -1,5 +1,5 @@
-import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types';
-import type { IaCSchema } from '../adapters/terraform';
+import type { Analyzer, SystemGraph, Finding, GraphNode } from '../types.js';
+import type { IaCSchema } from '../adapters/terraform.js';
 
 export class IaCDriftAnalyzer implements Analyzer {
   name = 'IaCDriftAnalyzer';

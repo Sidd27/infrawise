@@ -1,11 +1,11 @@
-import type { Analyzer, SystemGraph, Finding } from '../types';
-import { logger } from '../core';
+import type { Analyzer, SystemGraph, Finding } from '../types.js';
+import { logger } from '../core/index.js';
 
-export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb';
-export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres';
-export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql';
-export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb';
-export { IaCDriftAnalyzer } from './terraform';
+export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb.js';
+export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres.js';
+export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql.js';
+export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb.js';
+export { IaCDriftAnalyzer } from './terraform.js';
 export {
   MissingDLQAnalyzer,
   UnencryptedQueueAnalyzer,
@@ -14,14 +14,14 @@ export {
   MissingLogRetentionAnalyzer,
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
-} from './aws-services';
+} from './aws-services.js';
 export {
   RDSPubliclyAccessibleAnalyzer,
   RDSNoBackupAnalyzer,
   RDSUnencryptedAnalyzer,
   RDSNoDeletionProtectionAnalyzer,
   RDSNoMultiAZAnalyzer,
-} from './rds';
+} from './rds.js';
 
 export async function runAllAnalyzers(
   graph: SystemGraph,

@@ -10,11 +10,8 @@
 
 import { execSync, spawnSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve, dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { resolve, join } from 'path';
 import { tmpdir } from 'os';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const arg = process.argv[2];
 
 if (!arg) {
@@ -22,7 +19,7 @@ if (!arg) {
   process.exit(1);
 }
 
-const pkgPath = resolve(__dirname, '../package.json');
+const pkgPath = resolve(import.meta.dirname, '../package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 const prev = pkg.version;
 const [major, minor, patch] = prev.split('.').map(Number);
@@ -47,7 +44,7 @@ console.log(`infrawise: ${prev} → ${next}`);
 
 // ── Bump server.json if it exists (MCP Registry manifest, gitignored) ─────────
 
-const serverJsonPath = resolve(__dirname, '../server.json');
+const serverJsonPath = resolve(import.meta.dirname, '../server.json');
 if (existsSync(serverJsonPath)) {
   const serverJson = JSON.parse(readFileSync(serverJsonPath, 'utf8'));
   serverJson.version = next;

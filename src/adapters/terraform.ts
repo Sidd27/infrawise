@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import yaml from 'js-yaml';
-import { logger } from '../core';
+import { logger } from '../core/index.js';
 
 export type IaCSource = 'terraform' | 'cloudformation' | 'cdk';
 

@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import { readAWSProfiles, log, printHeader } from '../utils';
-import { validateDynamoAccess } from '../../adapters/dynamodb';
-import type { InfrawiseConfig } from '../../types';
+import { readAWSProfiles, log, printHeader } from '../utils.js';
+import { validateDynamoAccess } from '../../adapters/dynamodb.js';
+import type { InfrawiseConfig } from '../../types.js';
 
 export async function runAuth(): Promise<void> {
   printHeader('AWS Authentication');

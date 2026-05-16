@@ -8,7 +8,7 @@ import type {
   MySQLTableMetadata,
   MongoCollectionMetadata,
   ServicesMeta,
-} from '../types';
+} from '../types.js';
 
 export function buildGraph(
   operations: ExtractedOperation[],

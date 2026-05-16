@@ -1,4 +1,4 @@
-import type { Analyzer, Finding, SystemGraph } from '../types';
+import type { Analyzer, Finding, SystemGraph } from '../types.js';
 
 // ─── SQS ─────────────────────────────────────────────────────────────────────
 

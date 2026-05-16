@@ -1,8 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { Project, SyntaxKind, Node, CallExpression, StringLiteral } from 'ts-morph';
-import type { ExtractedOperation } from '../types';
-import { RepositoryScanError, logger } from '../core';
+import type { ExtractedOperation } from '../types.js';
+import { RepositoryScanError, logger } from '../core/index.js';
 
 const DYNAMO_OPERATIONS = new Set([
   'query',

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import type { InfrawiseConfig } from '../types';
+import type { InfrawiseConfig } from '../types.js';
 
 export const InfrawiseConfigSchema = z.object({
   project: z.string().min(1, 'Project name is required'),
@@ -13,7 +13,7 @@ export const InfrawiseConfigSchema = z.object({
       endpoint: z.string().optional(),
     })
     .optional()
-    .default({}),
+    .default({ profile: 'default', region: 'us-east-1' }),
   dynamodb: z.object({ enabled: z.boolean().optional().default(true), includeTables: z.array(z.string()).optional() }).optional(),
   postgres: z.object({
     enabled: z.boolean().optional().default(false),
@@ -92,7 +92,7 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
 
   const result = InfrawiseConfigSchema.safeParse(parsedYaml);
   if (!result.success) {
-    const details = result.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`);
+    const details = result.error.issues.map((e) => `  - ${e.path.join('.')}: ${e.message}`);
     throw new ConfigError('Configuration validation failed', details);
   }
 

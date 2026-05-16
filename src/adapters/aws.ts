@@ -33,8 +33,8 @@ import type {
   SecretsManagerMetadata,
   LambdaFunctionMetadata,
   RDSInstanceMetadata,
-} from '../types';
-import { logger } from '../core';
+} from '../types.js';
+import { logger } from '../core/index.js';
 
 interface AWSConfig {
   region?: string;
