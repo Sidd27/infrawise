@@ -15,6 +15,8 @@ It statically analyzes your codebase, cloud infrastructure, and database schemas
 
 ## Why this exists
 
+New software developers don't write wrong code. Claude Code writes wrong code and they ship it. Infrawise is the only thing standing between Claude Code's generated output and a production incident.
+
 AI coding assistants can read your source files but have no deterministic knowledge of your infrastructure. They do not know which GSIs exist, how tables are partitioned, which functions already trigger scans, or where indexes are missing. So they guess.
 
 Infrawise replaces guessing with infrastructure-aware context.
@@ -419,6 +421,8 @@ src/
 ---
 
 ## Roadmap
+
+Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd27/projects/1). Priorities, complexity, and virality scores are visible there. Feature requests and upvotes welcome.
 
 ### Planned
 - Runtime tracing integration
