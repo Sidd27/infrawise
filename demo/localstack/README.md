@@ -23,22 +23,28 @@ cd demo/localstack
 ./start.sh
 ```
 
-This starts LocalStack and seeds all AWS resources. `infrawise.yaml` is already committed — no `infrawise init` needed.
+Starts LocalStack, seeds all AWS resources, and writes `infrawise.yaml` and `.env` for you — no manual setup needed.
+
+> **LocalStack only — not needed for real AWS.**
+> Before running any infrawise command, load the dummy credentials into your shell:
+> ```bash
+> source .env
+> ```
+> This sets `AWS_ACCESS_KEY_ID=test` and `AWS_SECRET_ACCESS_KEY=test` — fake values LocalStack accepts in place of real credentials. You only need to do this once per terminal session. If you are using infrawise against a real AWS account, skip this step entirely and use your normal AWS profile or environment instead.
 
 ---
 
 ## Analyze
 
 ```bash
-cd demo/localstack
-AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test infrawise analyze
+infrawise init
+infrawise analyze
 ```
 
 ### MCP server (Claude Code)
 
 ```bash
-cd demo/localstack
-AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test infrawise dev
+infrawise dev
 ```
 
 Then add to your Claude Code MCP config:

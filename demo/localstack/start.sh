@@ -26,18 +26,13 @@ AWS_ACCESS_KEY_ID=test \
 AWS_SECRET_ACCESS_KEY=test \
 bash seed/aws-seed.sh
 
-# ── 3. Generate config via infrawise init ────────────────────────────────────
+# ── 3. Write .env with LocalStack credentials ────────────────────────────────
 
-echo ""
-echo "▶ Generating infrawise.yaml..."
-if [ ! -f infrawise.yaml ]; then
-  AWS_ACCESS_KEY_ID=test \
-  AWS_SECRET_ACCESS_KEY=test \
-  AWS_ENDPOINT_URL=http://localhost:4566 \
-  infrawise init
-else
-  echo "  infrawise.yaml already exists, skipping init"
-fi
+cat > .env << 'ENV'
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+ENV
+echo "  ✓ .env written"
 
 # ── 4. Done ──────────────────────────────────────────────────────────────────
 
@@ -46,16 +41,20 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  LocalStack demo ready!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  Analyze:"
+echo "  1. Load LocalStack credentials (once per terminal session):"
 echo ""
-echo "    AWS_ACCESS_KEY_ID=test \\"
-echo "    AWS_SECRET_ACCESS_KEY=test \\"
+echo "    source .env"
+echo ""
+echo "  2. Configure infrawise:"
+echo ""
+echo "    infrawise init"
+echo ""
+echo "  3. Analyze:"
+echo ""
 echo "    infrawise analyze"
 echo ""
 echo "  MCP server for Claude Code:"
 echo ""
-echo "    AWS_ACCESS_KEY_ID=test \\"
-echo "    AWS_SECRET_ACCESS_KEY=test \\"
 echo "    infrawise dev"
 echo ""
 echo "  Stop: docker compose down"
