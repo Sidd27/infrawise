@@ -6,39 +6,16 @@
     "url": "https://github.com/Sidd27/infrawise",
     "source": "github"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "infrawise",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:3000/mcp"
-      },
-      "environmentVariables": [
-        {
-          "name": "AWS_REGION",
-          "description": "AWS region to analyze (e.g. us-east-1)",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": false
-        },
-        {
-          "name": "AWS_ACCESS_KEY_ID",
-          "description": "AWS access key (or use a named profile in infrawise.yaml)",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": true
-        },
-        {
-          "name": "AWS_SECRET_ACCESS_KEY",
-          "description": "AWS secret key (or use a named profile in infrawise.yaml)",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": true
-        }
-      ]
+      }
     }
   ]
 }
