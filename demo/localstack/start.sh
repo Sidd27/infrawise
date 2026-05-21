@@ -3,19 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  infrawise demo — AWS (LocalStack)"
+echo "  infrawise demo — LocalStack"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-if [ ! -f .env ]; then
-  echo ""
-  echo "  ✗ Missing .env file"
-  echo "    cp .env.example .env"
-  echo "    # then add your LocalStack auth token"
-  exit 1
-fi
-
-# Load token into environment for docker compose
-set -a; source .env; set +a
 
 # ── 1. Start LocalStack ──────────────────────────────────────────────────────
 
@@ -54,21 +43,19 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  AWS demo ready!"
+echo "  LocalStack demo ready!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Analyze:"
 echo ""
 echo "    AWS_ACCESS_KEY_ID=test \\"
 echo "    AWS_SECRET_ACCESS_KEY=test \\"
-echo "    AWS_ENDPOINT_URL=http://localhost:4566 \\"
 echo "    infrawise analyze"
 echo ""
 echo "  MCP server for Claude Code:"
 echo ""
 echo "    AWS_ACCESS_KEY_ID=test \\"
 echo "    AWS_SECRET_ACCESS_KEY=test \\"
-echo "    AWS_ENDPOINT_URL=http://localhost:4566 \\"
 echo "    infrawise dev"
 echo ""
 echo "  Stop: docker compose down"

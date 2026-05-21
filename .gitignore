@@ -8,9 +8,9 @@ dist/
 # Infrawise cache (anywhere in the tree)
 **/.infrawise/cache/
 
-# Demo configs (contain local credentials / connection strings)
-demo/aws/infrawise.yaml
+# Demo configs (user-generated via infrawise init, never committed)
 demo/local/infrawise.yaml
+demo/localstack/infrawise.yaml
 
 # Environment & secrets
 .env

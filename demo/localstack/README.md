@@ -1,10 +1,10 @@
-# infrawise demo — AWS (LocalStack)
+# infrawise demo — LocalStack
 
 Tests infrawise against AWS services emulated locally via LocalStack. Everything runs in Docker at zero cost — no real AWS account needed.
 
-**Services covered:** DynamoDB · SQS · Lambda · Secrets Manager · CloudWatch Logs · SSM · SNS
+**Services covered:** DynamoDB · SQS · SNS · SSM · Secrets Manager · Lambda · CloudWatch Logs
 
-> These are the free-tier LocalStack services that have infrawise analyzers. RDS and other services require a paid LocalStack plan and are not included here.
+> All services used here are available in LocalStack community edition (free). RDS requires LocalStack Pro and is not included.
 
 ---
 
@@ -12,48 +12,33 @@ Tests infrawise against AWS services emulated locally via LocalStack. Everything
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) running
 - [AWS CLI](https://aws.amazon.com/cli/) installed (`aws --version`)
-- A free [LocalStack account](https://app.localstack.cloud) + auth token
 - infrawise on your PATH (`npm install -g infrawise` or built from source)
-
----
-
-## One-time setup
-
-```bash
-cd demo/localstack
-cp .env.example .env
-# edit .env and set your LocalStack auth token
-```
 
 ---
 
 ## Start
 
 ```bash
+cd demo/localstack
 ./start.sh
 ```
 
-This starts LocalStack, seeds all AWS resources, and runs `infrawise init` to generate `infrawise.yaml`.
+This starts LocalStack and seeds all AWS resources. `infrawise.yaml` is already committed — no `infrawise init` needed.
 
 ---
 
 ## Analyze
 
 ```bash
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
-export AWS_ENDPOINT_URL=http://localhost:4566
-
-infrawise analyze
+cd demo/localstack
+AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test infrawise analyze
 ```
 
 ### MCP server (Claude Code)
 
 ```bash
-AWS_ACCESS_KEY_ID=test \
-AWS_SECRET_ACCESS_KEY=test \
-AWS_ENDPOINT_URL=http://localhost:4566 \
-infrawise dev
+cd demo/localstack
+AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test infrawise dev
 ```
 
 Then add to your Claude Code MCP config:
@@ -66,8 +51,7 @@ Then add to your Claude Code MCP config:
       "args": ["dev"],
       "env": {
         "AWS_ACCESS_KEY_ID": "test",
-        "AWS_SECRET_ACCESS_KEY": "test",
-        "AWS_ENDPOINT_URL": "http://localhost:4566"
+        "AWS_SECRET_ACCESS_KEY": "test"
       }
     }
   }

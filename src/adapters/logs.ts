@@ -22,12 +22,15 @@ interface LogsConfig {
 function clientConfig(cfg: LogsConfig) {
   const region = cfg.region ?? 'us-east-1';
   const base: Record<string, unknown> = { region };
-  if (cfg.endpoint) base.endpoint = cfg.endpoint;
-  if (cfg.profile) base.credentials = fromIni({ profile: cfg.profile });
-  else if (cfg.endpoint) base.credentials = {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
-  };
+  if (cfg.endpoint) {
+    base.endpoint = cfg.endpoint;
+    base.credentials = {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
+    };
+  } else if (cfg.profile) {
+    base.credentials = fromIni({ profile: cfg.profile });
+  }
   return base;
 }
 
