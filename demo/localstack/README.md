@@ -20,7 +20,7 @@ Tests infrawise against AWS services emulated locally via LocalStack. Everything
 ## One-time setup
 
 ```bash
-cd demo/aws
+cd demo/localstack
 cp .env.example .env
 # edit .env and set your LocalStack auth token
 ```

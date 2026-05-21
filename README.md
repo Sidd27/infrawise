@@ -439,6 +439,12 @@ Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd
 
 ---
 
+## Demo
+
+The `demo/localstack/` directory runs infrawise against real AWS APIs emulated locally via [LocalStack](https://localstack.cloud) — an open-source tool that spins up a full AWS environment in Docker so you can test AWS integrations at zero cost, with no real AWS account needed. See [`demo/localstack/README.md`](demo/localstack/README.md) for setup instructions.
+
+---
+
 ## Contributing
 
 ### Prerequisites
