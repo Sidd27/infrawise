@@ -8,6 +8,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # ── 1. Start LocalStack ──────────────────────────────────────────────────────
 
+# Source .env if present so LOCALSTACK_AUTH_TOKEN reaches the container
+[ -f .env ] && source .env
+
 echo ""
 echo "▶ Starting LocalStack..."
 docker compose up -d
@@ -26,24 +29,14 @@ AWS_ACCESS_KEY_ID=test \
 AWS_SECRET_ACCESS_KEY=test \
 bash seed/aws-seed.sh
 
-# ── 3. Write .env with LocalStack credentials ────────────────────────────────
-
-cat > .env << 'ENV'
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
-# Optional: add your LocalStack auth token to see this session on the dashboard
-# export LOCALSTACK_AUTH_TOKEN=your-token-here
-ENV
-echo "  ✓ .env written"
-
-# ── 4. Done ──────────────────────────────────────────────────────────────────
+# ── 3. Done ──────────────────────────────────────────────────────────────────
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  LocalStack demo ready!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  1. Load LocalStack credentials (once per terminal session):"
+echo "  1. Load credentials (once per terminal session):"
 echo ""
 echo "    source .env"
 echo ""

@@ -1,13 +1,11 @@
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:stable
     ports:
       - '4566:4566'
     environment:
       - SERVICES=dynamodb,sqs,sns,lambda,ssm,secretsmanager,logs,iam
-      - DEFAULT_REGION=us-east-1
       - AWS_DEFAULT_REGION=us-east-1
-      - LAMBDA_EXECUTOR=local
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
