@@ -41,6 +41,8 @@ infrawise init
 infrawise analyze
 ```
 
+When `infrawise init` asks **AWS profile**, select **`LocalStack (local development)`**. It will then ask for the endpoint — use the default `http://localhost:4566`.
+
 ### MCP server (Claude Code)
 
 ```bash

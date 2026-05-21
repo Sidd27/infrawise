@@ -35,7 +35,7 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
       default: repoName,
     },
     {
-      type: 'list',
+      type: 'select',
       name: 'awsProfile',
       message: 'AWS profile:',
       choices: [
@@ -165,6 +165,12 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     },
     {
       type: 'confirm',
+      name: 'rdsEnabled',
+      message: 'Introspect RDS instances?',
+      default: true,
+    },
+    {
+      type: 'confirm',
       name: 'logsEnabled',
       message: 'Sample CloudWatch Logs? (error patterns only, no raw logs)',
       default: false,
@@ -208,6 +214,7 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     ssm: { enabled: services.ssmEnabled, paths: ssmPaths },
     secretsManager: { enabled: services.secretsEnabled },
     lambda: { enabled: services.lambdaEnabled },
+    rds: { enabled: services.rdsEnabled },
     cloudwatchLogs: {
       enabled: services.logsEnabled,
       logGroupPrefixes,

@@ -130,6 +130,7 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
     },
     secretsManager: { enabled: options?.secretsManager?.enabled ?? true },
     lambda: { enabled: options?.lambda?.enabled ?? true },
+    rds: { enabled: options?.rds?.enabled ?? true },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,
       logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],

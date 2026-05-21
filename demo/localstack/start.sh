@@ -31,6 +31,8 @@ bash seed/aws-seed.sh
 cat > .env << 'ENV'
 export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
+# Optional: add your LocalStack auth token to see this session on the dashboard
+# export LOCALSTACK_AUTH_TOKEN=your-token-here
 ENV
 echo "  ✓ .env written"
 
@@ -48,6 +50,9 @@ echo ""
 echo "  2. Configure infrawise:"
 echo ""
 echo "    infrawise init"
+echo ""
+echo "    When prompted for AWS profile, select: LocalStack (local development)"
+echo "    Endpoint default is correct: http://localhost:4566"
 echo ""
 echo "  3. Analyze:"
 echo ""
