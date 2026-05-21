@@ -165,6 +165,12 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     },
     {
       type: 'confirm',
+      name: 'eventbridgeEnabled',
+      message: 'Introspect EventBridge rules?',
+      default: true,
+    },
+    {
+      type: 'confirm',
       name: 'rdsEnabled',
       message: 'Introspect RDS instances?',
       default: true,
@@ -214,6 +220,7 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
     ssm: { enabled: services.ssmEnabled, paths: ssmPaths },
     secretsManager: { enabled: services.secretsEnabled },
     lambda: { enabled: services.lambdaEnabled },
+    eventbridge: { enabled: services.eventbridgeEnabled },
     rds: { enabled: services.rdsEnabled },
     cloudwatchLogs: {
       enabled: services.logsEnabled,

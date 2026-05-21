@@ -73,15 +73,15 @@ Returns: all `nodes` (tables, functions, queues, lambdas, etc.), all `edges` (qu
 
 ### `analyze_function`
 
-Analyze a single function for infrastructure issues.
+Analyze a single function for infrastructure issues, including trigger event shapes.
 
 | Input | Type | Required |
 |---|---|---|
 | `function` | string | yes |
 
-Returns: file path, all services/tables accessed (with edge types), related findings, deduplicated recommendations.
+Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rules fetched on-demand, related findings, deduplicated recommendations.
 
-**When to call:** When writing or reviewing a function that touches a database, queue, or other service.
+**When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source. Also use when a function touches a database, queue, or other service.
 
 ---
 
@@ -195,13 +195,25 @@ Returns: per-parameter — name, provider, type (String/SecureString/StringList)
 
 ### `get_lambda_overview`
 
-All Lambda functions with configuration metadata.
+All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **triggers** (type, source name, correct handler event shape), findings.
 
-**When to call:** When reviewing Lambda config, checking for default memory (128 MB), or high timeouts.
+**When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler.
+
+---
+
+### `get_eventbridge_details`
+
+All EventBridge rules with schedule/event pattern and target functions.
+
+No inputs required.
+
+Returns: per-rule — name, state (ENABLED/DISABLED), scheduleExpression (for rate/cron rules), eventPattern (for event-driven rules), target Lambda function names.
+
+**When to call:** When checking what schedules or events trigger which Lambda functions, or reviewing EventBridge rule coverage.
 
 ---
 

@@ -5,7 +5,7 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding } from '../types.js';
+import type { SystemGraph, Finding, InfrawiseConfig } from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8')) as { version: string };
@@ -19,6 +19,7 @@ import {
   getParameterNodes,
   getLogGroupNodes,
   getLambdaNodes,
+  getEventBridgeRuleNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -28,7 +29,7 @@ import {
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
 
-export function setGraphState(graph: SystemGraph, findings: Finding[]): void {
+export function setGraphState(graph: SystemGraph, findings: Finding[], _config?: InfrawiseConfig): void {
   currentGraph = graph;
   currentFindings = findings;
 }
@@ -100,21 +101,33 @@ export function createMcpServer(): McpServer {
   })));
 
   mcp.registerTool('analyze_function', {
-    description: 'Analyze a specific function for all infrastructure issues: DB queries, queue publishing, secret access, etc.',
+    description: 'Analyze a specific function for all infrastructure issues: DB queries, queue publishing, secret access, trigger event shapes, etc.',
     inputSchema: z.object({ function: z.string().describe('Function name to analyze') }),
   }, logged('analyze_function', async ({ function: functionName }) => {
     const funcNode = currentGraph.nodes.find((n) => n.type === 'function' && n.name === functionName);
-    if (!funcNode) {
+
+    // Also check if there's a Lambda node with this name (for AWS-deployed functions)
+    const lambdaNode = currentGraph.nodes.find((n) => n.type === 'lambda' && n.name === functionName);
+
+    if (!funcNode && !lambdaNode) {
       return toText({ function: functionName, found: false, issues: [], recommendations: [`Function "${functionName}" not found in the analyzed codebase.`] });
     }
-    const outEdges = getOutgoingEdges(currentGraph, funcNode.id);
+
+    const outEdges = funcNode ? getOutgoingEdges(currentGraph, funcNode.id) : [];
     const relatedFindings = currentFindings.filter((f) => {
       const meta = f.metadata as Record<string, unknown> | undefined;
       return meta?.functionName === functionName || String(meta?.callerFunctions ?? '').includes(functionName);
     });
+
+    const allTriggers = lambdaNode?.type === 'lambda' ? (lambdaNode.triggers ?? []) : [];
+
     return toText({
       function: functionName, found: true,
-      file: funcNode.type === 'function' ? funcNode.file : undefined,
+      file: funcNode?.type === 'function' ? funcNode.file : undefined,
+      triggers: allTriggers.map((t) => ({
+        type: t.type, source: t.sourceName, eventShape: t.eventShape,
+        ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
+      })),
       accesses: outEdges.map((e) => {
         const target = currentGraph.nodes.find((n) => n.id === e.to);
         return { targetId: e.to, edgeType: e.type, targetName: target && 'name' in target ? target.name : e.to, targetType: target?.type };
@@ -253,7 +266,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_lambda_overview', {
-    description: 'Returns all Lambda functions: runtime, memory, timeout, env var key names (values never included).',
+    description: 'Returns all Lambda functions: runtime, memory, timeout, env var key names (values never included), and known event source triggers with correct handler event shapes.',
     inputSchema: z.object({}),
   }, logged('get_lambda_overview', async () => {
     const lambdas = getLambdaNodes(currentGraph);
@@ -263,7 +276,29 @@ export function createMcpServer(): McpServer {
       lambdas: lambdas.map((l) => ({
         name: l.name, runtime: l.runtime, memoryMB: l.memoryMB, timeoutSec: l.timeoutSec,
         envVarCount: l.envVarKeys?.length ?? 0, envVarKeys: l.envVarKeys,
+        triggers: (l.triggers ?? []).map((t) => ({ type: t.type, source: t.sourceName, eventShape: t.eventShape, state: t.state })),
         findings: lambdaFindings.filter((f) => (f.metadata as Record<string, unknown>).functionName === l.name).map((f) => ({ severity: f.severity, issue: f.issue })),
+      })),
+    });
+  }));
+
+  mcp.registerTool('get_eventbridge_details', {
+    description: 'Returns all EventBridge rules: name, state, schedule expression or event pattern, and target Lambda functions.',
+    inputSchema: z.object({}),
+  }, logged('get_eventbridge_details', async () => {
+    const rules = getEventBridgeRuleNodes(currentGraph);
+    return toText({
+      total: rules.length,
+      rules: rules.map((r) => ({
+        name: r.name,
+        state: r.state,
+        scheduleExpression: r.scheduleExpression,
+        eventPattern: r.eventPattern,
+        targets: currentGraph.edges
+          .filter((e) => e.from === r.id && e.type === 'triggers')
+          .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
+          .filter(Boolean)
+          .map((n) => n && 'name' in n ? n.name : ''),
       })),
     });
   }));

@@ -17,7 +17,8 @@ export type GraphNode =
       topErrorPatterns?: Array<{ pattern: string; count: number }>;
     }
   | { id: string; type: 'bucket'; name: string; provider: string; versioned?: boolean }
-  | { id: string; type: 'lambda'; name: string; runtime?: string; memoryMB?: number; timeoutSec?: number; envVarKeys?: string[] }
+  | { id: string; type: 'lambda'; name: string; runtime?: string; memoryMB?: number; timeoutSec?: number; envVarKeys?: string[]; triggers?: LambdaTrigger[] }
+  | { id: string; type: 'eventbridge_rule'; name: string; state: string; scheduleExpression?: string; eventPattern?: string }
   | { id: string; type: 'api'; name: string; provider: string; stageName?: string }
   | {
       id: string; type: 'database_instance'; name: string; provider: string;
@@ -126,6 +127,18 @@ export interface SecretsManagerMetadata {
   // Secret value is NEVER included
 }
 
+export interface LambdaTrigger {
+  type: 'sqs' | 'dynamodb' | 'kinesis' | 'msk' | 'eventbridge' | 'sns' | 's3' | 'unknown';
+  sourceArn: string;
+  sourceName: string;
+  eventShape: string;
+  batchSize?: number;
+  state?: string;
+  // eventbridge only
+  ruleName?: string;
+  eventPattern?: string;
+}
+
 export interface LambdaFunctionMetadata {
   name: string;
   arn: string;
@@ -136,6 +149,7 @@ export interface LambdaFunctionMetadata {
   lastModified?: string;
   envVarKeys: string[];  // Key names only — values are never included
   layers: string[];
+  triggers: LambdaTrigger[];
 }
 
 export interface LogGroupSummary {
@@ -145,6 +159,15 @@ export interface LogGroupSummary {
   warnCount: number;
   topErrorPatterns: Array<{ pattern: string; count: number }>;
   lastErrorTime?: string;
+}
+
+export interface EventBridgeRuleMetadata {
+  name: string;
+  arn: string;
+  state: string;
+  scheduleExpression?: string;
+  eventPattern?: string;
+  targetArns: string[];
 }
 
 export interface RDSInstanceMetadata {
@@ -167,6 +190,7 @@ export interface ServicesMeta {
   ssm?: SSMParameterMetadata[];
   secrets?: SecretsManagerMetadata[];
   lambda?: LambdaFunctionMetadata[];
+  eventbridge?: EventBridgeRuleMetadata[];
   logs?: LogGroupSummary[];
   rds?: RDSInstanceMetadata[];
 }
@@ -239,6 +263,10 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   lambda?: {
+    enabled?: boolean;
+    includeFunctions?: string[];
+  };
+  eventbridge?: {
     enabled?: boolean;
   };
   rds?: {

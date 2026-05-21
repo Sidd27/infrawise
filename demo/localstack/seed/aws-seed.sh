@@ -147,6 +147,64 @@ $AWS lambda create-function \
 
 rm -rf "$TMPDIR"
 
+# ── Event Source Mappings (SQS → Lambda) ────────────────────────────────────
+
+echo "  → Event source mappings"
+
+ORDERS_QUEUE_ARN=$($AWS sqs get-queue-attributes \
+  --queue-url "$ENDPOINT/000000000000/orders-queue" \
+  --attribute-names QueueArn \
+  --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
+
+# orders-queue triggers processOrders — queue has no DLQ (triggers LambdaMissingTriggerDLQAnalyzer)
+if [ -n "$ORDERS_QUEUE_ARN" ]; then
+  $AWS lambda create-event-source-mapping \
+    --function-name processOrders \
+    --event-source-arn "$ORDERS_QUEUE_ARN" \
+    --batch-size 10 \
+    --no-cli-pager 2>/dev/null || true
+fi
+
+# ── EventBridge Rules ────────────────────────────────────────────────────────
+
+echo "  → EventBridge rules"
+
+# Scheduled rule triggers generateReport every hour
+$AWS events put-rule \
+  --name "generate-report-schedule" \
+  --schedule-expression "rate(1 hour)" \
+  --state ENABLED \
+  --no-cli-pager 2>/dev/null || true
+
+GENERATE_REPORT_ARN=$($AWS lambda get-function \
+  --function-name generateReport \
+  --query 'Configuration.FunctionArn' --output text 2>/dev/null || echo "")
+
+if [ -n "$GENERATE_REPORT_ARN" ]; then
+  $AWS events put-targets \
+    --rule "generate-report-schedule" \
+    --targets "Id=1,Arn=$GENERATE_REPORT_ARN" \
+    --no-cli-pager 2>/dev/null || true
+fi
+
+# Order created event triggers sendNotification
+$AWS events put-rule \
+  --name "order-created-event" \
+  --event-pattern '{"source":["com.demo.orders"],"detail-type":["OrderCreated"]}' \
+  --state ENABLED \
+  --no-cli-pager 2>/dev/null || true
+
+SEND_NOTIFICATION_ARN=$($AWS lambda get-function \
+  --function-name sendNotification \
+  --query 'Configuration.FunctionArn' --output text 2>/dev/null || echo "")
+
+if [ -n "$SEND_NOTIFICATION_ARN" ]; then
+  $AWS events put-targets \
+    --rule "order-created-event" \
+    --targets "Id=1,Arn=$SEND_NOTIFICATION_ARN" \
+    --no-cli-pager 2>/dev/null || true
+fi
+
 # ── CloudWatch Log Groups ────────────────────────────────────────────────────
 
 echo "  → CloudWatch log groups"
@@ -162,8 +220,9 @@ $AWS logs put-retention-policy --log-group-name "/app/api" --retention-in-days 9
 
 echo ""
 echo "✅ AWS seed complete"
-echo "   DynamoDB : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
-echo "   SQS      : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), temp-processing-queue (IaC drift)"
-echo "   Secrets  : db-password + stripe-api-key (no rotation)"
-echo "   Lambda   : processOrders (128MB), generateReport (128MB+300s timeout)"
-echo "   Logs     : processOrders + generateReport (no retention), audit-logs (400 days)"
+echo "   DynamoDB    : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
+echo "   SQS         : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), temp-processing-queue (IaC drift)"
+echo "   Secrets     : db-password + stripe-api-key (no rotation)"
+echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB+300s, EventBridge schedule)"
+echo "   EventBridge : generate-report-schedule (rate), order-created-event (pattern)"
+echo "   Logs        : processOrders + generateReport (no retention), audit-logs (400 days)"

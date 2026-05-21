@@ -7,6 +7,7 @@ import {
   MissingLogRetentionAnalyzer,
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
+  LambdaMissingTriggerDLQAnalyzer,
 } from '../aws-services';
 import type { SystemGraph } from '../../types';
 
@@ -219,6 +220,73 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
   it('does not flag Lambda with higher memory', async () => {
     const graph: SystemGraph = {
       nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', memoryMB: 512 }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('ignores non-lambda nodes', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('LambdaMissingTriggerDLQAnalyzer', () => {
+  const analyzer = new LambdaMissingTriggerDLQAnalyzer();
+
+  it('flags Lambda triggered by SQS queue with no DLQ', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue', sourceName: 'orders-queue', eventShape: 'event.Records[0].body' }] },
+        { id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: false, encrypted: true },
+      ],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('high');
+    expect(findings[0].issue).toContain('processOrders');
+    expect(findings[0].issue).toContain('orders-queue');
+    expect(findings[0].metadata?.triggerType).toBe('sqs');
+  });
+
+  it('does not flag Lambda triggered by SQS queue that has a DLQ', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue', sourceName: 'orders-queue', eventShape: 'event.Records[0].body' }] },
+        { id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: true, encrypted: true },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('does not flag Lambda with no triggers', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [] }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('does not flag Lambda triggered by EventBridge', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:generateReport', type: 'lambda', name: 'generateReport', triggers: [{ type: 'eventbridge', sourceArn: 'arn:aws:events:us-east-1:000:rule/schedule', sourceName: 'schedule', eventShape: 'event.detail', ruleName: 'schedule' }] },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('does not flag when trigger source queue is not in the graph', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:unknown-queue', sourceName: 'unknown-queue', eventShape: 'event.Records[0].body' }] },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);

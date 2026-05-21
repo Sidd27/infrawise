@@ -28,6 +28,7 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_secrets_overview', service: 'secretsManager' },
   { name: 'get_parameter_overview', service: 'ssm' },
   { name: 'get_lambda_overview', service: 'lambda' },
+  { name: 'get_eventbridge_details', service: 'eventbridge' },
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
 ];
 
@@ -88,14 +89,14 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
       'Cached analysis loaded',
       `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
     );
-    setGraphState(cachedGraph, cachedFindings);
+    setGraphState(cachedGraph, cachedFindings, config);
   } else {
     log.warn('No cache found — running analysis now...');
     console.log('');
     await runAnalyze({ repo: repoPath, config: options.config });
     const freshGraph = readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] };
     const freshFindings = readCache<Finding[]>('findings') ?? [];
-    setGraphState(freshGraph, freshFindings);
+    setGraphState(freshGraph, freshFindings, config);
   }
 
   console.log('');
@@ -172,7 +173,7 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
         const spin = ora({ text: chalk.dim('Refreshing code analysis...'), color: 'cyan' }).start();
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, config);
-          setGraphState(graph, findings);
+          setGraphState(graph, findings, config);
           spin.succeed(chalk.green('Analysis refreshed') + chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`));
         } catch (err) {
           spin.warn(chalk.yellow('Refresh failed') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));

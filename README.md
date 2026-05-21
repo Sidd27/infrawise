@@ -161,7 +161,7 @@ To let Claude Code manage the server lifecycle automatically:
 |---|---|
 | `get_infra_overview` | Complete snapshot — all services, counts, and high-severity findings |
 | `get_graph_summary` | Full infrastructure graph — all nodes, edges, and findings |
-| `analyze_function` | Issues in a specific function — scans, missing indexes, N+1 |
+| `analyze_function` | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes |
 | `suggest_gsi` | Exact GSI config for a DynamoDB table + attribute |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table |
 | `suggest_mongo_index` | Exact `createIndex` command for a MongoDB collection + field |
@@ -170,7 +170,8 @@ To let Claude Code manage the server lifecycle automatically:
 | `get_topic_details` | SNS topics — subscription counts and protocols |
 | `get_secrets_overview` | Secrets Manager — names and rotation status (values never included) |
 | `get_parameter_overview` | SSM Parameter Store — names, types, tiers (values never included) |
-| `get_lambda_overview` | Lambda functions — runtime, memory, timeout, env var key names |
+| `get_lambda_overview` | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge), env var key names |
+| `get_eventbridge_details` | EventBridge rules — name, state, schedule/event pattern, target functions |
 | `get_log_errors` | CloudWatch error patterns and counts (no raw log messages) |
 
 ---
@@ -240,6 +241,12 @@ secretsManager:
   enabled: true
 
 lambda:
+  enabled: true
+  includeFunctions:           # omit to include all functions
+    - processOrders
+    - generateReport
+
+eventbridge:
   enabled: true
 
 rds:
@@ -314,7 +321,8 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | SQS | Missing DLQs, unencrypted queues, large backlogs |
 | Kafka (kafkajs) | Producer/consumer topic mapping from code |
 | Secrets Manager | Missing secret rotation |
-| Lambda | Default memory (128 MB), high timeouts |
+| Lambda | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge), missing DLQ on trigger source |
+| EventBridge | Rules, schedules, event patterns, target Lambda functions |
 | RDS | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ |
 | CloudWatch Logs | Log groups with no retention policy |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state |

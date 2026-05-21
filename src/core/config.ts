@@ -36,7 +36,11 @@ export const InfrawiseConfigSchema = z.object({
     paths: z.array(z.string()).optional(),
   }).optional(),
   secretsManager: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
-  lambda: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
+  lambda: z.object({
+    enabled: z.boolean().optional().default(true),
+    includeFunctions: z.array(z.string()).optional(),
+  }).optional(),
+  eventbridge: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   rds: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   kafka: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cloudwatchLogs: z.object({
@@ -130,6 +134,7 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
     },
     secretsManager: { enabled: options?.secretsManager?.enabled ?? true },
     lambda: { enabled: options?.lambda?.enabled ?? true },
+    eventbridge: { enabled: options?.eventbridge?.enabled ?? true },
     rds: { enabled: options?.rds?.enabled ?? true },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,

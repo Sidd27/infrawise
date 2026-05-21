@@ -20,7 +20,13 @@ import {
 import {
   LambdaClient,
   ListFunctionsCommand,
+  ListEventSourceMappingsCommand,
 } from '@aws-sdk/client-lambda';
+import {
+  EventBridgeClient,
+  ListRulesCommand,
+  ListTargetsByRuleCommand,
+} from '@aws-sdk/client-eventbridge';
 import {
   RDSClient,
   DescribeDBInstancesCommand,
@@ -32,6 +38,8 @@ import type {
   SSMParameterMetadata,
   SecretsManagerMetadata,
   LambdaFunctionMetadata,
+  LambdaTrigger,
+  EventBridgeRuleMetadata,
   RDSInstanceMetadata,
 } from '../types.js';
 import { logger } from '../core/index.js';
@@ -232,7 +240,91 @@ export async function validateSecretsAccess(cfg: AWSConfig = {}): Promise<void> 
 
 // ─── Lambda ───────────────────────────────────────────────────────────────────
 
-export async function extractLambdaMetadata(cfg: AWSConfig = {}): Promise<LambdaFunctionMetadata[]> {
+const EVENT_SHAPES: Record<string, string> = {
+  sqs:         'event.Records[0].body',
+  dynamodb:    'event.Records[0].dynamodb.NewImage',
+  kinesis:     'event.Records[0].kinesis.data  // base64',
+  msk:         'event.records[topic][0].value  // base64',
+  sns:         'event.Records[0].Sns.Message',
+  s3:          'event.Records[0].s3.object.key',
+  eventbridge: 'event.detail',
+  unknown:     'event  // unknown trigger type',
+};
+
+function triggerFromArn(arn: string, batchSize?: number, state?: string): LambdaTrigger {
+  let type: LambdaTrigger['type'] = 'unknown';
+  if (arn.includes(':sqs:'))      type = 'sqs';
+  else if (arn.includes(':dynamodb:')) type = 'dynamodb';
+  else if (arn.includes(':kinesis:'))  type = 'kinesis';
+  else if (arn.includes(':kafka:') || arn.toLowerCase().includes('msk')) type = 'msk';
+  else if (arn.includes(':sns:'))  type = 'sns';
+  else if (arn.includes(':s3:'))   type = 's3';
+
+  const sourceName = arn.split(':').pop() ?? arn;
+  return { type, sourceArn: arn, sourceName, eventShape: EVENT_SHAPES[type], batchSize, state };
+}
+
+async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, LambdaTrigger[]>> {
+  const client = new LambdaClient(clientConfig(cfg));
+  const triggerMap = new Map<string, LambdaTrigger[]>();
+
+  try {
+    let marker: string | undefined;
+    do {
+      const res = await client.send(new ListEventSourceMappingsCommand({ Marker: marker, MaxItems: 100 }));
+      for (const m of res.EventSourceMappings ?? []) {
+        if (!m.FunctionArn || !m.EventSourceArn) continue;
+        const trigger = triggerFromArn(m.EventSourceArn, m.BatchSize, m.State);
+        const existing = triggerMap.get(m.FunctionArn) ?? [];
+        existing.push(trigger);
+        triggerMap.set(m.FunctionArn, existing);
+      }
+      marker = res.NextMarker;
+    } while (marker);
+  } catch (err) {
+    logger.warn(`Event source mappings fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return triggerMap;
+}
+
+export async function extractEventBridgeMetadata(cfg: AWSConfig = {}): Promise<EventBridgeRuleMetadata[]> {
+  const client = new EventBridgeClient(clientConfig(cfg));
+  const rules: EventBridgeRuleMetadata[] = [];
+
+  try {
+    let nextToken: string | undefined;
+    do {
+      const res = await client.send(new ListRulesCommand({ NextToken: nextToken, Limit: 100 }));
+      for (const rule of res.Rules ?? []) {
+        if (!rule.Name) continue;
+        try {
+          const targetsRes = await client.send(new ListTargetsByRuleCommand({ Rule: rule.Name }));
+          const targetArns = (targetsRes.Targets ?? []).map((t) => t.Arn ?? '').filter(Boolean);
+          rules.push({
+            name: rule.Name,
+            arn: rule.Arn ?? '',
+            state: rule.State ?? 'UNKNOWN',
+            scheduleExpression: rule.ScheduleExpression,
+            eventPattern: rule.EventPattern,
+            targetArns,
+          });
+        } catch (err) {
+          logger.warn(`EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      nextToken = res.NextToken;
+    } while (nextToken && rules.length < 500);
+  } catch (err) {
+    logger.warn(`EventBridge list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return rules;
+}
+
+export async function validateEventBridgeAccess(cfg: AWSConfig = {}): Promise<void> {
+  await new EventBridgeClient(clientConfig(cfg)).send(new ListRulesCommand({ Limit: 1 }));
+}
+
+export async function extractLambdaMetadata(cfg: AWSConfig = {}, includeFunctions?: string[]): Promise<LambdaFunctionMetadata[]> {
   const client = new LambdaClient(clientConfig(cfg));
   const functions: LambdaFunctionMetadata[] = [];
 
@@ -241,8 +333,10 @@ export async function extractLambdaMetadata(cfg: AWSConfig = {}): Promise<Lambda
     do {
       const res = await client.send(new ListFunctionsCommand({ Marker: marker, MaxItems: 50 }));
       for (const fn of res.Functions ?? []) {
+        const name = fn.FunctionName ?? '';
+        if (includeFunctions?.length && !includeFunctions.includes(name)) continue;
         functions.push({
-          name: fn.FunctionName ?? '',
+          name,
           arn: fn.FunctionArn ?? '',
           runtime: fn.Runtime,
           handler: fn.Handler,
@@ -251,10 +345,17 @@ export async function extractLambdaMetadata(cfg: AWSConfig = {}): Promise<Lambda
           lastModified: fn.LastModified,
           envVarKeys: Object.keys(fn.Environment?.Variables ?? {}),
           layers: (fn.Layers ?? []).map((l) => l.Arn ?? '').filter(Boolean),
+          triggers: [],
         });
       }
       marker = res.NextMarker;
     } while (marker && functions.length < 200);
+
+    // Fetch all event source mappings in one paginated call and attach to functions
+    const triggerMap = await fetchAllEventSourceMappings(cfg);
+    for (const fn of functions) {
+      fn.triggers = triggerMap.get(fn.arn) ?? [];
+    }
   } catch (err) {
     logger.warn(`Lambda list failed: ${err instanceof Error ? err.message : String(err)}`);
   }

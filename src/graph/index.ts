@@ -8,6 +8,7 @@ import type {
   MySQLTableMetadata,
   MongoCollectionMetadata,
   ServicesMeta,
+  LambdaTrigger,
 } from '../types.js';
 
 export function buildGraph(
@@ -133,15 +134,67 @@ export function buildGraph(
   }
 
   for (const fn of servicesMeta.lambda ?? []) {
+    const lambdaId = `lambda:aws:${fn.name}`;
     addNode({
-      id: `lambda:aws:${fn.name}`,
+      id: lambdaId,
       type: 'lambda',
       name: fn.name,
       runtime: fn.runtime,
       memoryMB: fn.memoryMB,
       timeoutSec: fn.timeoutSec,
       envVarKeys: fn.envVarKeys,
+      triggers: fn.triggers,
     });
+
+    // Add trigger edges from source → lambda (only for enabled/active mappings)
+    for (const trigger of fn.triggers ?? []) {
+      if (trigger.state && trigger.state !== 'Enabled') continue;
+      let sourceId: string;
+      if (trigger.type === 'sqs') {
+        sourceId = `queue:aws:${trigger.sourceName}`;
+        addNode({ id: sourceId, type: 'queue', name: trigger.sourceName, provider: 'aws', hasDLQ: false, encrypted: false });
+      } else if (trigger.type === 'dynamodb') {
+        sourceId = `table:dynamo:${trigger.sourceName}`;
+        addNode({ id: sourceId, type: 'table', name: trigger.sourceName, databaseType: 'dynamodb' });
+      } else if (trigger.type === 'kinesis') {
+        sourceId = `queue:aws:${trigger.sourceName}`;
+        addNode({ id: sourceId, type: 'queue', name: trigger.sourceName, provider: 'aws', hasDLQ: false, encrypted: false });
+      } else {
+        continue;
+      }
+      edges.push({ from: sourceId, to: lambdaId, type: 'triggers' });
+    }
+  }
+
+  for (const rule of servicesMeta.eventbridge ?? []) {
+    const ruleId = `eventbridge_rule:aws:${rule.name}`;
+    addNode({
+      id: ruleId,
+      type: 'eventbridge_rule',
+      name: rule.name,
+      state: rule.state,
+      scheduleExpression: rule.scheduleExpression,
+      eventPattern: rule.eventPattern,
+    });
+
+    for (const targetArn of rule.targetArns) {
+      const fnName = targetArn.split(':').pop() ?? '';
+      const lambdaId = `lambda:aws:${fnName}`;
+      if (!nodeIds.has(lambdaId)) continue;
+      edges.push({ from: ruleId, to: lambdaId, type: 'triggers' });
+      const lambdaNodeRef = nodes.find((n) => n.id === lambdaId);
+      if (lambdaNodeRef && lambdaNodeRef.type === 'lambda') {
+        const trigger: LambdaTrigger = {
+          type: 'eventbridge',
+          sourceArn: rule.arn,
+          sourceName: rule.name,
+          eventShape: 'event.detail',
+          ruleName: rule.name,
+          eventPattern: rule.scheduleExpression ?? rule.eventPattern ?? '',
+        };
+        lambdaNodeRef.triggers = [...(lambdaNodeRef.triggers ?? []), trigger];
+      }
+    }
   }
 
   for (const db of servicesMeta.rds ?? []) {
@@ -284,6 +337,10 @@ export function getLogGroupNodes(graph: SystemGraph): Extract<GraphNode, { type:
 
 export function getLambdaNodes(graph: SystemGraph): Extract<GraphNode, { type: 'lambda' }>[] {
   return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda');
+}
+
+export function getEventBridgeRuleNodes(graph: SystemGraph): Extract<GraphNode, { type: 'eventbridge_rule' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'eventbridge_rule' }> => n.type === 'eventbridge_rule');
 }
 
 

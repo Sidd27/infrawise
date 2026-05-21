@@ -13,6 +13,7 @@ import {
   extractSSMMetadata,
   extractSecretsMetadata,
   extractLambdaMetadata,
+  extractEventBridgeMetadata,
   extractRDSMetadata,
 } from '../../adapters/aws.js';
 import { extractLogsMetadata } from '../../adapters/logs.js';
@@ -26,7 +27,7 @@ import {
   MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer,
   MissingDLQAnalyzer, UnencryptedQueueAnalyzer, LargeQueueBacklogAnalyzer,
   MissingSecretRotationAnalyzer, MissingLogRetentionAnalyzer,
-  LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer,
+  LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer, LambdaMissingTriggerDLQAnalyzer,
   RDSPubliclyAccessibleAnalyzer, RDSNoBackupAnalyzer, RDSUnencryptedAnalyzer,
   RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
 } from '../../analyzers/index.js';
@@ -173,11 +174,23 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   if (config.lambda?.enabled === true) {
     const s = mkSpinner('Extracting Lambda functions...');
     try {
-      const result = await extractLambdaMetadata(awsCfg);
+      const result = await extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions);
       servicesMeta.lambda = result;
       s.succeed(chalk.green('Lambda') + chalk.dim(`  ${result.length} function(s)`));
     } catch (err) {
       s.warn(chalk.yellow('Lambda skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+    }
+  }
+
+  // ── EventBridge ──────────────────────────────────────────────────────────────
+  if (config.eventbridge?.enabled === true) {
+    const s = mkSpinner('Extracting EventBridge rules...');
+    try {
+      const result = await extractEventBridgeMetadata(awsCfg);
+      servicesMeta.eventbridge = result;
+      s.succeed(chalk.green('EventBridge') + chalk.dim(`  ${result.length} rule(s)`));
+    } catch (err) {
+      s.warn(chalk.yellow('EventBridge skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
     }
   }
 
@@ -286,6 +299,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       ...(config.lambda?.enabled === true ? [
         new LambdaDefaultMemoryAnalyzer(),
         new LambdaHighTimeoutAnalyzer(),
+        new LambdaMissingTriggerDLQAnalyzer(),
       ] : []),
       ...(config.rds?.enabled === true ? [
         new RDSPubliclyAccessibleAnalyzer(),

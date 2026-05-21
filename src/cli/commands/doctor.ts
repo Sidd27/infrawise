@@ -14,6 +14,7 @@ import {
   validateSSMAccess,
   validateSecretsAccess,
   validateLambdaAccess,
+  validateEventBridgeAccess,
 } from '../../adapters/aws.js';
 import { validateLogsAccess } from '../../adapters/logs.js';
 import { printHeader } from '../utils.js';
@@ -172,6 +173,21 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
         name: 'Lambda', status: 'warn',
         message: err instanceof Error ? err.message : String(err),
         detail: 'Check IAM: lambda:ListFunctions',
+      };
+    }
+  }));
+
+  // EventBridge
+  results.push(await runCheck('Testing EventBridge access...', async () => {
+    if (config?.eventbridge?.enabled !== true) return { name: 'EventBridge', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateEventBridgeAccess(awsCfg);
+      return { name: 'EventBridge', status: 'pass', message: 'Connected' };
+    } catch (err) {
+      return {
+        name: 'EventBridge', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: events:ListRules, events:ListTargetsByRule',
       };
     }
   }));
