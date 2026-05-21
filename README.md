@@ -243,8 +243,8 @@ secretsManager:
 lambda:
   enabled: true
   includeFunctions:           # omit to include all functions
-    - processOrders
-    - generateReport
+    - myFunction
+    - anotherFunction
 
 eventbridge:
   enabled: true

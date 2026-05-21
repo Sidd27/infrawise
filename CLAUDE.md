@@ -1,5 +1,18 @@
 # Infrawise — Claude Code instructions
 
+## Releasing to the MCP Registry
+
+After every release, update the MCP registry listing:
+
+```bash
+mcp-publisher login github   # first time only
+mcp-publisher publish server.json
+```
+
+`server.json` is bumped automatically by the release script — just run `publish` after `pnpm release`.
+
+---
+
 ## Standing rules
 
 - Follow KISS + SOLID. Simplest shape that works. Complexity must earn its place.
