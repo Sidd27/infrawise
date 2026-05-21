@@ -15,15 +15,8 @@ function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
 
   const clientConfig: ConstructorParameters<typeof DynamoDBClient>[0] = { region };
 
-  if (endpoint) {
-    clientConfig.endpoint = endpoint;
-    clientConfig.credentials = {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
-    };
-  } else if (profile) {
-    clientConfig.credentials = fromIni({ profile });
-  }
+  if (endpoint) clientConfig.endpoint = endpoint;
+  if (profile) clientConfig.credentials = fromIni({ profile });
 
   return new DynamoDBClient(clientConfig);
 }

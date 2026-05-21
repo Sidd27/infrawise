@@ -8,7 +8,7 @@ export const InfrawiseConfigSchema = z.object({
   project: z.string().min(1, 'Project name is required'),
   aws: z
     .object({
-      profile: z.string().optional().default('default'),
+      profile: z.string().optional().default(''),
       region: z.string().optional().default('us-east-1'),
       endpoint: z.string().optional(),
     })
@@ -103,7 +103,7 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
   const config: Record<string, unknown> = {
     project: projectName,
     aws: {
-      profile: options?.aws?.profile ?? 'default',
+      profile: options?.aws?.profile ?? '',
       region: options?.aws?.region ?? 'us-east-1',
       ...(options?.aws?.endpoint ? { endpoint: options.aws.endpoint } : {}),
     },
