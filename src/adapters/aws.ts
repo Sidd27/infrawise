@@ -143,7 +143,7 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
           name: arn.split(':').pop() ?? arn,
           arn,
           encrypted: !!attrs['KmsMasterKeyId'],
-          subscriptionCount: subs.length,
+          subscriptionCount: parseInt(attrs['SubscriptionsConfirmed'] ?? '0', 10),
           subscriptionProtocols: [...new Set(subs.map((s) => s.Protocol ?? 'unknown'))],
         });
       } catch (err) {
@@ -174,7 +174,9 @@ export async function extractSSMMetadata(
       const res = await client.send(new DescribeParametersCommand({
         NextToken: nextToken,
         MaxResults: 50,
-        // Only metadata — GetParameter/GetParameters would return values
+        ParameterFilters: cfg.paths?.length
+          ? [{ Key: 'Path', Values: cfg.paths, Option: 'Recursive' }]
+          : undefined,
       }));
       for (const p of res.Parameters ?? []) {
         parameters.push({
