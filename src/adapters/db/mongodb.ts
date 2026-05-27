@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb';
-import type { MongoCollectionMetadata, MongoIndexMetadata } from '../types.js';
-import { InfrawiseError, logger } from '../core/index.js';
+import type { MongoCollectionMetadata, MongoIndexMetadata } from '../../types.js';
+import { InfrawiseError, logger } from '../../core/index.js';
 
 const SYSTEM_DATABASES = new Set(['admin', 'local', 'config']);
 

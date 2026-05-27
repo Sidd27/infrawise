@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import { readAWSProfiles, log, printHeader } from '../utils.js';
-import { validateDynamoAccess } from '../../adapters/dynamodb.js';
+import { validateDynamoAccess } from '../../adapters/aws/dynamodb.js';
 import type { InfrawiseConfig } from '../../types.js';
 
 export async function runAuth(): Promise<void> {

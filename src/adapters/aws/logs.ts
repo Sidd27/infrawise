@@ -4,8 +4,8 @@ import {
   FilterLogEventsCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
 import { fromIni } from '@aws-sdk/credential-providers';
-import type { LogGroupSummary } from '../types.js';
-import { logger } from '../core/index.js';
+import type { LogGroupSummary } from '../../types.js';
+import { logger } from '../../core/index.js';
 
 // Hard caps to prevent context bloat
 const MAX_LOG_GROUPS = 50;

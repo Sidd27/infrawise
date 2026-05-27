@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
-import type { MySQLTableMetadata } from '../types.js';
-import { InfrawiseError, logger } from '../core/index.js';
+import type { MySQLTableMetadata } from '../../types.js';
+import { InfrawiseError, logger } from '../../core/index.js';
 
 const SYSTEM_SCHEMAS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
 

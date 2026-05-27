@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
-import type { PostgresTableMetadata } from '../types.js';
-import { PostgresConnectionError, logger } from '../core/index.js';
+import type { PostgresTableMetadata } from '../../types.js';
+import { PostgresConnectionError, logger } from '../../core/index.js';
 
 interface ColumnRow {
   table_schema: string;

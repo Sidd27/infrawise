@@ -1,4 +1,4 @@
-# Infrawise — Codex instructions
+# Infrawise — AI instructions
 
 ## Releasing to the MCP Registry
 
@@ -23,6 +23,43 @@ mcp-publisher publish server.json
 - Keep `README.md` in sync with every feature change — analysis capabilities table, scanner support line, tool table, and configuration section. Do this automatically, not on request.
 - **Version must be in sync everywhere on every release.** `package.json` is the source of truth. `src/server/index.ts` reads it dynamically — no manual update needed there. `server.json` (MCP Registry manifest, committed) is bumped automatically by the release script.
 
+## Running the LocalStack demo
+
+Validates the full adapter stack against real AWS services emulated locally. No AWS account needed.
+
+**Prerequisites:** Docker Desktop running, AWS CLI installed.
+
+```bash
+cd demo/localstack
+cp .env.example .env        # add your free LocalStack auth token from app.localstack.cloud
+./start.sh                  # starts LocalStack + seeds all resources
+```
+
+Then in a new terminal from the same directory:
+
+```bash
+source .env                 # sets AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test — required every session
+infrawise analyze --config infrawise.yaml
+```
+
+Expected: 20 findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention).
+
+To start the MCP server against LocalStack:
+
+```bash
+infrawise dev --config infrawise.yaml
+```
+
+Stop when done:
+
+```bash
+docker compose down
+```
+
+**When to run:** After refactoring adapters, adding a new adapter, or changing the analysis pipeline — confirms real extraction + finding generation end-to-end.
+
+---
+
 ## MCP tools — keep AGENTS.md current
 
 Any time you add, remove, or change an MCP tool in `src/server/index.ts`, update the tool reference section below to match:
@@ -32,7 +69,7 @@ Any time you add, remove, or change an MCP tool in `src/server/index.ts`, update
 - Changed inputs or behavior → update the section
 - New usage pattern → add it to "Recommended usage patterns"
 
-The tool table in `README.md` (under "Using with Codex") must also be kept in sync.
+The tool table in `README.md` (under "Using with Claude Code") must also be kept in sync.
 
 ## Source layout
 
@@ -43,7 +80,10 @@ src/
   types.ts    shared type definitions
   core/       config, logger, cache
   graph/      graph engine
-  adapters/   extractors (dynamodb, postgres, mysql, mongodb, aws, logs, terraform)
+  adapters/
+    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS)
+    db/       extractors (postgres, mysql, mongodb)
+    iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
   context/    ts-morph AST scanner
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)

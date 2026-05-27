@@ -2,11 +2,11 @@ import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig, formatError, writeCache, readCache } from '../../core/index.js';
-import { extractDynamoMetadata } from '../../adapters/dynamodb.js';
-import { extractPostgresMetadata } from '../../adapters/postgres.js';
-import { extractMySQLMetadata } from '../../adapters/mysql.js';
-import { extractMongoMetadata } from '../../adapters/mongodb.js';
-import { extractIaCSchema } from '../../adapters/terraform.js';
+import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
+import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
+import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
+import { extractMongoMetadata } from '../../adapters/db/mongodb.js';
+import { extractIaCSchema } from '../../adapters/iac/terraform.js';
 import {
   extractSQSMetadata,
   extractSNSMetadata,
@@ -15,8 +15,8 @@ import {
   extractLambdaMetadata,
   extractEventBridgeMetadata,
   extractRDSMetadata,
-} from '../../adapters/aws.js';
-import { extractLogsMetadata } from '../../adapters/logs.js';
+} from '../../adapters/aws/services.js';
+import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { scanRepository } from '../../context/index.js';
 import { buildGraph } from '../../graph/index.js';
 import {

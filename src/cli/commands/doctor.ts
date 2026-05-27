@@ -4,10 +4,10 @@ import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig } from '../../core/index.js';
-import { probeDynamoAccess } from '../../adapters/dynamodb.js';
-import { validatePostgresAccess } from '../../adapters/postgres.js';
-import { validateMySQLAccess } from '../../adapters/mysql.js';
-import { validateMongoAccess } from '../../adapters/mongodb.js';
+import { probeDynamoAccess } from '../../adapters/aws/dynamodb.js';
+import { validatePostgresAccess } from '../../adapters/db/postgres.js';
+import { validateMySQLAccess } from '../../adapters/db/mysql.js';
+import { validateMongoAccess } from '../../adapters/db/mongodb.js';
 import {
   validateSQSAccess,
   validateSNSAccess,
@@ -15,8 +15,8 @@ import {
   validateSecretsAccess,
   validateLambdaAccess,
   validateEventBridgeAccess,
-} from '../../adapters/aws.js';
-import { validateLogsAccess } from '../../adapters/logs.js';
+} from '../../adapters/aws/services.js';
+import { validateLogsAccess } from '../../adapters/aws/logs.js';
 import { printHeader } from '../utils.js';
 
 interface CheckResult {

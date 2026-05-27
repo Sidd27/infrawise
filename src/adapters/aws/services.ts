@@ -41,8 +41,8 @@ import type {
   LambdaTrigger,
   EventBridgeRuleMetadata,
   RDSInstanceMetadata,
-} from '../types.js';
-import { logger } from '../core/index.js';
+} from '../../types.js';
+import { logger } from '../../core/index.js';
 
 interface AWSConfig {
   region?: string;

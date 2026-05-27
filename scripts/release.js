@@ -56,6 +56,7 @@ if (existsSync(serverJsonPath)) {
 }
 
 execSync('git add package.json', { stdio: 'inherit' });
+if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
 execSync(`git tag v${next}`, { stdio: 'inherit' });
 
