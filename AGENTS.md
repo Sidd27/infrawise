@@ -22,7 +22,7 @@ Before running `pnpm release <patch|minor|major>`, every item below must be curr
 
 1. **Publish GitHub release** — go to the draft release on GitHub and publish it → triggers npm CI publish
 2. **MCP Registry** — `mcp-publisher publish server.json`
-3. **Glama** — admin page → update pinned commit SHA to the release tag commit → Deploy → Make Release (enter version number)
+3. **Glama** — admin page → Releases → click Sync → Glama auto-creates the release from the GitHub tag
 
 ---
 
