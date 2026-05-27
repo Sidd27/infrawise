@@ -399,40 +399,51 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 ## Architecture overview
 
 ```mermaid
-architecture-beta
-    group infra[Your Infrastructure]
-        service dynamo(logos:aws-dynamodb)[DynamoDB]
-        service lambda(logos:aws-lambda)[Lambda SQS SNS]
-        service rds(logos:aws-rds)[RDS CloudWatch]
-        service secrets(logos:aws-secretsmanager)[Secrets SSM]
-        service pg(logos:postgresql)[PostgreSQL MySQL]
-        service mongo(logos:mongodb)[MongoDB]
-        service tf(logos:terraform)[Terraform CDK CFN]
-        service code(logos:typescript)[TypeScript JS]
+flowchart LR
+    subgraph IN["Your Infrastructure & Code"]
+        direction TB
+        D["DynamoDB"]
+        L["Lambda · SQS · SNS\nEventBridge · RDS"]
+        S["Secrets Manager · SSM\nCloudWatch"]
+        P["PostgreSQL · MySQL"]
+        M["MongoDB"]
+        T["Terraform · CDK\nCloudFormation"]
+        C["TypeScript / JS"]
+    end
 
-    group pipeline[infrawise]
-        service adapters(logos:nodejs)[Adapters]
-        service engine(logos:graphql)[Graph Analyzers]
-        service mcp(logos:fastify)[MCP Server]
+    A["Adapters"]
+    G["Graph Engine"]
+    AN["23 Analyzers"]
+    CA["Cache"]
 
-    group ai[AI Coding Assistants]
-        service claude(logos:anthropic)[Claude Code]
-        service cursor(logos:cursor)[Cursor]
-        service windsurf(logos:windsurf)[Windsurf]
+    subgraph SV["infrawise dev"]
+        MCP["MCP Server\nlocalhost:3000/mcp"]
+    end
 
-    dynamo:R --> L:adapters
-    lambda:R --> L:adapters
-    rds:R --> L:adapters
-    secrets:R --> L:adapters
-    pg:R --> L:adapters
-    mongo:R --> L:adapters
-    tf:R --> L:adapters
-    code:R --> L:adapters
-    adapters:R --> L:engine
-    engine:R --> L:mcp
-    mcp:R --> L:claude
-    mcp:R --> L:cursor
-    mcp:R --> L:windsurf
+    subgraph AI["AI Coding Assistants"]
+        direction TB
+        CC["Claude Code"]
+        CU["Cursor"]
+        WS["Windsurf"]
+    end
+
+    D & L & S & P & M & T & C --> A
+    A --> G --> AN --> CA --> MCP
+    MCP --> CC & CU & WS
+
+    classDef aws fill:#FF9900,stroke:#232F3E,color:#000
+    classDef db fill:#336791,stroke:#1a3a5c,color:#fff
+    classDef iac fill:#7B42BC,stroke:#4a2080,color:#fff
+    classDef code fill:#3178C6,stroke:#1a4a80,color:#fff
+    classDef iw fill:#1a1a2e,stroke:#e94560,color:#fff
+    classDef ai fill:#10a37f,stroke:#0a6b54,color:#fff
+
+    class D,L,S aws
+    class P,M db
+    class T iac
+    class C code
+    class A,G,AN,CA,MCP iw
+    class CC,CU,WS ai
 ```
 
 ### Source layout
