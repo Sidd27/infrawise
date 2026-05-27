@@ -8,6 +8,7 @@ import { runAuth } from './commands/auth.js';
 import { runAnalyze } from './commands/analyze.js';
 import { runDev } from './commands/dev.js';
 import { runDoctor } from './commands/doctor.js';
+import { runStdio } from './commands/stdio.js';
 
 const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8')) as { version: string };
 
@@ -65,6 +66,14 @@ program
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       port: parseInt(options.port, 10),
     });
+  });
+
+program
+  .command('stdio')
+  .description('Start MCP server on stdio transport (for Claude Desktop and Glama)')
+  .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
+  .action(async (options) => {
+    await runStdio(options.config !== 'infrawise.yaml' ? options.config : undefined);
   });
 
 program

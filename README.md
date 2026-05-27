@@ -187,6 +187,7 @@ To let Claude Code manage the server lifecycle automatically:
 | `infrawise auth`    | Select or switch AWS profile                                                 |
 | `infrawise analyze` | Scan repo + AWS, build graph, print findings                                 |
 | `infrawise dev`     | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
+| `infrawise stdio`   | Start MCP server on stdio transport (for Claude Desktop)                     |
 | `infrawise doctor`  | Validate AWS access, DB connectivity, and config                             |
 
 ### `infrawise analyze` options
