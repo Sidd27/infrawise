@@ -54,7 +54,7 @@ export function createMcpServer(): McpServer {
   const mcp = new McpServer({ name: 'infrawise', version });
 
   mcp.registerTool('get_infra_overview', {
-    description: 'Returns a complete snapshot of all infrastructure: databases, queues, topics, secrets, parameters, log groups, lambdas, and all findings. Start here for a full picture.',
+    description: 'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full.',
     inputSchema: z.object({}),
   }, logged('get_infra_overview', async () => {
     const tables = getTableNodes(currentGraph);
@@ -86,7 +86,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_graph_summary', {
-    description: 'Returns the full infrastructure graph (all nodes and edges) plus findings summary.',
+    description: 'Returns every node (tables, functions, lambdas, queues, etc.), every edge (query, scan, triggers, publishes_to), and all findings. Use this when you need to trace relationships across multiple services or require the complete finding set — not just high-severity ones. For a quick overview use get_infra_overview instead.',
     inputSchema: z.object({}),
   }, logged('get_graph_summary', async () => toText({
     nodes: currentGraph.nodes,
@@ -101,7 +101,7 @@ export function createMcpServer(): McpServer {
   })));
 
   mcp.registerTool('analyze_function', {
-    description: 'Analyze a specific function for all infrastructure issues: DB queries, queue publishing, secret access, trigger event shapes, etc.',
+    description: 'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Returns found: false if the function name was not discovered during analysis.',
     inputSchema: z.object({ function: z.string().describe('Function name to analyze') }),
   }, logged('analyze_function', async ({ function: functionName }) => {
     const funcNode = currentGraph.nodes.find((n) => n.type === 'function' && n.name === functionName);
@@ -138,7 +138,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('suggest_gsi', {
-    description: 'Get GSI suggestions for a DynamoDB table and attribute',
+    description: 'Generates a ready-to-use DynamoDB GSI definition — index name, partition key, projection type, billing mode — for a given table and attribute. Call this when a query pattern needs an index that does not exist yet, or when the analyzer flags a missing GSI finding. Does not verify whether the GSI already exists; check the table schema in get_infra_overview first.',
     inputSchema: z.object({
       table: z.string().describe('DynamoDB table name'),
       attribute: z.string().describe('Attribute to create the GSI on'),
@@ -157,7 +157,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('postgres_index_suggestions', {
-    description: 'Get PostgreSQL index suggestions for a table column',
+    description: 'Generates the exact CREATE INDEX CONCURRENTLY SQL for a PostgreSQL table column, including a partial index variant and a post-creation ANALYZE reminder. Call this when the analyzer flags a missing index finding or when writing a query that filters on a column without an existing index. Does not verify whether the index already exists.',
     inputSchema: z.object({
       table: z.string().describe('PostgreSQL table name'),
       column: z.string().describe('Column name to index'),
@@ -176,7 +176,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('suggest_mongo_index', {
-    description: 'Get index suggestions for a MongoDB collection field',
+    description: 'Generates the exact db.collection.createIndex() command for a MongoDB field, plus compound and text index variants and an explain query to verify. Call this when a collection scan is flagged by the analyzer or when writing a query that filters on an unindexed field. Does not check whether the index already exists.',
     inputSchema: z.object({
       collection: z.string().describe('MongoDB collection name'),
       field: z.string().describe('Field name to index'),
@@ -197,7 +197,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('mysql_index_suggestions', {
-    description: 'Get MySQL index suggestions for a table column',
+    description: 'Generates the exact ALTER TABLE ADD INDEX SQL for a MySQL table column, including a composite variant and EXPLAIN guidance to verify the index is used. Call this when the analyzer flags a missing MySQL index or full table scan finding. Does not verify whether the index already exists.',
     inputSchema: z.object({
       table: z.string().describe('MySQL table name'),
       column: z.string().describe('Column name to index'),
@@ -216,7 +216,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_queue_details', {
-    description: 'Returns all SQS queues with DLQ status, encryption, message counts, and retention.',
+    description: 'Returns all SQS queues with DLQ presence, encryption status, approximate message count, and retention days. Call this when reviewing messaging architecture, investigating a message backlog, or checking DLQ coverage before adding a new consumer. Use get_infra_overview for a quick queue count only.',
     inputSchema: z.object({}),
   }, logged('get_queue_details', async () => {
     const queues = getQueueNodes(currentGraph);
@@ -232,7 +232,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_topic_details', {
-    description: 'Returns all SNS topics with subscription counts and protocols.',
+    description: 'Returns all SNS topics with subscription count and encryption status. Call this when reviewing event fan-out patterns or checking whether a topic has the expected number of subscribers.',
     inputSchema: z.object({}),
   }, logged('get_topic_details', async () => {
     const topics = getTopicNodes(currentGraph);
@@ -240,7 +240,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_secrets_overview', {
-    description: 'Returns all Secrets Manager secrets: names, rotation status. Secret VALUES are never included.',
+    description: 'Returns all Secrets Manager secrets with rotation status and rotation interval. Secret values are never returned. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or identifying secrets that lack rotation.',
     inputSchema: z.object({}),
   }, logged('get_secrets_overview', async () => {
     const secrets = getSecretNodes(currentGraph);
@@ -255,7 +255,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_parameter_overview', {
-    description: 'Returns all SSM Parameter Store parameters: names, types, tiers. Parameter VALUES are never included.',
+    description: 'Returns all SSM Parameter Store parameters with type (String, SecureString, StringList) and tier (Standard, Advanced). Parameter values are never returned. Call this when checking which config parameters exist for a service or verifying parameter types.',
     inputSchema: z.object({}),
   }, logged('get_parameter_overview', async () => {
     const parameters = getParameterNodes(currentGraph);
@@ -266,7 +266,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_lambda_overview', {
-    description: 'Returns all Lambda functions: runtime, memory, timeout, env var key names (values never included), and known event source triggers with correct handler event shapes.',
+    description: 'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function.',
     inputSchema: z.object({}),
   }, logged('get_lambda_overview', async () => {
     const lambdas = getLambdaNodes(currentGraph);
@@ -283,7 +283,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_eventbridge_details', {
-    description: 'Returns all EventBridge rules: name, state, schedule expression or event pattern, and target Lambda functions.',
+    description: 'Returns all EventBridge rules with name, ENABLED/DISABLED state, schedule expression (rate/cron rules), event pattern (event-driven rules), and target Lambda function names. Call this when checking what schedule or event triggers a Lambda, or when reviewing rule coverage across the account.',
     inputSchema: z.object({}),
   }, logged('get_eventbridge_details', async () => {
     const rules = getEventBridgeRuleNodes(currentGraph);
@@ -304,7 +304,7 @@ export function createMcpServer(): McpServer {
   }));
 
   mcp.registerTool('get_log_errors', {
-    description: 'Returns recent error patterns from CloudWatch log groups. Returns pattern counts and frequencies — never raw log messages.',
+    description: 'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
     inputSchema: z.object({ logGroup: z.string().describe('Filter to a specific log group name (optional)').optional() }),
   }, logged('get_log_errors', async ({ logGroup: filterName }) => {
     const logGroups = getLogGroupNodes(currentGraph).filter((lg) => !filterName || lg.name.includes(filterName));
