@@ -6,12 +6,12 @@
     "url": "https://github.com/Sidd27/infrawise",
     "source": "github"
   },
-  "version": "0.7.1",
+  "version": "0.7.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "infrawise",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:3000/mcp"
