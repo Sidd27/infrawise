@@ -1,5 +1,31 @@
 # Infrawise — AI instructions
 
+## Pre-release checklist — NO EXCEPTIONS
+
+Before running `pnpm release <patch|minor|major>`, every item below must be current. Check each one — do not skip.
+
+**Files to verify are in sync:**
+
+| File | What to check |
+|---|---|
+| `README.md` | CLI reference table, MCP tools table, Analysis capabilities table, Configuration section |
+| `AGENTS.md` | MCP tool reference section — all tools, inputs, return shape, when to call |
+| `llms.txt` | Quick start commands, MCP tools list (count + names match `src/server/index.ts`) |
+| `src/server/index.ts` | Tool descriptions — purpose + when to call + when NOT to call (TDQS criteria) |
+
+**Auto-updated by `pnpm release` — no action needed:**
+- `package.json` — version
+- `server.json` — version (MCP Registry manifest)
+- Git commit, tag, push, draft GitHub release
+
+**After `pnpm release` — three required steps:**
+
+1. **Publish GitHub release** — go to the draft release on GitHub and publish it → triggers npm CI publish
+2. **MCP Registry** — `mcp-publisher publish server.json`
+3. **Glama** — admin page → update pinned commit SHA to the release tag commit → Deploy → Make Release (enter version number)
+
+---
+
 ## Releasing to the MCP Registry
 
 After every release, update the MCP registry listing:

@@ -24,6 +24,7 @@ Infrawise answers all of these via 13 MCP tools served over Streamable HTTP.
 npm install -g infrawise
 infrawise init    # configure which services to scan
 infrawise dev     # start MCP server at http://localhost:3000/mcp
+infrawise stdio   # stdio transport (for Claude Desktop)
 ```
 
 ## MCP tools (13 total)
