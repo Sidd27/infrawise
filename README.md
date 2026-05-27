@@ -400,20 +400,20 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 
 ```mermaid
 architecture-beta
-    group infra[Your Infrastructure and Code]
+    group infra[Your Infrastructure]
         service dynamo(logos:aws-dynamodb)[DynamoDB]
-        service lambda(logos:aws-lambda)[Lambda · SQS · SNS]
-        service rds(logos:aws-rds)[RDS · CloudWatch]
-        service secrets(logos:aws-secretsmanager)[Secrets · SSM]
-        service pg(logos:postgresql)[PostgreSQL · MySQL]
+        service lambda(logos:aws-lambda)[Lambda SQS SNS]
+        service rds(logos:aws-rds)[RDS CloudWatch]
+        service secrets(logos:aws-secretsmanager)[Secrets SSM]
+        service pg(logos:postgresql)[PostgreSQL MySQL]
         service mongo(logos:mongodb)[MongoDB]
-        service tf(logos:terraform)[Terraform · CDK · CFN]
-        service code(logos:typescript)[TypeScript / JS]
+        service tf(logos:terraform)[Terraform CDK CFN]
+        service code(logos:typescript)[TypeScript JS]
 
     group pipeline[infrawise]
         service adapters(logos:nodejs)[Adapters]
-        service engine(logos:graphql)[Graph and Analyzers]
-        service mcp(logos:fastify)[MCP Server :3000]
+        service engine(logos:graphql)[Graph Analyzers]
+        service mcp(logos:fastify)[MCP Server]
 
     group ai[AI Coding Assistants]
         service claude(logos:anthropic)[Claude Code]
