@@ -399,39 +399,40 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 ## Architecture overview
 
 ```mermaid
-flowchart TD
-    subgraph inputs["Inputs"]
-        A["AWS APIs\nDynamoDB · Lambda · SQS · SNS\nSecrets · SSM · EventBridge · RDS\nCloudWatch Logs"]
-        B["Database schemas\nPostgreSQL · MySQL · MongoDB"]
-        C["IaC files\nTerraform · CDK · CloudFormation"]
-        D["Repository code\nTypeScript / JavaScript only"]
-    end
+architecture-beta
+    group infra[Your Infrastructure and Code]
+        service dynamo(logos:aws-dynamodb)[DynamoDB]
+        service lambda(logos:aws-lambda)[Lambda · SQS · SNS]
+        service rds(logos:aws-rds)[RDS · CloudWatch]
+        service secrets(logos:aws-secretsmanager)[Secrets · SSM]
+        service pg(logos:postgresql)[PostgreSQL · MySQL]
+        service mongo(logos:mongodb)[MongoDB]
+        service tf(logos:terraform)[Terraform · CDK · CFN]
+        service code(logos:typescript)[TypeScript / JS]
 
-    subgraph analyze["infrawise analyze"]
-        E["Adapters\nextracts raw metadata"]
-        F["Repository Scanner\nts-morph AST"]
-        G["Graph Engine\nnodes + edges"]
-        H["Analyzer Engine\n23 rule-based analyzers"]
-        I["Cache\n.infrawise/cache/"]
-    end
+    group pipeline[infrawise]
+        service adapters(logos:nodejs)[Adapters]
+        service engine(logos:graphql)[Graph and Analyzers]
+        service mcp(logos:fastify)[MCP Server :3000]
 
-    subgraph serve["infrawise dev"]
-        J["MCP Server\nlocalhost:3000/mcp"]
-    end
+    group ai[AI Coding Assistants]
+        service claude(logos:anthropic)[Claude Code]
+        service cursor(logos:cursor)[Cursor]
+        service windsurf(logos:windsurf)[Windsurf]
 
-    A --> E
-    B --> E
-    C --> E
-    D --> F
-    E --> G
-    F --> G
-    G --> H
-    H --> I
-    I --> J
-
-    J --> K["Claude Code"]
-    J --> L["Cursor"]
-    J --> M["Windsurf"]
+    dynamo:R --> L:adapters
+    lambda:R --> L:adapters
+    rds:R --> L:adapters
+    secrets:R --> L:adapters
+    pg:R --> L:adapters
+    mongo:R --> L:adapters
+    tf:R --> L:adapters
+    code:R --> L:adapters
+    adapters:R --> L:engine
+    engine:R --> L:mcp
+    mcp:R --> L:claude
+    mcp:R --> L:cursor
+    mcp:R --> L:windsurf
 ```
 
 ### Source layout
