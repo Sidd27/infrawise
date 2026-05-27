@@ -186,6 +186,27 @@ To let Claude Code manage the server lifecycle automatically:
 | `infrawise dev` | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
 | `infrawise doctor` | Validate AWS access, DB connectivity, and config |
 
+### `infrawise analyze` options
+
+| Flag | Description |
+|---|---|
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`) |
+| `-r, --repo <path>` | Repository to scan (default: current directory) |
+| `--no-cache` | Skip reading/writing the cache |
+| `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md` |
+| `--severity <level>` | Only show findings at or above this level: `high` \| `medium` \| `low` |
+
+```bash
+# Export a shareable findings report
+infrawise analyze --output report.md
+
+# Only show high-severity issues
+infrawise analyze --severity high
+
+# High-severity issues only, saved to a file
+infrawise analyze --severity high --output report.md
+```
+
 ---
 
 ## Configuration
@@ -377,29 +398,40 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 
 ## Architecture overview
 
-```
-Your repo (any language)          Your repo (TS/JS only)
-        │                                  │
-        │                    Repository Scanner (ts-morph AST)
-        │                     which functions → which tables
-        │                                  │
-┌───────┴──────────────────────────────────┴────────────┐
-│  infrawise analyze                                    │
-│                                                       │
-│  AWS APIs / DB schema / IaC files  +  Code ops (opt)  │
-│         (works for any project)      (TS/JS only)     │
-│                          │                            │
-│                     Graph Engine                      │
-│                   (nodes + edges)                     │
-│                          │                            │
-│                   Analyzer Engine                     │
-│               (rule-based, deterministic)             │
-└─────────────────────────┬─────────────────────────────┘
-                          │
-               ┌──────────────────┐
-               │   MCP Server     │ ◄── Claude Code
-               │  localhost:3000  │ ◄── Cursor
-               └──────────────────┘ ◄── Windsurf
+```mermaid
+flowchart TD
+    subgraph inputs["Inputs"]
+        A["AWS APIs\nDynamoDB · Lambda · SQS · SNS\nSecrets · SSM · EventBridge · RDS\nCloudWatch Logs"]
+        B["Database schemas\nPostgreSQL · MySQL · MongoDB"]
+        C["IaC files\nTerraform · CDK · CloudFormation"]
+        D["Repository code\nTypeScript / JavaScript only"]
+    end
+
+    subgraph analyze["infrawise analyze"]
+        E["Adapters\nextracts raw metadata"]
+        F["Repository Scanner\nts-morph AST"]
+        G["Graph Engine\nnodes + edges"]
+        H["Analyzer Engine\n23 rule-based analyzers"]
+        I["Cache\n.infrawise/cache/"]
+    end
+
+    subgraph serve["infrawise dev"]
+        J["MCP Server\nlocalhost:3000/mcp"]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> F
+    E --> G
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+
+    J --> K["Claude Code"]
+    J --> L["Cursor"]
+    J --> M["Windsurf"]
 ```
 
 ### Source layout
@@ -409,8 +441,10 @@ src/
   types.ts      Shared type definitions
   core/         Config (Zod + YAML), logger (Pino), local cache
   graph/        Graph engine — nodes, edges, builder
-  adapters/     Flat extractors: dynamodb.ts, postgres.ts, mysql.ts,
-                mongodb.ts, aws.ts, logs.ts, terraform.ts
+  adapters/
+    aws/        DynamoDB, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS, CloudWatch
+    db/         PostgreSQL, MySQL, MongoDB
+    iac/        Terraform, CDK, CloudFormation (local file parsing)
   analyzers/    23 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
