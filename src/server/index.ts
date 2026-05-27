@@ -333,6 +333,23 @@ export function createServer(port = 3000) {
     findings: currentFindings.length,
   }));
 
+  fastify.get('/.well-known/mcp/server-card.json', async () => ({
+    schema_version: '2026-01',
+    name: 'io.github.Sidd27/infrawise',
+    display_name: 'Infrawise',
+    version,
+    description: 'Infrastructure analysis MCP server — scans DynamoDB, PostgreSQL, MySQL, MongoDB, Lambda, SQS, SNS, EventBridge, Secrets Manager, SSM, CloudWatch, Terraform, CDK, and source code. Surfaces missing indexes, DLQ gaps, Lambda misconfig, and correct trigger event shapes.',
+    homepage: 'https://github.com/Sidd27/infrawise',
+    repository: 'https://github.com/Sidd27/infrawise',
+    transports: [{ type: 'streamable-http', url: `http://localhost:${port}/mcp` }],
+    tools: [
+      'get_infra_overview', 'get_graph_summary', 'analyze_function',
+      'suggest_gsi', 'postgres_index_suggestions', 'suggest_mongo_index', 'mysql_index_suggestions',
+      'get_queue_details', 'get_topic_details', 'get_secrets_overview', 'get_parameter_overview',
+      'get_lambda_overview', 'get_eventbridge_details', 'get_log_errors',
+    ],
+  }));
+
   fastify.post('/mcp', async (request, reply) => {
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     reply.raw.on('close', () => transport.close());

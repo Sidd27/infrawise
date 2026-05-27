@@ -1,0 +1,56 @@
+# Infrawise
+
+> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
+
+## Problem it solves
+
+When an AI coding assistant writes a Lambda handler, it doesn't know:
+- What tables, queues, or topics the function already accesses
+- The correct SQS / SNS / EventBridge trigger event shape for the handler
+- Whether a GSI or index exists for a query pattern
+- Which secrets are missing rotation or which DLQs are unconfigured
+
+Infrawise answers all of these via 13 MCP tools served over Streamable HTTP.
+
+## Docs
+
+- [README](https://github.com/Sidd27/infrawise/blob/main/README.md)
+- [MCP tool reference](https://github.com/Sidd27/infrawise/blob/main/CLAUDE.md)
+- [AI agent instructions](https://github.com/Sidd27/infrawise/blob/main/AGENTS.md)
+
+## Quick start
+
+```bash
+npm install -g infrawise
+infrawise init    # configure which services to scan
+infrawise dev     # start MCP server at http://localhost:3000/mcp
+```
+
+## MCP tools (13 total)
+
+- `get_infra_overview` — full snapshot of all infrastructure, start here
+- `get_graph_summary` — complete graph: all nodes, edges, findings
+- `analyze_function` — per-function analysis with correct trigger event shapes
+- `suggest_gsi` — ready-to-use DynamoDB GSI definition
+- `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
+- `suggest_mongo_index` — exact db.collection.createIndex command
+- `mysql_index_suggestions` — exact ALTER TABLE ADD INDEX SQL
+- `get_queue_details` — SQS queues with DLQ and encryption status
+- `get_topic_details` — SNS topics with subscription count
+- `get_secrets_overview` — Secrets Manager rotation status (no values)
+- `get_parameter_overview` — SSM parameter names and types (no values)
+- `get_lambda_overview` — Lambda config, memory, timeout, trigger event shapes
+- `get_eventbridge_details` — EventBridge rules, schedules, target functions
+- `get_log_errors` — CloudWatch error patterns (never raw log messages)
+
+## Works with
+
+Claude Code, Cursor, GitHub Copilot, ChatGPT (via MCP plugin), and any MCP-compatible client.
+
+## What infrawise never does
+
+- Never reads secret values or parameter values
+- Never reads raw log messages
+- Never writes to AWS or your database
+- Never executes DDL
+- No telemetry — everything stays local
