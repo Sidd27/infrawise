@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Sidd27/infrawise",
-  "description": "Infrastructure analysis MCP server — scans DynamoDB, PostgreSQL, MySQL, MongoDB, Lambda, SQS, SNS, EventBridge, Secrets Manager, SSM, CloudWatch, Terraform, CDK, and source code. Surfaces missing indexes, DLQ gaps, Lambda misconfig, and correct trigger event shapes. Works with Claude Code, Cursor, and any MCP client.",
+  "description": "MCP server for AWS infrastructure analysis — DynamoDB, Lambda, SQS, PostgreSQL, EventBridge & more.",
   "repository": {
     "url": "https://github.com/Sidd27/infrawise",
     "source": "github"
   },
-  "version": "0.7.0",
+  "version": "0.7.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "infrawise",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:3000/mcp"
