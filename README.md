@@ -4,6 +4,7 @@
 [![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
 [![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![infrawise MCP server](https://glama.ai/mcp/servers/Sidd27/infrawise/badges/card.svg)](https://glama.ai/mcp/servers/Sidd27/infrawise)
 
 **Understand your infrastructure, not just your code.**
 
