@@ -1,0 +1,23 @@
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties:
+      awsRegion:
+        type: string
+        title: AWS Region
+        description: AWS region to analyze (e.g. us-east-1)
+        default: us-east-1
+      awsProfile:
+        type: string
+        title: AWS Profile
+        description: AWS credentials profile name (defaults to environment credentials)
+      configPath:
+        type: string
+        title: Config file path
+        description: Path to infrawise.yaml (relative to project root)
+        default: infrawise.yaml
+    required: []
+  exampleConfig:
+    awsRegion: us-east-1
+    configPath: infrawise.yaml

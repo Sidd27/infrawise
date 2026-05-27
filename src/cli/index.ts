@@ -41,12 +41,16 @@ program
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('-r, --repo <path>', 'Path to repository to scan', process.cwd())
   .option('--no-cache', 'Skip reading/writing the cache')
+  .option('-o, --output <path>', 'Save findings as a markdown report (e.g. report.md)')
+  .option('--severity <level>', 'Only show findings at or above this level: high | medium | low')
   .action(async (options) => {
     printBanner();
     await runAnalyze({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       repo: options.repo,
       noCache: !options.cache,
+      output: options.output,
+      severity: options.severity,
     });
   });
 

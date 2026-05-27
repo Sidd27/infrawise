@@ -65,7 +65,7 @@ function groupTools(tools: string[]): string[] {
 }
 
 export async function runDev(options: DevOptions = {}): Promise<void> {
-  const port = options.port ?? 3000;
+  const port = options.port ?? (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
 
   printHeader('MCP Server');
 
