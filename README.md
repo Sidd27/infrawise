@@ -4,7 +4,7 @@
 [![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
 [![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![infrawise MCP server](https://glama.ai/mcp/servers/Sidd27/infrawise/badges/card.svg)](https://glama.ai/mcp/servers/Sidd27/infrawise)
+[![infrawise MCP server](https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg)](https://glama.ai/mcp/servers/Sidd27/infrawise)
 
 **Understand your infrastructure, not just your code.**
 
@@ -23,12 +23,14 @@ AI coding assistants can read your source files but have no deterministic knowle
 Infrawise replaces guessing with infrastructure-aware context.
 
 **Without Infrawise**, an AI assistant might:
+
 - Suggest a `.scan()` on your Orders table that has 50M rows
 - Recommend adding a GSI on `status` that you already have
 - Write a `SELECT *` when you need to keep query cost low
 - Not notice that 5 functions are already hammering the same partition key
 
 **With Infrawise**, it knows:
+
 - Your exact table schemas, partition keys, sort keys, and GSIs
 - Which functions query which tables and how
 - Which patterns are already flagged as high severity
@@ -158,44 +160,44 @@ To let Claude Code manage the server lifecycle automatically:
 
 ### MCP tools
 
-| Tool | What it provides |
-|---|---|
-| `get_infra_overview` | Complete snapshot — all services, counts, and high-severity findings |
-| `get_graph_summary` | Full infrastructure graph — all nodes, edges, and findings |
-| `analyze_function` | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes |
-| `suggest_gsi` | Exact GSI config for a DynamoDB table + attribute |
-| `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table |
-| `suggest_mongo_index` | Exact `createIndex` command for a MongoDB collection + field |
-| `mysql_index_suggestions` | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table |
-| `get_queue_details` | SQS queues — DLQ status, encryption, message counts |
-| `get_topic_details` | SNS topics — subscription counts and protocols |
-| `get_secrets_overview` | Secrets Manager — names and rotation status (values never included) |
-| `get_parameter_overview` | SSM Parameter Store — names, types, tiers (values never included) |
-| `get_lambda_overview` | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge), env var key names |
-| `get_eventbridge_details` | EventBridge rules — name, state, schedule/event pattern, target functions |
-| `get_log_errors` | CloudWatch error patterns and counts (no raw log messages) |
+| Tool                         | What it provides                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `get_infra_overview`         | Complete snapshot — all services, counts, and high-severity findings                                        |
+| `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
+| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes                           |
+| `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
+| `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
+| `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
+| `mysql_index_suggestions`    | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table                                                      |
+| `get_queue_details`          | SQS queues — DLQ status, encryption, message counts                                                         |
+| `get_topic_details`          | SNS topics — subscription counts and protocols                                                              |
+| `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
+| `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge), env var key names |
+| `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
+| `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
 
 ---
 
 ## CLI reference
 
-| Command | What it does |
-|---|---|
-| `infrawise init` | Detect AWS + repo, generate `infrawise.yaml` |
-| `infrawise auth` | Select or switch AWS profile |
-| `infrawise analyze` | Scan repo + AWS, build graph, print findings |
-| `infrawise dev` | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
-| `infrawise doctor` | Validate AWS access, DB connectivity, and config |
+| Command             | What it does                                                                 |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `infrawise init`    | Detect AWS + repo, generate `infrawise.yaml`                                 |
+| `infrawise auth`    | Select or switch AWS profile                                                 |
+| `infrawise analyze` | Scan repo + AWS, build graph, print findings                                 |
+| `infrawise dev`     | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
+| `infrawise doctor`  | Validate AWS access, DB connectivity, and config                             |
 
 ### `infrawise analyze` options
 
-| Flag | Description |
-|---|---|
-| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`) |
-| `-r, --repo <path>` | Repository to scan (default: current directory) |
-| `--no-cache` | Skip reading/writing the cache |
-| `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md` |
-| `--severity <level>` | Only show findings at or above this level: `high` \| `medium` \| `low` |
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
+| `--no-cache`          | Skip reading/writing the cache                                         |
+| `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md`                   |
+| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` |
 
 ```bash
 # Export a shareable findings report
@@ -228,12 +230,12 @@ Full example:
 project: payments-service
 
 aws:
-  profile: default          # AWS profile from ~/.aws/credentials
+  profile: default # AWS profile from ~/.aws/credentials
   region: ap-south-1
 
 dynamodb:
   enabled: true
-  includeTables:            # omit to include all tables
+  includeTables: # omit to include all tables
     - Orders
     - Users
 
@@ -243,11 +245,11 @@ postgres:
 
 mysql:
   enabled: false
-  connectionString: ""
+  connectionString: ''
 
 mongodb:
   enabled: false
-  connectionString: ""
+  connectionString: ''
 
 sqs:
   enabled: true
@@ -257,14 +259,14 @@ sns:
 
 ssm:
   enabled: true
-  paths: []                 # filter by prefix e.g. ["/myapp/prod"]
+  paths: [] # filter by prefix e.g. ["/myapp/prod"]
 
 secretsManager:
   enabled: true
 
 lambda:
   enabled: true
-  includeFunctions:           # omit to include all functions
+  includeFunctions: # omit to include all functions
     - myFunction
     - anotherFunction
 
@@ -296,10 +298,7 @@ Infrawise is **read-only**. Minimum IAM policy required:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "dynamodb:ListTables",
-        "dynamodb:DescribeTable"
-      ],
+      "Action": ["dynamodb:ListTables", "dynamodb:DescribeTable"],
       "Resource": "*"
     }
   ]
@@ -335,36 +334,36 @@ Infrawise has two analysis layers:
 
 Works from AWS APIs, database schema introspection, and IaC files — no dependency on application code:
 
-| Service | What it checks |
-|---|---|
-| DynamoDB schema | Tables, GSIs, partition keys |
-| PostgreSQL / MySQL schema | Tables, indexes, column types |
-| MongoDB schema | Collections, indexes |
-| SQS | Missing DLQs, unencrypted queues, large backlogs |
-| Kafka (kafkajs) | Producer/consumer topic mapping from code |
-| Secrets Manager | Missing secret rotation |
-| Lambda | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge), missing DLQ on trigger source |
-| EventBridge | Rules, schedules, event patterns, target Lambda functions |
-| RDS | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ |
-| CloudWatch Logs | Log groups with no retention policy |
-| Terraform / CloudFormation / CDK | IaC drift vs deployed state |
+| Service                          | What it checks                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| DynamoDB schema                  | Tables, GSIs, partition keys                                                                                       |
+| PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
+| MongoDB schema                   | Collections, indexes                                                                                               |
+| SQS                              | Missing DLQs, unencrypted queues, large backlogs                                                                   |
+| Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
+| Secrets Manager                  | Missing secret rotation                                                                                            |
+| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge), missing DLQ on trigger source |
+| EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
+| RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ                                    |
+| CloudWatch Logs                  | Log groups with no retention policy                                                                                |
+| Terraform / CloudFormation / CDK | IaC drift vs deployed state                                                                                        |
 
 ### Code correlation analysis (TypeScript / JavaScript)
 
 Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions call which tables and how:
 
-| Analyzer | Severity | What it detects |
-|---|---|---|
-| Full Table Scan (DynamoDB) | High | `.scan()` calls without filters |
-| Missing GSI | Medium | Queries on attributes without a matching GSI |
-| Hot Partition | Medium | 5+ distinct code paths hitting the same table |
-| Missing Index (PostgreSQL) | Medium | Tables queried without indexes |
-| N+1 Query | Medium | Repeated query patterns from ORM loops |
-| Large SELECT | Low | `SELECT *` usage |
-| Missing MySQL Index | Medium | MySQL tables queried without indexes |
-| MySQL Full Table Scan | High | Full table scan patterns in MySQL queries |
-| Missing Mongo Index | Medium | Collections queried without secondary indexes |
-| Collection Scan | High | `find()` calls without filter predicates |
+| Analyzer                   | Severity | What it detects                               |
+| -------------------------- | -------- | --------------------------------------------- |
+| Full Table Scan (DynamoDB) | High     | `.scan()` calls without filters               |
+| Missing GSI                | Medium   | Queries on attributes without a matching GSI  |
+| Hot Partition              | Medium   | 5+ distinct code paths hitting the same table |
+| Missing Index (PostgreSQL) | Medium   | Tables queried without indexes                |
+| N+1 Query                  | Medium   | Repeated query patterns from ORM loops        |
+| Large SELECT               | Low      | `SELECT *` usage                              |
+| Missing MySQL Index        | Medium   | MySQL tables queried without indexes          |
+| MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |
+| Missing Mongo Index        | Medium   | Collections queried without secondary indexes |
+| Collection Scan            | High     | `find()` calls without filter predicates      |
 
 Non-TypeScript/JavaScript projects still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) is skipped.
 
