@@ -476,20 +476,7 @@ src/
 
 ## Roadmap
 
-Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd27/projects/1). Priorities, complexity, and virality scores are visible there. Feature requests and upvotes welcome.
-
-### Planned
-- Runtime tracing integration
-- Incremental analysis for large monorepos
-- Kubernetes workload graphing
-- VS Code extension
-- Infrastructure drift detection
-- MSK (Amazon Managed Streaming for Apache Kafka) — cluster metadata + topic listing via MSK API and Kafka admin client
-
-### Under consideration
-- OpenTelemetry integration
-- CI/CD reporting mode
-- Multi-repository graph correlation
+Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd27/projects/1). Feature requests and upvotes welcome.
 
 ---
 
@@ -501,47 +488,7 @@ The `demo/localstack/` directory runs infrawise against real AWS APIs emulated l
 
 ## Contributing
 
-### Prerequisites
-
-Node.js 24+, pnpm 9+, AWS CLI (for integration testing).
-
-### Setup
-
-```bash
-git clone https://github.com/Sidd27/infrawise
-cd infrawise
-pnpm install
-pnpm build
-```
-
-### Development workflow
-
-```bash
-pnpm build        # compile
-pnpm test         # run all tests
-pnpm typecheck    # TypeScript strict check
-pnpm lint         # ESLint
-```
-
-### Adding a new analyzer
-
-1. Create your analyzer in `src/analyzers/`
-2. Implement the `Analyzer` interface:
-```ts
-export class MyAnalyzer implements Analyzer {
-  name = 'MyAnalyzer';
-  async analyze(graph: SystemGraph): Promise<Finding[]> { ... }
-}
-```
-3. Export it from `src/analyzers/index.ts`
-4. Add tests in `src/analyzers/__tests__/`
-
-### Adding a new database adapter
-
-1. Create your extractor as `src/adapters/yourdb.ts`
-2. Export a function returning `Promise<YourTableMetadata[]>`
-3. Add the metadata type to `src/types.ts` if needed
-4. Wire it into `src/cli/commands/analyze.ts`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for a full walkthrough — including how to add a new service adapter, a new analyzer, and the PR checklist.
 
 ### Releasing
 
@@ -553,14 +500,6 @@ pnpm release 1.5.0    # explicit version
 ```
 
 Bumps `package.json`, commits, tags, pushes, and creates a draft GitHub release with notes from commit messages. Then publish the draft on GitHub to trigger npm publish.
-
-### PR checklist
-
-- `pnpm lint` passes
-- `pnpm typecheck` passes
-- `pnpm test` passes
-- New analyzers have unit tests with mock graph data
-- No hardcoded AWS regions or credentials
 
 ---
 
