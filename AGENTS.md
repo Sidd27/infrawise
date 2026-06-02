@@ -46,6 +46,7 @@ mcp-publisher publish server.json
 - **Always ask before committing or pushing. Never commit without explicit user approval.**
 - Before any commit: run `pnpm lint && pnpm typecheck && pnpm test`. All must pass.
 - When adding a new feature (new service type, new adapter, new tool): update `demo/local/app/` with a representative usage example and update `demo/local/infrawise.yaml` if needed. Demo must always stay in sync — no need to be asked.
+- **When a new feature adds a config key: update BOTH `src/types.ts` (the TypeScript interface) AND `src/core/config.ts` (the Zod schema).** If only `types.ts` is updated, Zod strips the key silently and the feature never activates — no error, just silent failure. Always add the matching `z.object(...)` entry to `InfrawiseConfigSchema` in `config.ts`.
 - **After every implementation, always update all three docs — no exceptions, no need to be asked:**
   - `README.md` — analysis capabilities table, MCP tools table, configuration section, `--severity` flag docs
   - `AGENTS.md` — MCP tool reference section, source layout, recommended usage patterns, expected LocalStack findings count
