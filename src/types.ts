@@ -16,7 +16,7 @@ export type GraphNode =
       retentionDays?: number; errorCount?: number;
       topErrorPatterns?: Array<{ pattern: string; count: number }>;
     }
-  | { id: string; type: 'bucket'; name: string; provider: string; versioned?: boolean }
+  | { id: string; type: 'bucket'; name: string; provider: string; versioned?: boolean; encrypted?: boolean; publicAccessBlocked?: boolean }
   | { id: string; type: 'lambda'; name: string; runtime?: string; memoryMB?: number; timeoutSec?: number; envVarKeys?: string[]; triggers?: LambdaTrigger[] }
   | { id: string; type: 'eventbridge_rule'; name: string; state: string; scheduleExpression?: string; eventPattern?: string }
   | { id: string; type: 'api'; name: string; provider: string; stageName?: string }
@@ -134,6 +134,7 @@ export interface LambdaTrigger {
   eventShape: string;
   batchSize?: number;
   state?: string;
+  events?: string[];
   // eventbridge only
   ruleName?: string;
   eventPattern?: string;
@@ -183,6 +184,24 @@ export interface RDSInstanceMetadata {
   dbInstanceStatus: string;
 }
 
+export interface S3EventNotification {
+  events: string[];
+  lambdaArn: string;
+  lambdaName: string;
+  prefix?: string;
+  suffix?: string;
+}
+
+export interface S3BucketMetadata {
+  name: string;
+  arn: string;
+  createdAt?: string;
+  versioned: boolean;
+  encrypted: boolean;
+  publicAccessBlocked: boolean;
+  notifications: S3EventNotification[];
+}
+
 // Aggregated services metadata passed to graph builder
 export interface ServicesMeta {
   sqs?: SQSQueueMetadata[];
@@ -193,6 +212,7 @@ export interface ServicesMeta {
   eventbridge?: EventBridgeRuleMetadata[];
   logs?: LogGroupSummary[];
   rds?: RDSInstanceMetadata[];
+  s3?: S3BucketMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -270,6 +290,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   rds?: {
+    enabled?: boolean;
+  };
+  s3?: {
     enabled?: boolean;
   };
   kafka?: {
