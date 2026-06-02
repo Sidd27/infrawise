@@ -8,9 +8,7 @@ dist/
 # Infrawise cache (anywhere in the tree)
 **/.infrawise/cache/
 
-# Demo configs (user-generated via infrawise init, never committed)
-demo/local/infrawise.yaml
-demo/localstack/infrawise.yaml
+# Demo configs — tracked (reference seed configs, kept in sync with features)
 
 # Environment & secrets
 .env

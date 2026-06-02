@@ -1,0 +1,43 @@
+project: localstack
+aws:
+  profile: ''
+  region: us-east-1
+  endpoint: http://localhost:4566
+dynamodb:
+  enabled: true
+  includeTables: []
+postgres:
+  enabled: false
+  connectionString: ''
+mysql:
+  enabled: false
+  connectionString: ''
+mongodb:
+  enabled: false
+  connectionString: ''
+  databases: []
+terraform:
+  enabled: true
+sqs:
+  enabled: true
+sns:
+  enabled: true
+ssm:
+  enabled: true
+  paths: []
+secretsManager:
+  enabled: true
+lambda:
+  enabled: true
+eventbridge:
+  enabled: true
+rds:
+  enabled: false
+s3:
+  enabled: true
+cloudwatchLogs:
+  enabled: true
+  logGroupPrefixes: []
+  windowHours: 24
+analysis:
+  sampleSize: 100

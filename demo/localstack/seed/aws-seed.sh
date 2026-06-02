@@ -147,6 +147,48 @@ $AWS lambda create-function \
 
 rm -rf "$TMPDIR"
 
+# ── S3 ──────────────────────────────────────────────────────────────────────
+
+echo "  → S3 buckets"
+
+# uploads-bucket — versioning + SSE + notification → processOrders (exercises back-propagation)
+$AWS s3api create-bucket --bucket uploads-bucket --no-cli-pager 2>/dev/null || true
+$AWS s3api put-bucket-versioning \
+  --bucket uploads-bucket \
+  --versioning-configuration Status=Enabled \
+  --no-cli-pager 2>/dev/null || true
+$AWS s3api put-bucket-encryption \
+  --bucket uploads-bucket \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' \
+  --no-cli-pager 2>/dev/null || true
+$AWS s3api put-public-access-block \
+  --bucket uploads-bucket \
+  --public-access-block-configuration 'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true' \
+  --no-cli-pager 2>/dev/null || true
+
+# Get processOrders Lambda ARN (seeded earlier in this script)
+PROCESS_ORDERS_ARN=$($AWS lambda get-function-configuration \
+  --function-name processOrders \
+  --query 'FunctionArn' --output text 2>/dev/null || echo "arn:aws:lambda:us-east-1:000000000000:function:processOrders")
+$AWS s3api put-bucket-notification-configuration \
+  --bucket uploads-bucket \
+  --notification-configuration "{\"LambdaFunctionConfigurations\":[{\"LambdaFunctionArn\":\"$PROCESS_ORDERS_ARN\",\"Events\":[\"s3:ObjectCreated:*\"],\"Filter\":{\"Key\":{\"FilterRules\":[{\"Name\":\"prefix\",\"Value\":\"uploads/\"}]}}}]}" \
+  --no-cli-pager 2>/dev/null || true
+
+# assets-bucket — public, no versioning, no encryption (fires S3PublicAccessAnalyzer + S3MissingVersioningAnalyzer + S3UnencryptedAnalyzer)
+$AWS s3api create-bucket --bucket assets-bucket --no-cli-pager 2>/dev/null || true
+
+# logs-archive-bucket — encrypted + blocked public access, no versioning (fires S3MissingVersioningAnalyzer)
+$AWS s3api create-bucket --bucket logs-archive-bucket --no-cli-pager 2>/dev/null || true
+$AWS s3api put-bucket-encryption \
+  --bucket logs-archive-bucket \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' \
+  --no-cli-pager 2>/dev/null || true
+$AWS s3api put-public-access-block \
+  --bucket logs-archive-bucket \
+  --public-access-block-configuration 'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true' \
+  --no-cli-pager 2>/dev/null || true
+
 # ── Event Source Mappings (SQS → Lambda) ────────────────────────────────────
 
 echo "  → Event source mappings"

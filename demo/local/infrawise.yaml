@@ -1,0 +1,42 @@
+project: local-demo
+aws:
+  profile: ''
+  region: us-east-1
+dynamodb:
+  enabled: false
+  includeTables: []
+postgres:
+  enabled: true
+  connectionString: 'postgres://demo:demo@localhost:5432/demodb'
+mysql:
+  enabled: true
+  connectionString: 'mysql://demo:demo@localhost:3306/demodb'
+mongodb:
+  enabled: true
+  connectionString: 'mongodb://localhost:27017'
+  databases: []
+terraform:
+  enabled: false
+sqs:
+  enabled: false
+sns:
+  enabled: false
+ssm:
+  enabled: false
+  paths: []
+secretsManager:
+  enabled: false
+lambda:
+  enabled: false
+rds:
+  enabled: false
+s3:
+  enabled: false
+kafka:
+  enabled: true
+cloudwatchLogs:
+  enabled: false
+  logGroupPrefixes: []
+  windowHours: 24
+analysis:
+  sampleSize: 100
