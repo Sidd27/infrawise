@@ -101,7 +101,7 @@ function severityBadge(severity: Finding['severity']): string {
     case 'high':   return chalk.bgRed.white.bold(` HIGH `);
     case 'medium': return chalk.bgYellow.black.bold(` MED  `);
     case 'low':    return chalk.bgCyan.black.bold(` LOW  `);
-    case 'verify': return chalk.bgBlue.white.bold(' VER? ');
+    case 'verify': return chalk.bgBlue.white.bold(` VER? `);
   }
 }
 
