@@ -68,7 +68,7 @@ source .env                 # sets AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 20 findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention).
+Expected: 23+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access).
 
 To start the MCP server against LocalStack:
 
@@ -107,7 +107,7 @@ src/
   core/       config, logger, cache
   graph/      graph engine
   adapters/
-    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS)
+    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS, s3)
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
@@ -132,7 +132,7 @@ Infrawise exposes 14 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). 
 
 No inputs required.
 
-Returns: summary counts (tables, functions, queues, topics, secrets, lambdas), list of databases and services, high-severity findings with recommendations.
+Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations.
 
 **When to call:** At the start of any database or infrastructure task to understand what's in scope.
 
@@ -278,9 +278,9 @@ All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **triggers** (type, source name, correct handler event shape), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), findings.
 
-**When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler.
+**When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler. S3-triggered Lambdas show `event.Records[0].s3.object.key` as the event shape.
 
 ---
 
@@ -339,7 +339,8 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 2. `get_queue_details` → missing DLQs
 3. `get_secrets_overview` → rotation disabled
 4. `get_lambda_overview` → default memory / high timeout
-5. `get_log_errors` → error patterns
+5. `get_s3_overview` → public access verify, missing versioning/encryption
+6. `get_log_errors` → error patterns
 
 ## What infrawise never does
 

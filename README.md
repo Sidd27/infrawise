@@ -199,7 +199,7 @@ To let Claude Code manage the server lifecycle automatically:
 | `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
 | `--no-cache`          | Skip reading/writing the cache                                         |
 | `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md`                   |
-| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` |
+| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` \| `verify` |
 
 ```bash
 # Export a shareable findings report
@@ -347,7 +347,8 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | SQS                              | Missing DLQs, unencrypted queues, large backlogs                                                                   |
 | Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
-| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge), missing DLQ on trigger source |
+| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), missing DLQ on trigger source |
+| S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
 | EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
 | RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ                                    |
 | CloudWatch Logs                  | Log groups with no retention policy                                                                                |
