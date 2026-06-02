@@ -124,7 +124,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 13 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). Start the server with `infrawise dev`.
+Infrawise exposes 14 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). Start the server with `infrawise dev`.
 
 ### `get_infra_overview`
 
@@ -293,6 +293,18 @@ No inputs required.
 Returns: per-rule — name, state (ENABLED/DISABLED), scheduleExpression (for rate/cron rules), eventPattern (for event-driven rules), target Lambda function names.
 
 **When to call:** When checking what schedules or events trigger which Lambda functions, or reviewing EventBridge rule coverage.
+
+---
+
+### `get_s3_overview`
+
+All S3 buckets with versioning status, encryption, public access configuration, and security findings.
+
+No inputs required.
+
+Returns: per-bucket — name, provider, versioned (bool), encrypted (bool), publicAccessBlocked (bool), findings.
+
+**When to call:** When checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers. Check public access blocked status before assuming bucket contents are private.
 
 ---
 

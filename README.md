@@ -173,8 +173,9 @@ To let Claude Code manage the server lifecycle automatically:
 | `get_topic_details`          | SNS topics — subscription counts and protocols                                                              |
 | `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
-| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge), env var key names |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), env var key names |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
+| `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
 
 ---
@@ -275,6 +276,9 @@ eventbridge:
   enabled: true
 
 rds:
+  enabled: false
+
+s3:
   enabled: false
 
 kafka:
