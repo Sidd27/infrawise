@@ -18,6 +18,7 @@ import {
   extractRDSMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
+import { extractS3Metadata } from '../../adapters/aws/s3.js';
 import { scanRepository } from '../../context/index.js';
 import { buildGraph } from '../../graph/index.js';
 import {
@@ -31,6 +32,7 @@ import {
   LambdaDefaultMemoryAnalyzer, LambdaHighTimeoutAnalyzer, LambdaMissingTriggerDLQAnalyzer,
   RDSPubliclyAccessibleAnalyzer, RDSNoBackupAnalyzer, RDSUnencryptedAnalyzer,
   RDSNoDeletionProtectionAnalyzer, RDSNoMultiAZAnalyzer,
+  S3PublicAccessAnalyzer, S3MissingVersioningAnalyzer, S3UnencryptedAnalyzer,
 } from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type { Finding, ServicesMeta, ExtractedOperation, InfrawiseConfig,
@@ -239,6 +241,18 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     }
   }
 
+  // ── S3 ────────────────────────────────────────────────────────────────────────
+  if (config.s3?.enabled === true) {
+    const s = mkSpinner('Extracting S3 buckets...');
+    try {
+      const result = await extractS3Metadata(awsCfg);
+      servicesMeta.s3 = result;
+      s.succeed(chalk.green('S3') + chalk.dim(`  ${result.length} bucket(s)`));
+    } catch (err) {
+      s.warn(chalk.yellow('S3 skipped') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+    }
+  }
+
   // ── CloudWatch Logs ──────────────────────────────────────────────────────────
   if (config.cloudwatchLogs?.enabled) {
     const s = mkSpinner('Sampling CloudWatch Logs (errors only, max 50 groups)...');
@@ -341,6 +355,11 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         new RDSNoDeletionProtectionAnalyzer(),
         new RDSNoMultiAZAnalyzer(),
       ] : []),
+      ...(config.s3?.enabled === true ? [
+        new S3PublicAccessAnalyzer(),
+        new S3MissingVersioningAnalyzer(),
+        new S3UnencryptedAnalyzer(),
+      ] : []),
       ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
     ];
     findings = await runAllAnalyzers(graph, analyzers);
@@ -441,6 +460,11 @@ export async function runCodeRefresh(
     ...(config.rds?.enabled === true ? [
       new RDSPubliclyAccessibleAnalyzer(), new RDSNoBackupAnalyzer(), new RDSUnencryptedAnalyzer(),
       new RDSNoDeletionProtectionAnalyzer(), new RDSNoMultiAZAnalyzer(),
+    ] : []),
+    ...(config.s3?.enabled === true ? [
+      new S3PublicAccessAnalyzer(),
+      new S3MissingVersioningAnalyzer(),
+      new S3UnencryptedAnalyzer(),
     ] : []),
     ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
   ];

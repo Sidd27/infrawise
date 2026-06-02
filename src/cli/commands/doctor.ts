@@ -17,6 +17,7 @@ import {
   validateEventBridgeAccess,
 } from '../../adapters/aws/services.js';
 import { validateLogsAccess } from '../../adapters/aws/logs.js';
+import { validateS3Access } from '../../adapters/aws/s3.js';
 import { printHeader } from '../utils.js';
 
 interface CheckResult {
@@ -188,6 +189,21 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
         name: 'EventBridge', status: 'warn',
         message: err instanceof Error ? err.message : String(err),
         detail: 'Check IAM: events:ListRules, events:ListTargetsByRule',
+      };
+    }
+  }));
+
+  // S3
+  results.push(await runCheck('Testing S3 access...', async () => {
+    if (config?.s3?.enabled !== true) return { name: 'S3', status: 'skip', message: 'Disabled in config' };
+    try {
+      await validateS3Access(awsCfg);
+      return { name: 'S3', status: 'pass', message: 'Connected' };
+    } catch (err) {
+      return {
+        name: 'S3', status: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        detail: 'Check IAM: s3:ListBuckets, s3:GetBucketNotificationConfiguration, s3:GetBucketVersioning, s3:GetBucketEncryption, s3:GetPublicAccessBlock',
       };
     }
   }));
