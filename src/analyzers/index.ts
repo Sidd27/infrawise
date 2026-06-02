@@ -15,6 +15,9 @@ export {
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
+  S3PublicAccessAnalyzer,
+  S3MissingVersioningAnalyzer,
+  S3UnencryptedAnalyzer,
 } from './aws-services.js';
 export {
   RDSPubliclyAccessibleAnalyzer,

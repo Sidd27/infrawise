@@ -198,3 +198,68 @@ export class LambdaHighTimeoutAnalyzer implements Analyzer {
     return findings;
   }
 }
+
+// ─── S3 ──────────────────────────────────────────────────────────────────────
+
+export class S3PublicAccessAnalyzer implements Analyzer {
+  name = 'S3PublicAccessAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'bucket') continue;
+      if (node.publicAccessBlocked === false) {
+        findings.push({
+          severity: 'verify',
+          issue: `S3 bucket "${node.name}" has public access blocking disabled`,
+          description: `Public access blocking is disabled on "${node.name}". This is expected for static website hosting and public asset buckets. Confirm this is intentional before treating it as a security issue.`,
+          recommendation: `If "${node.name}" is not intentionally public, enable all four S3 Block Public Access settings: BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, RestrictPublicBuckets.`,
+          metadata: { bucketName: node.name, provider: node.provider },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
+export class S3MissingVersioningAnalyzer implements Analyzer {
+  name = 'S3MissingVersioningAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'bucket') continue;
+      if (!node.versioned) {
+        findings.push({
+          severity: 'medium',
+          issue: `S3 bucket "${node.name}" does not have versioning enabled`,
+          description: `"${node.name}" has versioning disabled. Without versioning, accidental deletes or overwrites are unrecoverable. Versioning is required for cross-region replication and Object Lock.`,
+          recommendation: `Enable versioning on "${node.name}" via the S3 console or IaC. Consider adding a lifecycle rule to expire old versions and manage storage costs.`,
+          metadata: { bucketName: node.name },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
+export class S3UnencryptedAnalyzer implements Analyzer {
+  name = 'S3UnencryptedAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'bucket') continue;
+      if (!node.encrypted) {
+        findings.push({
+          severity: 'medium',
+          issue: `S3 bucket "${node.name}" does not have server-side encryption configured`,
+          description: `"${node.name}" has no SSE (Server-Side Encryption) configuration. Data at rest is unencrypted. AWS S3 has enabled SSE-S3 by default since January 2023 for new buckets, but older buckets or those without explicit config should be verified.`,
+          recommendation: `Enable SSE on "${node.name}" using SSE-S3 (AES-256) or SSE-KMS. Specify the encryption configuration in your IaC to make it explicit.`,
+          metadata: { bucketName: node.name },
+        });
+      }
+    }
+    return findings;
+  }
+}

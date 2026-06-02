@@ -8,6 +8,9 @@ import {
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
+  S3PublicAccessAnalyzer,
+  S3MissingVersioningAnalyzer,
+  S3UnencryptedAnalyzer,
 } from '../aws-services';
 import type { SystemGraph } from '../../types';
 
@@ -334,6 +337,102 @@ describe('LambdaHighTimeoutAnalyzer', () => {
   it('treats missing timeoutSec as 0', async () => {
     const graph: SystemGraph = {
       nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders' }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('S3PublicAccessAnalyzer', () => {
+  const analyzer = new S3PublicAccessAnalyzer();
+
+  it('flags bucket with public access not blocked', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: false }],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('verify');
+    expect(findings[0].issue).toContain('assets');
+    expect(findings[0].metadata?.bucketName).toBe('assets');
+  });
+
+  it('does not flag bucket with public access blocked', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('ignores non-bucket nodes', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('S3MissingVersioningAnalyzer', () => {
+  const analyzer = new S3MissingVersioningAnalyzer();
+
+  it('flags bucket with versioning disabled', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: false, encrypted: true, publicAccessBlocked: true }],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('medium');
+    expect(findings[0].issue).toContain('assets');
+    expect(findings[0].metadata?.bucketName).toBe('assets');
+  });
+
+  it('does not flag bucket with versioning enabled', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('ignores non-bucket nodes', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('S3UnencryptedAnalyzer', () => {
+  const analyzer = new S3UnencryptedAnalyzer();
+
+  it('flags bucket without server-side encryption', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: false, publicAccessBlocked: true }],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('medium');
+    expect(findings[0].issue).toContain('assets');
+    expect(findings[0].metadata?.bucketName).toBe('assets');
+  });
+
+  it('does not flag bucket with encryption configured', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('ignores non-bucket nodes', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
