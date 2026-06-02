@@ -229,13 +229,13 @@ export class S3MissingVersioningAnalyzer implements Analyzer {
     const findings: Finding[] = [];
     for (const node of graph.nodes) {
       if (node.type !== 'bucket') continue;
-      if (!node.versioned) {
+      if (node.versioned === false) {
         findings.push({
           severity: 'medium',
           issue: `S3 bucket "${node.name}" does not have versioning enabled`,
           description: `"${node.name}" has versioning disabled. Without versioning, accidental deletes or overwrites are unrecoverable. Versioning is required for cross-region replication and Object Lock.`,
           recommendation: `Enable versioning on "${node.name}" via the S3 console or IaC. Consider adding a lifecycle rule to expire old versions and manage storage costs.`,
-          metadata: { bucketName: node.name },
+          metadata: { bucketName: node.name, provider: node.provider },
         });
       }
     }
@@ -250,13 +250,13 @@ export class S3UnencryptedAnalyzer implements Analyzer {
     const findings: Finding[] = [];
     for (const node of graph.nodes) {
       if (node.type !== 'bucket') continue;
-      if (!node.encrypted) {
+      if (node.encrypted === false) {
         findings.push({
           severity: 'medium',
           issue: `S3 bucket "${node.name}" does not have server-side encryption configured`,
           description: `"${node.name}" has no SSE (Server-Side Encryption) configuration. Data at rest is unencrypted. AWS S3 has enabled SSE-S3 by default since January 2023 for new buckets, but older buckets or those without explicit config should be verified.`,
           recommendation: `Enable SSE on "${node.name}" using SSE-S3 (AES-256) or SSE-KMS. Specify the encryption configuration in your IaC to make it explicit.`,
-          metadata: { bucketName: node.name },
+          metadata: { bucketName: node.name, provider: node.provider },
         });
       }
     }
