@@ -10,6 +10,7 @@ import {
   getParameterNodes,
   getLambdaNodes,
   getLogGroupNodes,
+  getBucketNodes,
   getScanEdges,
   getEdgeFrequency,
   getEdgesForNode,
@@ -314,6 +315,81 @@ describe('buildGraph', () => {
     const graph = buildGraph(ops, [], [], [], [], services);
     const queueNodes = graph.nodes.filter((n) => n.type === 'queue' && n.name === 'orders-queue');
     expect(queueNodes).toHaveLength(1);
+  });
+
+  it('creates bucket nodes from servicesMeta.s3', () => {
+    const services: ServicesMeta = {
+      s3: [{
+        name: 'uploads-bucket',
+        arn: 'arn:aws:s3:::uploads-bucket',
+        versioned: true,
+        encrypted: true,
+        publicAccessBlocked: true,
+        notifications: [],
+      }],
+    };
+    const graph = buildGraph([], [], [], [], [], services);
+    const buckets = getBucketNodes(graph);
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].name).toBe('uploads-bucket');
+    expect(buckets[0].versioned).toBe(true);
+    expect(buckets[0].encrypted).toBe(true);
+    expect(buckets[0].publicAccessBlocked).toBe(true);
+  });
+
+  it('back-propagates S3 notification as Lambda trigger', () => {
+    const services: ServicesMeta = {
+      lambda: [{ name: 'processUpload', runtime: 'nodejs22.x', memoryMB: 512, timeoutSec: 30, envVarKeys: [], triggers: [] }],
+      s3: [{
+        name: 'uploads-bucket',
+        arn: 'arn:aws:s3:::uploads-bucket',
+        versioned: true,
+        encrypted: true,
+        publicAccessBlocked: true,
+        notifications: [{
+          events: ['s3:ObjectCreated:*'],
+          lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
+          lambdaName: 'processUpload',
+          prefix: 'uploads/',
+        }],
+      }],
+    };
+    const graph = buildGraph([], [], [], [], [], services);
+    const lambdas = getLambdaNodes(graph);
+    const fn = lambdas.find((l) => l.name === 'processUpload');
+    expect(fn).toBeDefined();
+    expect(fn?.triggers).toHaveLength(1);
+    expect(fn?.triggers?.[0].type).toBe('s3');
+    expect(fn?.triggers?.[0].sourceName).toBe('uploads-bucket');
+    expect(fn?.triggers?.[0].eventShape).toBe('event.Records[0].s3.object.key');
+    expect(fn?.triggers?.[0].events).toEqual(['s3:ObjectCreated:*']);
+    const triggerEdge = graph.edges.find((e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket');
+    expect(triggerEdge).toBeDefined();
+    expect(triggerEdge?.to).toBe('lambda:aws:processUpload');
+  });
+
+  it('silently skips S3 notification when target Lambda is not in graph', () => {
+    const services: ServicesMeta = {
+      // No lambda nodes — Lambda extraction disabled
+      s3: [{
+        name: 'uploads-bucket',
+        arn: 'arn:aws:s3:::uploads-bucket',
+        versioned: true,
+        encrypted: true,
+        publicAccessBlocked: true,
+        notifications: [{
+          events: ['s3:ObjectCreated:*'],
+          lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
+          lambdaName: 'processUpload',
+        }],
+      }],
+    };
+    const graph = buildGraph([], [], [], [], [], services);
+    const buckets = getBucketNodes(graph);
+    expect(buckets).toHaveLength(1);
+    // No triggers edge added since Lambda not in graph
+    const triggerEdges = graph.edges.filter((e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket');
+    expect(triggerEdges).toHaveLength(0);
   });
 });
 

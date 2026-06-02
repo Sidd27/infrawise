@@ -216,6 +216,40 @@ export function buildGraph(
     });
   }
 
+  // ── S3 Buckets ────────────────────────────────────────────────────────────────
+
+  for (const bucket of servicesMeta.s3 ?? []) {
+    const bucketId = `bucket:aws:${bucket.name}`;
+    addNode({
+      id: bucketId,
+      type: 'bucket',
+      name: bucket.name,
+      provider: 'aws',
+      versioned: bucket.versioned,
+      encrypted: bucket.encrypted,
+      publicAccessBlocked: bucket.publicAccessBlocked,
+    });
+
+    for (const notification of bucket.notifications) {
+      const lambdaId = `lambda:aws:${notification.lambdaName}`;
+      if (!nodeMap.has(lambdaId)) continue;
+      edges.push({ from: bucketId, to: lambdaId, type: 'triggers' });
+      const lambdaNode = nodeMap.get(lambdaId);
+      if (lambdaNode && lambdaNode.type === 'lambda') {
+        lambdaNode.triggers = [
+          ...(lambdaNode.triggers ?? []),
+          {
+            type: 's3' as const,
+            sourceArn: bucket.arn,
+            sourceName: bucket.name,
+            eventShape: 'event.Records[0].s3.object.key',
+            events: notification.events,
+          },
+        ];
+      }
+    }
+  }
+
   // ── Code operations (functions + edges) ───────────────────────────────────
 
   for (const op of operations) {
@@ -342,6 +376,9 @@ export function getEventBridgeRuleNodes(graph: SystemGraph): Extract<GraphNode, 
   return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'eventbridge_rule' }> => n.type === 'eventbridge_rule');
 }
 
+export function getBucketNodes(graph: SystemGraph): Extract<GraphNode, { type: 'bucket' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'bucket' }> => n.type === 'bucket');
+}
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);
