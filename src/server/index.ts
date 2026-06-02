@@ -20,6 +20,7 @@ import {
   getLogGroupNodes,
   getLambdaNodes,
   getEventBridgeRuleNodes,
+  getBucketNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -65,12 +66,14 @@ export function createMcpServer(): McpServer {
     const logGroups = getLogGroupNodes(currentGraph);
     const lambdas = getLambdaNodes(currentGraph);
     const functions = getFunctionNodes(currentGraph);
+    const buckets = getBucketNodes(currentGraph);
     return toText({
       summary: {
         tables: tables.length, functions: functions.length,
         queues: queues.length, topics: topics.length,
         secrets: secrets.length, parameters: parameters.length,
         logGroups: logGroups.length, lambdas: lambdas.length,
+        buckets: buckets.length,
         totalNodes: currentGraph.nodes.length, totalEdges: currentGraph.edges.length,
         findings: summarizeFindings(currentFindings),
       },
@@ -81,6 +84,7 @@ export function createMcpServer(): McpServer {
       parameters: parameters.map((p) => ({ name: p.name, type: p.paramType, tier: p.tier })),
       lambdas: lambdas.map((l) => ({ name: l.name, runtime: l.runtime, memoryMB: l.memoryMB })),
       logGroups: logGroups.map((lg) => ({ name: lg.name, retentionDays: lg.retentionDays ?? 'never', errorCount: lg.errorCount })),
+      buckets: buckets.map((b) => ({ name: b.name, versioned: b.versioned, publicAccessBlocked: b.publicAccessBlocked })),
       highFindings: currentFindings.filter((f) => f.severity === 'high').map((f) => ({ issue: f.issue, recommendation: f.recommendation })),
     });
   }));
@@ -303,6 +307,28 @@ export function createMcpServer(): McpServer {
     });
   }));
 
+  mcp.registerTool('get_s3_overview', {
+    description: 'Returns all S3 buckets with versioning status, encryption, public access configuration, and security findings. Call this when checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers to confirm the bucket name. Do NOT call when you only need a quick infrastructure count — use get_infra_overview for that. Object contents are never included.',
+    inputSchema: z.object({}),
+  }, logged('get_s3_overview', async () => {
+    const buckets = getBucketNodes(currentGraph);
+    const bucketFindings = currentFindings.filter((f) => (f.metadata as Record<string, unknown> | undefined)?.bucketName);
+    return toText({
+      total: buckets.length,
+      note: 'Object contents are never included.',
+      buckets: buckets.map((b) => ({
+        name: b.name,
+        provider: b.provider,
+        versioned: b.versioned,
+        encrypted: b.encrypted,
+        publicAccessBlocked: b.publicAccessBlocked,
+        findings: bucketFindings
+          .filter((f) => (f.metadata as Record<string, unknown>).bucketName === b.name)
+          .map((f) => ({ severity: f.severity, issue: f.issue })),
+      })),
+    });
+  }));
+
   mcp.registerTool('get_log_errors', {
     description: 'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
     inputSchema: z.object({ logGroup: z.string().describe('Filter to a specific log group name (optional)').optional() }),
@@ -338,7 +364,7 @@ export function createServer(port = 3000) {
     name: 'io.github.Sidd27/infrawise',
     display_name: 'Infrawise',
     version,
-    description: 'Infrastructure analysis MCP server — scans DynamoDB, PostgreSQL, MySQL, MongoDB, Lambda, SQS, SNS, EventBridge, Secrets Manager, SSM, CloudWatch, Terraform, CDK, and source code. Surfaces missing indexes, DLQ gaps, Lambda misconfig, and correct trigger event shapes.',
+    description: 'Infrastructure analysis MCP server — scans DynamoDB, PostgreSQL, MySQL, MongoDB, S3, Lambda, SQS, SNS, EventBridge, Secrets Manager, SSM, CloudWatch, Terraform, CDK, and source code. Surfaces missing indexes, DLQ gaps, Lambda misconfig, S3 security posture, and correct trigger event shapes.',
     homepage: 'https://github.com/Sidd27/infrawise',
     repository: 'https://github.com/Sidd27/infrawise',
     transports: [{ type: 'streamable-http', url: `http://localhost:${port}/mcp` }],
@@ -346,7 +372,7 @@ export function createServer(port = 3000) {
       'get_infra_overview', 'get_graph_summary', 'analyze_function',
       'suggest_gsi', 'postgres_index_suggestions', 'suggest_mongo_index', 'mysql_index_suggestions',
       'get_queue_details', 'get_topic_details', 'get_secrets_overview', 'get_parameter_overview',
-      'get_lambda_overview', 'get_eventbridge_details', 'get_log_errors',
+      'get_lambda_overview', 'get_eventbridge_details', 'get_s3_overview', 'get_log_errors',
     ],
   }));
 

@@ -41,15 +41,16 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
 }
 
 describe('MCP Server — protocol', () => {
-  it('lists all 14 tools', async () => {
+  it('lists all 15 tools', async () => {
     const client = await makeClient(emptyGraph, []);
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(14);
+    expect(tools).toHaveLength(15);
     const names = tools.map((t) => t.name);
     expect(names).toContain('get_infra_overview');
     expect(names).toContain('get_graph_summary');
     expect(names).toContain('analyze_function');
     expect(names).toContain('get_eventbridge_details');
+    expect(names).toContain('get_s3_overview');
     expect(names).toContain('get_log_errors');
     await client.close();
   });
