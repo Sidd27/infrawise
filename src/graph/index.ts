@@ -22,11 +22,13 @@ export function buildGraph(
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
+  const nodeMap = new Map<string, GraphNode>();
 
   function addNode(node: GraphNode): void {
     if (!nodeIds.has(node.id)) {
       nodes.push(node);
       nodeIds.add(node.id);
+      nodeMap.set(node.id, node);
     }
   }
 
@@ -182,7 +184,7 @@ export function buildGraph(
       const lambdaId = `lambda:aws:${fnName}`;
       if (!nodeIds.has(lambdaId)) continue;
       edges.push({ from: ruleId, to: lambdaId, type: 'triggers' });
-      const lambdaNodeRef = nodes.find((n) => n.id === lambdaId);
+      const lambdaNodeRef = nodeMap.get(lambdaId);
       if (lambdaNodeRef && lambdaNodeRef.type === 'lambda') {
         const trigger: LambdaTrigger = {
           type: 'eventbridge',
@@ -218,10 +220,7 @@ export function buildGraph(
 
   for (const op of operations) {
     const funcNodeId = `function:${op.filePath}:${op.functionName}`;
-    if (!nodeIds.has(funcNodeId)) {
-      nodes.push({ id: funcNodeId, type: 'function', name: op.functionName, file: op.filePath });
-      nodeIds.add(funcNodeId);
-    }
+    addNode({ id: funcNodeId, type: 'function', name: op.functionName, file: op.filePath });
 
     // AWS service operations create edges to service nodes
     if (op.serviceType === 'sqs') {

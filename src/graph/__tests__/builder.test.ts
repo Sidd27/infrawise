@@ -284,6 +284,26 @@ describe('buildGraph', () => {
     expect(edge?.to).toBe('topic:kafka:payments');
   });
 
+  it('wires EventBridge rule target to Lambda trigger list', () => {
+    const services: ServicesMeta = {
+      lambda: [{ name: 'generateReport', runtime: 'nodejs22.x', memoryMB: 512, timeoutSec: 30, envVarKeys: [], layers: [], triggers: [] }],
+      eventbridge: [{
+        name: 'daily-report',
+        arn: 'arn:aws:events:us-east-1:000:rule/daily-report',
+        state: 'ENABLED',
+        scheduleExpression: 'rate(1 day)',
+        targetArns: ['arn:aws:lambda:us-east-1:000:function:generateReport'],
+      }],
+    };
+    const graph = buildGraph([], [], [], [], [], services);
+    const lambdas = getLambdaNodes(graph);
+    const fn = lambdas.find((l) => l.name === 'generateReport');
+    expect(fn).toBeDefined();
+    expect(fn?.triggers?.some((t) => t.type === 'eventbridge' && t.sourceName === 'daily-report')).toBe(true);
+    const triggerEdge = graph.edges.find((e) => e.type === 'triggers' && e.to === 'lambda:aws:generateReport');
+    expect(triggerEdge).toBeDefined();
+  });
+
   it('does not duplicate service nodes when operation target already exists in servicesMeta', () => {
     const services: ServicesMeta = {
       sqs: [{ name: 'orders-queue', hasDLQ: true, encrypted: true, approximateMessages: 0 }],
