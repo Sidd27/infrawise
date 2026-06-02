@@ -101,6 +101,7 @@ function severityBadge(severity: Finding['severity']): string {
     case 'high':   return chalk.bgRed.white.bold(` HIGH `);
     case 'medium': return chalk.bgYellow.black.bold(` MED  `);
     case 'low':    return chalk.bgCyan.black.bold(` LOW  `);
+    case 'verify': return chalk.bgBlue.white.bold(' VER? ');
   }
 }
 
@@ -118,6 +119,7 @@ export function printSummaryBox(findings: Finding[]): void {
   const high   = findings.filter((f) => f.severity === 'high').length;
   const medium = findings.filter((f) => f.severity === 'medium').length;
   const low    = findings.filter((f) => f.severity === 'low').length;
+  const verify = findings.filter((f) => f.severity === 'verify').length;
 
   console.log('');
   console.log(chalk.dim('  ┌─────────────────────────────┐'));
@@ -126,6 +128,7 @@ export function printSummaryBox(findings: Finding[]): void {
   console.log(chalk.dim('  │') + `  ${chalk.red('●')} High     ${chalk.red.bold(String(high).padStart(3))}                 ` + chalk.dim('│'));
   console.log(chalk.dim('  │') + `  ${chalk.yellow('●')} Medium   ${chalk.yellow.bold(String(medium).padStart(3))}                 ` + chalk.dim('│'));
   console.log(chalk.dim('  │') + `  ${chalk.cyan('●')} Low      ${chalk.cyan.bold(String(low).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(chalk.dim('  │') + `  ${chalk.blue('●')} Verify   ${chalk.blue.bold(String(verify).padStart(3))}                 ` + chalk.dim('│'));
   console.log(chalk.dim('  ├─────────────────────────────┤'));
   console.log(chalk.dim('  │') + `  Total    ${chalk.bold(String(findings.length).padStart(3))}                 ` + chalk.dim('│'));
   console.log(chalk.dim('  └─────────────────────────────┘'));

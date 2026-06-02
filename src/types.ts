@@ -208,7 +208,7 @@ export interface ExtractedOperation {
 // ─── Analysis ───────────────────────────────────────────────────────────────
 
 export interface Finding {
-  severity: 'low' | 'medium' | 'high';
+  severity: 'low' | 'medium' | 'high' | 'verify';
   issue: string;
   description: string;
   recommendation: string;

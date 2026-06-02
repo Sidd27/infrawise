@@ -43,13 +43,13 @@ export async function runAllAnalyzers(
     }
   }
 
-  const severityOrder = { high: 0, medium: 1, low: 2 };
+  const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2, verify: 3 };
   allFindings.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
   return allFindings;
 }
 
-export function summarizeFindings(findings: Finding[]): { total: number; high: number; medium: number; low: number } {
-  const counts = { total: findings.length, high: 0, medium: 0, low: 0 };
+export function summarizeFindings(findings: Finding[]): { total: number; high: number; medium: number; low: number; verify: number } {
+  const counts = { total: findings.length, high: 0, medium: 0, low: 0, verify: 0 };
   for (const f of findings) counts[f.severity]++;
   return counts;
 }
