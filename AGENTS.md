@@ -46,7 +46,10 @@ mcp-publisher publish server.json
 - **Always ask before committing or pushing. Never commit without explicit user approval.**
 - Before any commit: run `pnpm lint && pnpm typecheck && pnpm test`. All must pass.
 - When adding a new feature (new service type, new adapter, new tool): update `demo/local/app/` with a representative usage example and update `demo/local/infrawise.yaml` if needed. Demo must always stay in sync — no need to be asked.
-- Keep `README.md` in sync with every feature change — analysis capabilities table, scanner support line, tool table, and configuration section. Do this automatically, not on request.
+- **After every implementation, always update all three docs — no exceptions, no need to be asked:**
+  - `README.md` — analysis capabilities table, MCP tools table, configuration section, `--severity` flag docs
+  - `AGENTS.md` — MCP tool reference section, source layout, recommended usage patterns, expected LocalStack findings count
+  - `llms.txt` — tool count, tool list, AWS services description line
 - **Version must be in sync everywhere on every release.** `package.json` is the source of truth. `src/server/index.ts` reads it dynamically — no manual update needed there. `server.json` (MCP Registry manifest, committed) is bumped automatically by the release script.
 
 ## Running the LocalStack demo
