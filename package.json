@@ -1,6 +1,6 @@
 {
   "name": "infrawise",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "mcpName": "io.github.Sidd27/infrawise",
   "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, S3, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
   "keywords": [
