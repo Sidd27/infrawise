@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { Project, SyntaxKind, Node, CallExpression, StringLiteral } from 'ts-morph';
+import { Project, SyntaxKind, Node, CallExpression, StringLiteral, SourceFile } from 'ts-morph';
 import type { ExtractedOperation } from '../types.js';
 import { RepositoryScanError, logger } from '../core/index.js';
 
@@ -175,6 +175,35 @@ function detectDynamoOperations(
   return null;
 }
 
+function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
+  if (Node.isStringLiteral(node)) {
+    return (node as StringLiteral).getLiteralValue();
+  }
+  if (Node.isNoSubstitutionTemplateLiteral(node)) {
+    return node.getLiteralText();
+  }
+  if (Node.isTemplateExpression(node)) {
+    let result = node.getHead().getLiteralText();
+    for (const span of node.getTemplateSpans()) {
+      const resolved = resolveStringValue(span.getExpression(), sourceFile);
+      if (resolved === null) return null;
+      result += resolved + span.getLiteral().getLiteralText();
+    }
+    return result;
+  }
+  if (Node.isIdentifier(node)) {
+    const name = node.getText();
+    const decl = sourceFile
+      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+      .find((d) => d.getName() === name);
+    if (decl) {
+      const init = decl.getInitializer();
+      if (init) return resolveStringValue(init, sourceFile);
+    }
+  }
+  return null;
+}
+
 function extractSqlTableName(sql: string): string {
   // Try to extract table name from common SQL patterns
   const patterns = [
@@ -214,15 +243,8 @@ function detectPostgresOperations(
     ) {
       let tableName = 'unknown';
       if (args.length > 0) {
-        const firstArg = args[0];
-        if (Node.isStringLiteral(firstArg)) {
-          tableName = extractSqlTableName((firstArg as StringLiteral).getLiteralValue());
-        } else if (Node.isNoSubstitutionTemplateLiteral(firstArg)) {
-          tableName = extractSqlTableName(firstArg.getLiteralText());
-        } else if (Node.isTemplateExpression(firstArg)) {
-          // Template literal — extract what we can from the head
-          tableName = extractSqlTableName(firstArg.getHead().getLiteralText());
-        }
+        const sql = resolveStringValue(args[0], callExpr.getSourceFile());
+        if (sql !== null) tableName = extractSqlTableName(sql);
       }
       return {
         functionName: getEnclosingFunctionName(callExpr),
@@ -311,14 +333,8 @@ function detectMySQLOperations(
     if (isMysqlClient) {
       let tableName = 'unknown';
       if (args.length > 0) {
-        const firstArg = args[0];
-        if (Node.isStringLiteral(firstArg)) {
-          tableName = extractSqlTableName((firstArg as StringLiteral).getLiteralValue());
-        } else if (Node.isNoSubstitutionTemplateLiteral(firstArg)) {
-          tableName = extractSqlTableName(firstArg.getLiteralText());
-        } else if (Node.isTemplateExpression(firstArg)) {
-          tableName = extractSqlTableName(firstArg.getHead().getLiteralText());
-        }
+        const sql = resolveStringValue(args[0], callExpr.getSourceFile());
+        if (sql !== null) tableName = extractSqlTableName(sql);
       }
       return {
         functionName: getEnclosingFunctionName(callExpr),

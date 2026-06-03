@@ -80,6 +80,30 @@ describe('scanRepository — PostgreSQL', () => {
     expect(op).toBeDefined();
     expect(op?.operationType).toBe('findMany');
   });
+
+  it('resolves table name from a SQL variable (const sql = ...)', async () => {
+    writeFixture('pg-var.ts', `
+      async function getArticle(id: string) {
+        const sql = 'SELECT * FROM articles WHERE id = $1';
+        await pool.query(sql, [id]);
+      }
+    `);
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.target === 'articles' && o.serviceType === 'postgres');
+    expect(op).toBeDefined();
+  });
+
+  it('resolves table name from a template literal with substituted table var', async () => {
+    writeFixture('pg-tmpl.ts', `
+      async function getPost(id: string) {
+        const table = 'posts';
+        await pool.query(\`SELECT * FROM \${table} WHERE id = $1\`, [id]);
+      }
+    `);
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.target === 'posts' && o.serviceType === 'postgres');
+    expect(op).toBeDefined();
+  });
 });
 
 describe('scanRepository — MySQL', () => {
