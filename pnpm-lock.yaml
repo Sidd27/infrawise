@@ -44,6 +44,9 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.1048.0
         version: 3.1058.0
+      '@fastify/cors':
+        specifier: ^11.2.0
+        version: 11.2.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -87,9 +90,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@fastify/cors':
-        specifier: ^11.2.0
-        version: 11.2.0
       '@types/inquirer':
         specifier: ^9.0.9
         version: 9.0.9
