@@ -366,7 +366,7 @@ export async function extractLambdaMetadata(
         });
       }
       marker = res.NextMarker;
-    } while (marker && functions.length < 200);
+    } while (marker);
 
     // Fetch all event source mappings in one paginated call and attach to functions
     const triggerMap = await fetchAllEventSourceMappings(cfg);
