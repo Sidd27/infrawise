@@ -39,10 +39,7 @@ function toPattern(message: string): string {
     .trim();
 }
 
-function topPatterns(
-  messages: string[],
-  limit = 5,
-): Array<{ pattern: string; count: number }> {
+function topPatterns(messages: string[], limit = 5): Array<{ pattern: string; count: number }> {
   const counts: Record<string, number> = {};
   for (const msg of messages) {
     const p = toPattern(msg);
@@ -63,15 +60,19 @@ export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGrou
   // Discover log groups
   const logGroups: Array<{ name: string; retentionDays?: number }> = [];
   try {
-    const prefixes = cfg.logGroupPrefixes?.length ? cfg.logGroupPrefixes : [undefined as string | undefined];
+    const prefixes = cfg.logGroupPrefixes?.length
+      ? cfg.logGroupPrefixes
+      : [undefined as string | undefined];
     for (const prefix of prefixes) {
       let nextToken: string | undefined;
       do {
-        const res = await client.send(new DescribeLogGroupsCommand({
-          nextToken,
-          limit: Math.min(50, MAX_LOG_GROUPS - logGroups.length),
-          ...(prefix ? { logGroupNamePrefix: prefix } : {}),
-        }));
+        const res = await client.send(
+          new DescribeLogGroupsCommand({
+            nextToken,
+            limit: Math.min(50, MAX_LOG_GROUPS - logGroups.length),
+            ...(prefix ? { logGroupNamePrefix: prefix } : {}),
+          }),
+        );
         for (const lg of res.logGroups ?? []) {
           logGroups.push({ name: lg.logGroupName ?? '', retentionDays: lg.retentionInDays });
         }
@@ -81,7 +82,9 @@ export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGrou
       if (logGroups.length >= MAX_LOG_GROUPS) break;
     }
   } catch (err) {
-    logger.warn(`CloudWatch Logs discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn(
+      `CloudWatch Logs discovery failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return summaries;
   }
 
@@ -94,12 +97,14 @@ export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGrou
     for (const filterPattern of ['ERROR', 'Exception', 'WARN']) {
       if (errorMessages.length + warnMessages.length >= MAX_EVENTS_PER_GROUP) break;
       try {
-        const res = await client.send(new FilterLogEventsCommand({
-          logGroupName: lg.name,
-          filterPattern,
-          startTime,
-          limit: 25,
-        }));
+        const res = await client.send(
+          new FilterLogEventsCommand({
+            logGroupName: lg.name,
+            filterPattern,
+            startTime,
+            limit: 25,
+          }),
+        );
         for (const event of res.events ?? []) {
           const msg = event.message ?? '';
           if (filterPattern === 'WARN') {

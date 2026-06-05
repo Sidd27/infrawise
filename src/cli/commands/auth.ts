@@ -32,7 +32,10 @@ export async function runAuth(): Promise<void> {
   ]);
 
   console.log('');
-  const spin = ora({ text: chalk.dim(`Validating "${selectedProfile}"...`), color: 'cyan' }).start();
+  const spin = ora({
+    text: chalk.dim(`Validating "${selectedProfile}"...`),
+    color: 'cyan',
+  }).start();
 
   const testConfig: InfrawiseConfig = {
     project: 'auth-test',

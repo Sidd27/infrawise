@@ -82,7 +82,10 @@ export async function extractPostgresMetadata(
       for (const row of columnsResult.rows) {
         const key = `${row.table_schema}.${row.table_name}`;
         let cols = columnMap.get(key);
-        if (!cols) { cols = []; columnMap.set(key, cols); }
+        if (!cols) {
+          cols = [];
+          columnMap.set(key, cols);
+        }
         cols.push(row.column_name);
       }
 
@@ -90,7 +93,10 @@ export async function extractPostgresMetadata(
       for (const row of indexesResult.rows) {
         const key = `${row.schemaname}.${row.tablename}`;
         let idxs = indexMap.get(key);
-        if (!idxs) { idxs = []; indexMap.set(key, idxs); }
+        if (!idxs) {
+          idxs = [];
+          indexMap.set(key, idxs);
+        }
         idxs.push(row.indexname);
       }
 
@@ -98,7 +104,10 @@ export async function extractPostgresMetadata(
       for (const row of primaryKeysResult.rows) {
         const key = `${row.table_schema}.${row.table_name}`;
         let pks = pkMap.get(key);
-        if (!pks) { pks = []; pkMap.set(key, pks); }
+        if (!pks) {
+          pks = [];
+          pkMap.set(key, pks);
+        }
         pks.push(row.column_name);
       }
 

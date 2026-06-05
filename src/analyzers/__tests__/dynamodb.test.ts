@@ -74,7 +74,12 @@ describe('FullTableScanAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/pg.ts' },
-        { id: 'table:pg:public.orders', type: 'table', name: 'public.orders', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.orders',
+          type: 'table',
+          name: 'public.orders',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };

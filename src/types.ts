@@ -1,30 +1,97 @@
 export type GraphNode =
-  | { id: string; type: 'table'; name: string; databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb' }
+  | {
+      id: string;
+      type: 'table';
+      name: string;
+      databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb';
+    }
   | { id: string; type: 'function'; name: string; file: string }
   | { id: string; type: 'index'; name: string }
   | { id: string; type: 'query'; operation: string }
   | {
-      id: string; type: 'queue'; name: string; provider: string;
-      hasDLQ: boolean; encrypted: boolean;
-      approximateMessages?: number; retentionDays?: number;
+      id: string;
+      type: 'queue';
+      name: string;
+      provider: string;
+      hasDLQ: boolean;
+      encrypted: boolean;
+      approximateMessages?: number;
+      retentionDays?: number;
     }
-  | { id: string; type: 'topic'; name: string; provider: string; subscriptionCount?: number; encrypted: boolean }
-  | { id: string; type: 'secret'; name: string; provider: string; rotationEnabled: boolean; rotationDays?: number }
-  | { id: string; type: 'parameter'; name: string; provider: string; paramType: string; tier: string }
   | {
-      id: string; type: 'log_group'; name: string; provider: string;
-      retentionDays?: number; errorCount?: number;
+      id: string;
+      type: 'topic';
+      name: string;
+      provider: string;
+      subscriptionCount?: number;
+      encrypted: boolean;
+    }
+  | {
+      id: string;
+      type: 'secret';
+      name: string;
+      provider: string;
+      rotationEnabled: boolean;
+      rotationDays?: number;
+    }
+  | {
+      id: string;
+      type: 'parameter';
+      name: string;
+      provider: string;
+      paramType: string;
+      tier: string;
+    }
+  | {
+      id: string;
+      type: 'log_group';
+      name: string;
+      provider: string;
+      retentionDays?: number;
+      errorCount?: number;
       topErrorPatterns?: Array<{ pattern: string; count: number }>;
     }
-  | { id: string; type: 'bucket'; name: string; provider: string; versioned?: boolean; encrypted?: boolean; publicAccessBlocked?: boolean }
-  | { id: string; type: 'lambda'; name: string; runtime?: string; memoryMB?: number; timeoutSec?: number; envVarKeys?: string[]; triggers?: LambdaTrigger[] }
-  | { id: string; type: 'eventbridge_rule'; name: string; state: string; scheduleExpression?: string; eventPattern?: string }
+  | {
+      id: string;
+      type: 'bucket';
+      name: string;
+      provider: string;
+      versioned?: boolean;
+      encrypted?: boolean;
+      publicAccessBlocked?: boolean;
+    }
+  | {
+      id: string;
+      type: 'lambda';
+      name: string;
+      runtime?: string;
+      memoryMB?: number;
+      timeoutSec?: number;
+      envVarKeys?: string[];
+      triggers?: LambdaTrigger[];
+    }
+  | {
+      id: string;
+      type: 'eventbridge_rule';
+      name: string;
+      state: string;
+      scheduleExpression?: string;
+      eventPattern?: string;
+    }
   | { id: string; type: 'api'; name: string; provider: string; stageName?: string }
   | {
-      id: string; type: 'database_instance'; name: string; provider: string;
-      engine: string; engineVersion: string; instanceClass: string;
-      publiclyAccessible: boolean; storageEncrypted: boolean;
-      backupRetentionDays: number; deletionProtection: boolean; multiAZ: boolean;
+      id: string;
+      type: 'database_instance';
+      name: string;
+      provider: string;
+      engine: string;
+      engineVersion: string;
+      instanceClass: string;
+      publiclyAccessible: boolean;
+      storageEncrypted: boolean;
+      backupRetentionDays: number;
+      deletionProtection: boolean;
+      multiAZ: boolean;
     };
 
 export type GraphEdge =
@@ -148,14 +215,14 @@ export interface LambdaFunctionMetadata {
   memoryMB?: number;
   timeoutSec?: number;
   lastModified?: string;
-  envVarKeys: string[];  // Key names only — values are never included
+  envVarKeys: string[]; // Key names only — values are never included
   layers: string[];
   triggers: LambdaTrigger[];
 }
 
 export interface LogGroupSummary {
   logGroupName: string;
-  retentionDays?: number;  // undefined = never expires
+  retentionDays?: number; // undefined = never expires
   errorCount: number;
   warnCount: number;
   topErrorPatterns: Array<{ pattern: string; count: number }>;
@@ -220,7 +287,17 @@ export interface ServicesMeta {
 export interface ExtractedOperation {
   functionName: string;
   operationType: string;
-  serviceType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb' | 'sqs' | 'sns' | 'ssm' | 'secretsmanager' | 'lambda' | 'kafka';
+  serviceType:
+    | 'dynamodb'
+    | 'postgres'
+    | 'mysql'
+    | 'mongodb'
+    | 'sqs'
+    | 'sns'
+    | 'ssm'
+    | 'secretsmanager'
+    | 'lambda'
+    | 'kafka';
   target: string;
   filePath: string;
 }

@@ -119,18 +119,44 @@ describe('buildGraph', () => {
 
   it('does not create duplicate nodes for same table', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
-      { functionName: 'fn2', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'b.ts' },
+      {
+        functionName: 'fn1',
+        operationType: 'query',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'a.ts',
+      },
+      {
+        functionName: 'fn2',
+        operationType: 'query',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'b.ts',
+      },
     ];
     const graph = buildGraph(ops, mockDynamoMeta, []);
-    const ordersNodes = graph.nodes.filter((n) => n.type === 'table' && 'name' in n && n.name === 'Orders');
+    const ordersNodes = graph.nodes.filter(
+      (n) => n.type === 'table' && 'name' in n && n.name === 'Orders',
+    );
     expect(ordersNodes).toHaveLength(1);
   });
 
   it('computes edge frequency correctly', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
-      { functionName: 'fn1', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'a.ts' },
+      {
+        functionName: 'fn1',
+        operationType: 'query',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'a.ts',
+      },
+      {
+        functionName: 'fn1',
+        operationType: 'query',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'a.ts',
+      },
     ];
     const graph = buildGraph(ops, mockDynamoMeta, []);
     const freq = getEdgeFrequency(graph);
@@ -146,7 +172,13 @@ describe('buildGraph', () => {
 
   it('creates MySQL table and index nodes from metadata', () => {
     const mysqlMeta: MySQLTableMetadata[] = [
-      { schema: 'shop', table: 'orders', columns: ['id', 'status'], indexes: ['idx_status'], primaryKeys: ['id'] },
+      {
+        schema: 'shop',
+        table: 'orders',
+        columns: ['id', 'status'],
+        indexes: ['idx_status'],
+        primaryKeys: ['id'],
+      },
     ];
     const graph = buildGraph([], [], [], mysqlMeta);
     const tables = getTableNodes(graph);
@@ -189,7 +221,15 @@ describe('buildGraph', () => {
 
   it('creates Lambda nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      lambda: [{ name: 'processOrders', runtime: 'nodejs22.x', memoryMB: 512, timeoutSec: 30, envVarKeys: [] }],
+      lambda: [
+        {
+          name: 'processOrders',
+          runtime: 'nodejs22.x',
+          memoryMB: 512,
+          timeoutSec: 30,
+          envVarKeys: [],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const lambdas = getLambdaNodes(graph);
@@ -229,7 +269,13 @@ describe('buildGraph', () => {
 
   it('creates publishes_to edge for SQS operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'sendOrder', operationType: 'send', serviceType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
+      {
+        functionName: 'sendOrder',
+        operationType: 'send',
+        serviceType: 'sqs',
+        target: 'orders-queue',
+        filePath: 'src/orders.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     const edge = graph.edges.find((e) => e.type === 'publishes_to');
@@ -239,7 +285,13 @@ describe('buildGraph', () => {
 
   it('creates triggers edge for Lambda invocation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'handler', operationType: 'invoke', serviceType: 'lambda', target: 'processOrders', filePath: 'src/handler.ts' },
+      {
+        functionName: 'handler',
+        operationType: 'invoke',
+        serviceType: 'lambda',
+        target: 'processOrders',
+        filePath: 'src/handler.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     const edge = graph.edges.find((e) => e.type === 'triggers');
@@ -249,7 +301,13 @@ describe('buildGraph', () => {
 
   it('creates reads_secret edge for Secrets Manager operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'getSecret', operationType: 'getSecretValue', serviceType: 'secretsmanager', target: 'db-password', filePath: 'src/secrets.ts' },
+      {
+        functionName: 'getSecret',
+        operationType: 'getSecretValue',
+        serviceType: 'secretsmanager',
+        target: 'db-password',
+        filePath: 'src/secrets.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     expect(graph.edges.some((e) => e.type === 'reads_secret')).toBe(true);
@@ -257,7 +315,13 @@ describe('buildGraph', () => {
 
   it('creates reads_parameter edge for SSM operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'getParam', operationType: 'getParameter', serviceType: 'ssm', target: '/app/db-url', filePath: 'src/config.ts' },
+      {
+        functionName: 'getParam',
+        operationType: 'getParameter',
+        serviceType: 'ssm',
+        target: '/app/db-url',
+        filePath: 'src/config.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     expect(graph.edges.some((e) => e.type === 'reads_parameter')).toBe(true);
@@ -265,7 +329,13 @@ describe('buildGraph', () => {
 
   it('creates publishes_to edge and kafka topic node for kafka producer operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'publishOrder', operationType: 'send', serviceType: 'kafka', target: 'orders', filePath: 'src/orders.ts' },
+      {
+        functionName: 'publishOrder',
+        operationType: 'send',
+        serviceType: 'kafka',
+        target: 'orders',
+        filePath: 'src/orders.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     const topicNode = graph.nodes.find((n) => n.type === 'topic' && n.name === 'orders');
@@ -277,7 +347,13 @@ describe('buildGraph', () => {
 
   it('creates subscribes_to edge for kafka consumer operation', () => {
     const ops: ExtractedOperation[] = [
-      { functionName: 'startConsumer', operationType: 'subscribe', serviceType: 'kafka', target: 'payments', filePath: 'src/consumer.ts' },
+      {
+        functionName: 'startConsumer',
+        operationType: 'subscribe',
+        serviceType: 'kafka',
+        target: 'payments',
+        filePath: 'src/consumer.ts',
+      },
     ];
     const graph = buildGraph(ops, [], []);
     const edge = graph.edges.find((e) => e.type === 'subscribes_to');
@@ -287,21 +363,37 @@ describe('buildGraph', () => {
 
   it('wires EventBridge rule target to Lambda trigger list', () => {
     const services: ServicesMeta = {
-      lambda: [{ name: 'generateReport', runtime: 'nodejs22.x', memoryMB: 512, timeoutSec: 30, envVarKeys: [], layers: [], triggers: [] }],
-      eventbridge: [{
-        name: 'daily-report',
-        arn: 'arn:aws:events:us-east-1:000:rule/daily-report',
-        state: 'ENABLED',
-        scheduleExpression: 'rate(1 day)',
-        targetArns: ['arn:aws:lambda:us-east-1:000:function:generateReport'],
-      }],
+      lambda: [
+        {
+          name: 'generateReport',
+          runtime: 'nodejs22.x',
+          memoryMB: 512,
+          timeoutSec: 30,
+          envVarKeys: [],
+          layers: [],
+          triggers: [],
+        },
+      ],
+      eventbridge: [
+        {
+          name: 'daily-report',
+          arn: 'arn:aws:events:us-east-1:000:rule/daily-report',
+          state: 'ENABLED',
+          scheduleExpression: 'rate(1 day)',
+          targetArns: ['arn:aws:lambda:us-east-1:000:function:generateReport'],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const lambdas = getLambdaNodes(graph);
     const fn = lambdas.find((l) => l.name === 'generateReport');
     expect(fn).toBeDefined();
-    expect(fn?.triggers?.some((t) => t.type === 'eventbridge' && t.sourceName === 'daily-report')).toBe(true);
-    const triggerEdge = graph.edges.find((e) => e.type === 'triggers' && e.to === 'lambda:aws:generateReport');
+    expect(
+      fn?.triggers?.some((t) => t.type === 'eventbridge' && t.sourceName === 'daily-report'),
+    ).toBe(true);
+    const triggerEdge = graph.edges.find(
+      (e) => e.type === 'triggers' && e.to === 'lambda:aws:generateReport',
+    );
     expect(triggerEdge).toBeDefined();
   });
 
@@ -310,7 +402,13 @@ describe('buildGraph', () => {
       sqs: [{ name: 'orders-queue', hasDLQ: true, encrypted: true, approximateMessages: 0 }],
     };
     const ops: ExtractedOperation[] = [
-      { functionName: 'sendOrder', operationType: 'send', serviceType: 'sqs', target: 'orders-queue', filePath: 'src/orders.ts' },
+      {
+        functionName: 'sendOrder',
+        operationType: 'send',
+        serviceType: 'sqs',
+        target: 'orders-queue',
+        filePath: 'src/orders.ts',
+      },
     ];
     const graph = buildGraph(ops, [], [], [], [], services);
     const queueNodes = graph.nodes.filter((n) => n.type === 'queue' && n.name === 'orders-queue');
@@ -319,14 +417,16 @@ describe('buildGraph', () => {
 
   it('creates bucket nodes from servicesMeta.s3', () => {
     const services: ServicesMeta = {
-      s3: [{
-        name: 'uploads-bucket',
-        arn: 'arn:aws:s3:::uploads-bucket',
-        versioned: true,
-        encrypted: true,
-        publicAccessBlocked: true,
-        notifications: [],
-      }],
+      s3: [
+        {
+          name: 'uploads-bucket',
+          arn: 'arn:aws:s3:::uploads-bucket',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+          notifications: [],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const buckets = getBucketNodes(graph);
@@ -339,20 +439,33 @@ describe('buildGraph', () => {
 
   it('back-propagates S3 notification as Lambda trigger', () => {
     const services: ServicesMeta = {
-      lambda: [{ name: 'processUpload', runtime: 'nodejs22.x', memoryMB: 512, timeoutSec: 30, envVarKeys: [], triggers: [] }],
-      s3: [{
-        name: 'uploads-bucket',
-        arn: 'arn:aws:s3:::uploads-bucket',
-        versioned: true,
-        encrypted: true,
-        publicAccessBlocked: true,
-        notifications: [{
-          events: ['s3:ObjectCreated:*'],
-          lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
-          lambdaName: 'processUpload',
-          prefix: 'uploads/',
-        }],
-      }],
+      lambda: [
+        {
+          name: 'processUpload',
+          runtime: 'nodejs22.x',
+          memoryMB: 512,
+          timeoutSec: 30,
+          envVarKeys: [],
+          triggers: [],
+        },
+      ],
+      s3: [
+        {
+          name: 'uploads-bucket',
+          arn: 'arn:aws:s3:::uploads-bucket',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+          notifications: [
+            {
+              events: ['s3:ObjectCreated:*'],
+              lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
+              lambdaName: 'processUpload',
+              prefix: 'uploads/',
+            },
+          ],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const lambdas = getLambdaNodes(graph);
@@ -363,7 +476,9 @@ describe('buildGraph', () => {
     expect(fn?.triggers?.[0].sourceName).toBe('uploads-bucket');
     expect(fn?.triggers?.[0].eventShape).toBe('event.Records[0].s3.object.key');
     expect(fn?.triggers?.[0].events).toEqual(['s3:ObjectCreated:*']);
-    const triggerEdge = graph.edges.find((e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket');
+    const triggerEdge = graph.edges.find(
+      (e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket',
+    );
     expect(triggerEdge).toBeDefined();
     expect(triggerEdge?.to).toBe('lambda:aws:processUpload');
   });
@@ -371,24 +486,30 @@ describe('buildGraph', () => {
   it('silently skips S3 notification when target Lambda is not in graph', () => {
     const services: ServicesMeta = {
       // No lambda nodes — Lambda extraction disabled
-      s3: [{
-        name: 'uploads-bucket',
-        arn: 'arn:aws:s3:::uploads-bucket',
-        versioned: true,
-        encrypted: true,
-        publicAccessBlocked: true,
-        notifications: [{
-          events: ['s3:ObjectCreated:*'],
-          lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
-          lambdaName: 'processUpload',
-        }],
-      }],
+      s3: [
+        {
+          name: 'uploads-bucket',
+          arn: 'arn:aws:s3:::uploads-bucket',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+          notifications: [
+            {
+              events: ['s3:ObjectCreated:*'],
+              lambdaArn: 'arn:aws:lambda:us-east-1:000:function:processUpload',
+              lambdaName: 'processUpload',
+            },
+          ],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const buckets = getBucketNodes(graph);
     expect(buckets).toHaveLength(1);
     // No triggers edge added since Lambda not in graph
-    const triggerEdges = graph.edges.filter((e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket');
+    const triggerEdges = graph.edges.filter(
+      (e) => e.type === 'triggers' && e.from === 'bucket:aws:uploads-bucket',
+    );
     expect(triggerEdges).toHaveLength(0);
   });
 });
@@ -396,8 +517,20 @@ describe('buildGraph', () => {
 describe('edge selectors', () => {
   const graph = buildGraph(
     [
-      { functionName: 'getOrder', operationType: 'query', serviceType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
-      { functionName: 'listOrders', operationType: 'scan', serviceType: 'dynamodb', target: 'Orders', filePath: 'src/orders.ts' },
+      {
+        functionName: 'getOrder',
+        operationType: 'query',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'src/orders.ts',
+      },
+      {
+        functionName: 'listOrders',
+        operationType: 'scan',
+        serviceType: 'dynamodb',
+        target: 'Orders',
+        filePath: 'src/orders.ts',
+      },
     ],
     [{ tableName: 'Orders', partitionKey: 'orderId', indexes: [] }],
     [],

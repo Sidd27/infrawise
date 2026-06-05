@@ -20,7 +20,10 @@ export class IaCDriftAnalyzer implements Analyzer {
 
     const deployedDynamo = new Set(
       graph.nodes
-        .filter((n): n is Extract<GraphNode, { type: 'table' }> => n.type === 'table' && n.databaseType === 'dynamodb')
+        .filter(
+          (n): n is Extract<GraphNode, { type: 'table' }> =>
+            n.type === 'table' && n.databaseType === 'dynamodb',
+        )
         .map((n) => n.name),
     );
     const iacDynamo = new Map(iac.dynamoTables.map((t) => [t.name, t.filePath]));
@@ -31,8 +34,14 @@ export class IaCDriftAnalyzer implements Analyzer {
           severity: 'medium',
           issue: `IaC drift: DynamoDB table "${name}" defined in IaC but not deployed`,
           description: `"${name}" is in ${fp} but not found in AWS. It may be undeployed or deleted manually.`,
-          recommendation: 'Run `terraform apply` / deploy your stack, or remove the definition from IaC.',
-          metadata: { resourceType: 'dynamodb_table', name, filePath: fp, driftType: 'defined_not_deployed' },
+          recommendation:
+            'Run `terraform apply` / deploy your stack, or remove the definition from IaC.',
+          metadata: {
+            resourceType: 'dynamodb_table',
+            name,
+            filePath: fp,
+            driftType: 'defined_not_deployed',
+          },
         });
       }
     }
@@ -42,7 +51,8 @@ export class IaCDriftAnalyzer implements Analyzer {
           severity: 'medium',
           issue: `IaC drift: DynamoDB table "${name}" deployed but not in IaC`,
           description: `"${name}" exists in AWS DynamoDB but has no IaC definition. It may have been created manually.`,
-          recommendation: 'Import the table with `terraform import` or add a CloudFormation resource, then track all future changes through IaC.',
+          recommendation:
+            'Import the table with `terraform import` or add a CloudFormation resource, then track all future changes through IaC.',
           metadata: { resourceType: 'dynamodb_table', name, driftType: 'deployed_not_defined' },
         });
       }
@@ -62,7 +72,12 @@ export class IaCDriftAnalyzer implements Analyzer {
           issue: `IaC drift: SQS queue "${name}" defined in IaC but not deployed`,
           description: `SQS queue "${name}" is defined in ${fp} but not found in the live account.`,
           recommendation: 'Deploy the queue via `terraform apply` or your CFN/CDK stack.',
-          metadata: { resourceType: 'sqs_queue', name, filePath: fp, driftType: 'defined_not_deployed' },
+          metadata: {
+            resourceType: 'sqs_queue',
+            name,
+            filePath: fp,
+            driftType: 'defined_not_deployed',
+          },
         });
       }
     }
@@ -92,7 +107,12 @@ export class IaCDriftAnalyzer implements Analyzer {
           issue: `IaC drift: Lambda "${name}" defined in IaC but not deployed`,
           description: `Lambda function "${name}" is defined in ${fp} but not found in the live account.`,
           recommendation: 'Deploy the function via `terraform apply` or your CFN/CDK stack.',
-          metadata: { resourceType: 'lambda_function', name, filePath: fp, driftType: 'defined_not_deployed' },
+          metadata: {
+            resourceType: 'lambda_function',
+            name,
+            filePath: fp,
+            driftType: 'defined_not_deployed',
+          },
         });
       }
     }

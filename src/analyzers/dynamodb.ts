@@ -77,9 +77,7 @@ export class MissingGSIAnalyzer implements Analyzer {
       const queryEdges = incomingEdges.filter((e) => e.type === 'query');
 
       // Check if this table has any GSIs
-      const hasGSI = graph.edges.some(
-        (e) => e.from === table.id && e.type === 'uses_index',
-      );
+      const hasGSI = graph.edges.some((e) => e.from === table.id && e.type === 'uses_index');
 
       // If there are query operations but no GSI, flag as medium severity
       if (queryEdges.length > 0 && !hasGSI) {

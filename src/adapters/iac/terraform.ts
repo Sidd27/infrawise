@@ -105,7 +105,11 @@ function emptySchema(): IaCSchema {
 
 // ─── File discovery ───────────────────────────────────────────────────────────
 
-function findFilesRecursively(dir: string, extensions: string[], skipDirs = new Set(['node_modules', '.git', 'dist', '.infrawise'])): string[] {
+function findFilesRecursively(
+  dir: string,
+  extensions: string[],
+  skipDirs = new Set(['node_modules', '.git', 'dist', '.infrawise']),
+): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
 
@@ -124,7 +128,9 @@ function findFilesRecursively(dir: string, extensions: string[], skipDirs = new 
 
 // ─── Terraform HCL parser ─────────────────────────────────────────────────────
 
-function extractTerraformResourceBlocks(content: string): Array<{ resourceType: string; resourceName: string; body: string }> {
+function extractTerraformResourceBlocks(
+  content: string,
+): Array<{ resourceType: string; resourceName: string; body: string }> {
   const results: Array<{ resourceType: string; resourceName: string; body: string }> = [];
   const resourcePattern = /resource\s+"([^"]+)"\s+"([^"]+)"\s*\{/g;
   let match: RegExpExecArray | null;
@@ -174,7 +180,11 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
 
   for (const filePath of tfFiles) {
     let content: string;
-    try { content = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      continue;
+    }
 
     for (const { resourceType, resourceName, body } of extractTerraformResourceBlocks(content)) {
       switch (resourceType) {
@@ -184,30 +194,35 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
             partitionKey: tfStr(body, 'hash_key'),
             sortKey: tfStr(body, 'range_key'),
             gsiNames: tfGSINames(body),
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
         case 'aws_db_instance':
         case 'aws_rds_cluster':
           schema.rdsInstances.push({
-            identifier: tfStr(body, 'identifier') ?? tfStr(body, 'cluster_identifier') ?? resourceName,
+            identifier:
+              tfStr(body, 'identifier') ?? tfStr(body, 'cluster_identifier') ?? resourceName,
             engine: tfStr(body, 'engine') ?? 'unknown',
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
         case 'aws_docdb_cluster':
           schema.mongoClusters.push({
             identifier: tfStr(body, 'cluster_identifier') ?? resourceName,
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
         case 'aws_sqs_queue': {
           const name = tfStr(body, 'name') ?? resourceName;
           const hasDLQ = body.includes('redrive_policy');
-          const encrypted = body.includes('kms_master_key_id') || tfBool(body, 'sqs_managed_sse_enabled');
+          const encrypted =
+            body.includes('kms_master_key_id') || tfBool(body, 'sqs_managed_sse_enabled');
           schema.queues.push({ name, hasDLQ, encrypted, source: 'terraform', filePath });
           break;
         }
@@ -216,7 +231,8 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           schema.topics.push({
             name: tfStr(body, 'name') ?? resourceName,
             encrypted: body.includes('kms_master_key_id'),
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
@@ -224,7 +240,8 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           schema.lambdas.push({
             name: tfStr(body, 'function_name') ?? resourceName,
             runtime: tfStr(body, 'runtime'),
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
@@ -232,7 +249,8 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           schema.buckets.push({
             name: tfStr(body, 'bucket') ?? tfStr(body, 'bucket_prefix') ?? resourceName,
             versioned: body.includes('versioning') && body.includes('enabled = true'),
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
@@ -240,14 +258,16 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           schema.parameters.push({
             name: tfStr(body, 'name') ?? resourceName,
             type: tfStr(body, 'type') ?? 'String',
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
         case 'aws_secretsmanager_secret':
           schema.secrets.push({
             name: tfStr(body, 'name') ?? resourceName,
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
 
@@ -255,7 +275,8 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
         case 'aws_apigatewayv2_api':
           schema.apiGateways.push({
             name: tfStr(body, 'name') ?? resourceName,
-            source: 'terraform', filePath,
+            source: 'terraform',
+            filePath,
           });
           break;
       }
@@ -270,19 +291,28 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
 function isCloudFormationTemplate(parsed: unknown): boolean {
   if (typeof parsed !== 'object' || parsed === null) return false;
   const obj = parsed as Record<string, unknown>;
-  return 'AWSTemplateFormatVersion' in obj || ('Resources' in obj && typeof obj['Resources'] === 'object');
+  return (
+    'AWSTemplateFormatVersion' in obj ||
+    ('Resources' in obj && typeof obj['Resources'] === 'object')
+  );
 }
 
 function parseCFNFile(filePath: string): Record<string, unknown> | null {
   let content: string;
-  try { content = fs.readFileSync(filePath, 'utf-8'); } catch { return null; }
+  try {
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
 
   if (!content.includes('AWSTemplateFormatVersion') && !content.includes('Resources')) return null;
 
   let parsed: unknown;
   try {
     parsed = filePath.endsWith('.json') ? JSON.parse(content) : yaml.load(content);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 
   if (!isCloudFormationTemplate(parsed)) return null;
   return parsed as Record<string, unknown>;
@@ -338,7 +368,8 @@ function processCFNResources(
           partitionKey: pk,
           sortKey: sk,
           gsiNames,
-          source, filePath,
+          source,
+          filePath,
         });
         break;
       }
@@ -347,7 +378,8 @@ function processCFNResources(
         schema.rdsInstances.push({
           identifier: cfnStr(props, 'DBInstanceIdentifier') ?? logicalId,
           engine: cfnStr(props, 'Engine') ?? 'unknown',
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
@@ -355,14 +387,16 @@ function processCFNResources(
         schema.rdsInstances.push({
           identifier: cfnStr(props, 'DBClusterIdentifier') ?? logicalId,
           engine: cfnStr(props, 'Engine') ?? 'aurora',
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
       case 'AWS::DocDB::DBCluster':
         schema.mongoClusters.push({
           identifier: cfnStr(props, 'DBClusterIdentifier') ?? logicalId,
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
@@ -378,7 +412,8 @@ function processCFNResources(
         schema.topics.push({
           name: cfnStr(props, 'TopicName') ?? logicalId,
           encrypted: !!props['KmsMasterKeyId'],
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
@@ -386,16 +421,20 @@ function processCFNResources(
         schema.lambdas.push({
           name: cfnStr(props, 'FunctionName') ?? logicalId,
           runtime: cfnStr(props, 'Runtime'),
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
       case 'AWS::S3::Bucket': {
-        const versioningConfig = props['VersioningConfiguration'] as Record<string, unknown> | undefined;
+        const versioningConfig = props['VersioningConfiguration'] as
+          | Record<string, unknown>
+          | undefined;
         schema.buckets.push({
           name: cfnStr(props, 'BucketName') ?? logicalId,
           versioned: versioningConfig?.['Status'] === 'Enabled',
-          source, filePath,
+          source,
+          filePath,
         });
         break;
       }
@@ -404,14 +443,16 @@ function processCFNResources(
         schema.parameters.push({
           name: cfnStr(props, 'Name') ?? logicalId,
           type: cfnStr(props, 'Type') ?? 'String',
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
       case 'AWS::SecretsManager::Secret':
         schema.secrets.push({
           name: cfnStr(props, 'Name') ?? logicalId,
-          source, filePath,
+          source,
+          filePath,
         });
         break;
 
@@ -419,7 +460,8 @@ function processCFNResources(
       case 'AWS::ApiGatewayV2::Api':
         schema.apiGateways.push({
           name: cfnStr(props, 'Name') ?? logicalId,
-          source, filePath,
+          source,
+          filePath,
         });
         break;
     }
@@ -450,7 +492,8 @@ export async function extractCDKSchema(repoPath: string): Promise<IaCSchema> {
   // Strategy 1: Parse cdk.out/*.template.json (synthesized CloudFormation)
   const cdkOutDir = path.join(repoPath, 'cdk.out');
   if (fs.existsSync(cdkOutDir)) {
-    const templateFiles = fs.readdirSync(cdkOutDir)
+    const templateFiles = fs
+      .readdirSync(cdkOutDir)
       .filter((f) => f.endsWith('.template.json'))
       .map((f) => path.join(cdkOutDir, f));
 
@@ -497,43 +540,73 @@ function mergeSchemas(...schemas: IaCSchema[]): IaCSchema {
   for (const schema of schemas) {
     for (const t of schema.dynamoTables) {
       const k = `${t.source}::${t.name}`;
-      if (!seen.dynamo.has(k)) { seen.dynamo.add(k); merged.dynamoTables.push(t); }
+      if (!seen.dynamo.has(k)) {
+        seen.dynamo.add(k);
+        merged.dynamoTables.push(t);
+      }
     }
     for (const r of schema.rdsInstances) {
       const k = `${r.source}::${r.identifier}`;
-      if (!seen.rds.has(k)) { seen.rds.add(k); merged.rdsInstances.push(r); }
+      if (!seen.rds.has(k)) {
+        seen.rds.add(k);
+        merged.rdsInstances.push(r);
+      }
     }
     for (const m of schema.mongoClusters) {
       const k = `${m.source}::${m.identifier}`;
-      if (!seen.mongo.has(k)) { seen.mongo.add(k); merged.mongoClusters.push(m); }
+      if (!seen.mongo.has(k)) {
+        seen.mongo.add(k);
+        merged.mongoClusters.push(m);
+      }
     }
     for (const q of schema.queues) {
       const k = `${q.source}::${q.name}`;
-      if (!seen.queue.has(k)) { seen.queue.add(k); merged.queues.push(q); }
+      if (!seen.queue.has(k)) {
+        seen.queue.add(k);
+        merged.queues.push(q);
+      }
     }
     for (const t of schema.topics) {
       const k = `${t.source}::${t.name}`;
-      if (!seen.topic.has(k)) { seen.topic.add(k); merged.topics.push(t); }
+      if (!seen.topic.has(k)) {
+        seen.topic.add(k);
+        merged.topics.push(t);
+      }
     }
     for (const l of schema.lambdas) {
       const k = `${l.source}::${l.name}`;
-      if (!seen.lambda.has(k)) { seen.lambda.add(k); merged.lambdas.push(l); }
+      if (!seen.lambda.has(k)) {
+        seen.lambda.add(k);
+        merged.lambdas.push(l);
+      }
     }
     for (const b of schema.buckets) {
       const k = `${b.source}::${b.name}`;
-      if (!seen.bucket.has(k)) { seen.bucket.add(k); merged.buckets.push(b); }
+      if (!seen.bucket.has(k)) {
+        seen.bucket.add(k);
+        merged.buckets.push(b);
+      }
     }
     for (const p of schema.parameters) {
       const k = `${p.source}::${p.name}`;
-      if (!seen.param.has(k)) { seen.param.add(k); merged.parameters.push(p); }
+      if (!seen.param.has(k)) {
+        seen.param.add(k);
+        merged.parameters.push(p);
+      }
     }
     for (const s of schema.secrets) {
       const k = `${s.source}::${s.name}`;
-      if (!seen.secret.has(k)) { seen.secret.add(k); merged.secrets.push(s); }
+      if (!seen.secret.has(k)) {
+        seen.secret.add(k);
+        merged.secrets.push(s);
+      }
     }
     for (const a of schema.apiGateways) {
       const k = `${a.source}::${a.name}`;
-      if (!seen.api.has(k)) { seen.api.add(k); merged.apiGateways.push(a); }
+      if (!seen.api.has(k)) {
+        seen.api.add(k);
+        merged.apiGateways.push(a);
+      }
     }
   }
 
@@ -549,10 +622,17 @@ export async function extractIaCSchema(repoPath: string): Promise<IaCSchema> {
 
   const merged = mergeSchemas(tfSchema, cfnSchema, cdkSchema);
 
-  const total = merged.dynamoTables.length + merged.rdsInstances.length +
-    merged.mongoClusters.length + merged.queues.length + merged.topics.length +
-    merged.lambdas.length + merged.buckets.length + merged.parameters.length +
-    merged.secrets.length + merged.apiGateways.length;
+  const total =
+    merged.dynamoTables.length +
+    merged.rdsInstances.length +
+    merged.mongoClusters.length +
+    merged.queues.length +
+    merged.topics.length +
+    merged.lambdas.length +
+    merged.buckets.length +
+    merged.parameters.length +
+    merged.secrets.length +
+    merged.apiGateways.length;
 
   logger.debug(`IaC schema total: ${total} resource(s) across TF/CFN/CDK`);
   return merged;

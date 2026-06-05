@@ -10,13 +10,17 @@ import { runDev } from './commands/dev.js';
 import { runDoctor } from './commands/doctor.js';
 import { runStdio } from './commands/stdio.js';
 
-const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8')) as { version: string };
+const { version } = JSON.parse(
+  readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
+) as { version: string };
 
 const program = new Command();
 
 program
   .name('infrawise')
-  .description('CLI-first infrastructure intelligence platform — analyze your databases, AWS services, and IaC')
+  .description(
+    'CLI-first infrastructure intelligence platform — analyze your databases, AWS services, and IaC',
+  )
   .version(version);
 
 program

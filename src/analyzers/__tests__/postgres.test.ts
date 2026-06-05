@@ -5,7 +5,12 @@ import type { SystemGraph } from '../../types';
 function makePostgresQueryGraph(withIndex = false): SystemGraph {
   const nodes: SystemGraph['nodes'] = [
     { id: 'fn:getPayment', type: 'function', name: 'getPayment', file: 'src/payments.ts' },
-    { id: 'table:pg:public.payments', type: 'table', name: 'public.payments', databaseType: 'postgres' },
+    {
+      id: 'table:pg:public.payments',
+      type: 'table',
+      name: 'public.payments',
+      databaseType: 'postgres',
+    },
   ];
   const edges: SystemGraph['edges'] = [
     { from: 'fn:getPayment', to: 'table:pg:public.payments', type: 'query' },
@@ -13,7 +18,11 @@ function makePostgresQueryGraph(withIndex = false): SystemGraph {
 
   if (withIndex) {
     nodes.push({ id: 'index:public.payments:idx_status', type: 'index', name: 'idx_status' });
-    edges.push({ from: 'table:pg:public.payments', to: 'index:public.payments:idx_status', type: 'uses_index' });
+    edges.push({
+      from: 'table:pg:public.payments',
+      to: 'index:public.payments:idx_status',
+      type: 'uses_index',
+    });
   }
 
   return { nodes, edges };
@@ -61,7 +70,12 @@ describe('NplusOneAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:processOrders', type: 'function', name: 'processOrders', file: 'src/orders.ts' },
-        { id: 'table:pg:public.payments', type: 'table', name: 'public.payments', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.payments',
+          type: 'table',
+          name: 'public.payments',
+          databaseType: 'postgres',
+        },
       ],
       edges: [
         { from: 'fn:processOrders', to: 'table:pg:public.payments', type: 'query' },
@@ -79,7 +93,12 @@ describe('NplusOneAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:getPayment', type: 'function', name: 'getPayment', file: 'src/pay.ts' },
-        { id: 'table:pg:public.payments', type: 'table', name: 'public.payments', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.payments',
+          type: 'table',
+          name: 'public.payments',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:getPayment', to: 'table:pg:public.payments', type: 'query' }],
     };
@@ -110,7 +129,12 @@ describe('LargeSelectAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/x.ts' },
-        { id: 'table:pg:public.orders', type: 'table', name: 'public.orders', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.orders',
+          type: 'table',
+          name: 'public.orders',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };
@@ -132,7 +156,12 @@ describe('LargeSelectAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:getOne', type: 'function', name: 'getOne', file: 'src/x.ts' },
-        { id: 'table:pg:public.orders', type: 'table', name: 'public.orders', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.orders',
+          type: 'table',
+          name: 'public.orders',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:getOne', to: 'table:pg:public.orders', type: 'query' }],
     };

@@ -29,14 +29,29 @@ describe('IaCDriftAnalyzer', () => {
     const analyzer = new IaCDriftAnalyzer();
     const iac = makeEmptyIaC();
     iac.dynamoTables = [{ name: 'Orders', filePath: 'main.tf', gsiNames: [], source: 'terraform' }];
-    iac.queues = [{ name: 'orders-queue', filePath: 'main.tf', hasDLQ: false, encrypted: false, source: 'terraform' }];
+    iac.queues = [
+      {
+        name: 'orders-queue',
+        filePath: 'main.tf',
+        hasDLQ: false,
+        encrypted: false,
+        source: 'terraform',
+      },
+    ];
     iac.lambdas = [{ name: 'processOrders', filePath: 'main.tf', source: 'terraform' }];
     analyzer.setIaCSchema(iac);
 
     const graph: SystemGraph = {
       nodes: [
         { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
-        { id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: false, encrypted: true },
+        {
+          id: 'queue:aws:orders-queue',
+          type: 'queue',
+          name: 'orders-queue',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
         { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders' },
       ],
       edges: [],
@@ -48,7 +63,9 @@ describe('IaCDriftAnalyzer', () => {
     it('flags DynamoDB table defined in IaC but not deployed', async () => {
       const analyzer = new IaCDriftAnalyzer();
       const iac = makeEmptyIaC();
-      iac.dynamoTables = [{ name: 'Orders', filePath: 'main.tf', gsiNames: [], source: 'terraform' }];
+      iac.dynamoTables = [
+        { name: 'Orders', filePath: 'main.tf', gsiNames: [], source: 'terraform' },
+      ];
       analyzer.setIaCSchema(iac);
 
       const graph: SystemGraph = { nodes: [], edges: [] };
@@ -64,7 +81,9 @@ describe('IaCDriftAnalyzer', () => {
       analyzer.setIaCSchema(makeEmptyIaC());
 
       const graph: SystemGraph = {
-        nodes: [{ id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' }],
+        nodes: [
+          { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+        ],
         edges: [],
       };
       const findings = await analyzer.analyze(graph);
@@ -78,7 +97,15 @@ describe('IaCDriftAnalyzer', () => {
     it('flags queue defined in IaC but not deployed', async () => {
       const analyzer = new IaCDriftAnalyzer();
       const iac = makeEmptyIaC();
-      iac.queues = [{ name: 'orders-queue', filePath: 'queues.tf', hasDLQ: false, encrypted: false, source: 'terraform' }];
+      iac.queues = [
+        {
+          name: 'orders-queue',
+          filePath: 'queues.tf',
+          hasDLQ: false,
+          encrypted: false,
+          source: 'terraform',
+        },
+      ];
       analyzer.setIaCSchema(iac);
 
       const graph: SystemGraph = { nodes: [], edges: [] };
@@ -93,7 +120,16 @@ describe('IaCDriftAnalyzer', () => {
       analyzer.setIaCSchema(makeEmptyIaC());
 
       const graph: SystemGraph = {
-        nodes: [{ id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: false, encrypted: true }],
+        nodes: [
+          {
+            id: 'queue:aws:orders-queue',
+            type: 'queue',
+            name: 'orders-queue',
+            provider: 'aws',
+            hasDLQ: false,
+            encrypted: true,
+          },
+        ],
         edges: [],
       };
       const findings = await analyzer.analyze(graph);
@@ -135,8 +171,18 @@ describe('IaCDriftAnalyzer', () => {
   it('reports multiple drift findings across resource types', async () => {
     const analyzer = new IaCDriftAnalyzer();
     const iac = makeEmptyIaC();
-    iac.dynamoTables = [{ name: 'MissingTable', filePath: 'main.tf', gsiNames: [], source: 'terraform' }];
-    iac.queues = [{ name: 'MissingQueue', filePath: 'main.tf', hasDLQ: false, encrypted: false, source: 'terraform' }];
+    iac.dynamoTables = [
+      { name: 'MissingTable', filePath: 'main.tf', gsiNames: [], source: 'terraform' },
+    ];
+    iac.queues = [
+      {
+        name: 'MissingQueue',
+        filePath: 'main.tf',
+        hasDLQ: false,
+        encrypted: false,
+        source: 'terraform',
+      },
+    ];
     analyzer.setIaCSchema(iac);
 
     const graph: SystemGraph = { nodes: [], edges: [] };

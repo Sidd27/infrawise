@@ -1,4 +1,9 @@
-export { loadConfig, generateDefaultConfig, InfrawiseConfigSchema, ConfigError as ConfigValidationError } from './config.js';
+export {
+  loadConfig,
+  generateDefaultConfig,
+  InfrawiseConfigSchema,
+  ConfigError as ConfigValidationError,
+} from './config.js';
 export { logger } from './logger.js';
 export type { Logger } from './logger.js';
 export {

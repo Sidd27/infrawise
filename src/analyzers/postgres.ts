@@ -133,8 +133,10 @@ export class LargeSelectAnalyzer implements Analyzer {
     );
 
     for (const queryNode of queryNodes) {
-      if (queryNode.operation.toLowerCase().includes('select *') ||
-          queryNode.operation.toLowerCase().includes('select_all')) {
+      if (
+        queryNode.operation.toLowerCase().includes('select *') ||
+        queryNode.operation.toLowerCase().includes('select_all')
+      ) {
         findings.push({
           severity: 'low',
           issue: `SELECT * usage detected in query "${queryNode.operation}"`,

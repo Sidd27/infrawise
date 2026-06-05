@@ -19,7 +19,16 @@ describe('MissingDLQAnalyzer', () => {
 
   it('flags queue without a DLQ', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: false, encrypted: true }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -30,7 +39,16 @@ describe('MissingDLQAnalyzer', () => {
 
   it('does not flag queue that has a DLQ', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -47,8 +65,22 @@ describe('MissingDLQAnalyzer', () => {
   it('flags multiple queues missing DLQs', async () => {
     const graph: SystemGraph = {
       nodes: [
-        { id: 'queue:aws:a', type: 'queue', name: 'a', provider: 'aws', hasDLQ: false, encrypted: true },
-        { id: 'queue:aws:b', type: 'queue', name: 'b', provider: 'aws', hasDLQ: false, encrypted: true },
+        {
+          id: 'queue:aws:a',
+          type: 'queue',
+          name: 'a',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
+        {
+          id: 'queue:aws:b',
+          type: 'queue',
+          name: 'b',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
       ],
       edges: [],
     };
@@ -61,7 +93,16 @@ describe('UnencryptedQueueAnalyzer', () => {
 
   it('flags unencrypted queue', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: false }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: false,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -72,7 +113,16 @@ describe('UnencryptedQueueAnalyzer', () => {
 
   it('does not flag encrypted queue', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -87,7 +137,17 @@ describe('LargeQueueBacklogAnalyzer', () => {
   it('flags queue above default threshold (1000)', async () => {
     const analyzer = new LargeQueueBacklogAnalyzer();
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true, approximateMessages: 1500 }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+          approximateMessages: 1500,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -99,7 +159,17 @@ describe('LargeQueueBacklogAnalyzer', () => {
   it('does not flag queue below threshold', async () => {
     const analyzer = new LargeQueueBacklogAnalyzer();
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true, approximateMessages: 500 }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+          approximateMessages: 500,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -108,7 +178,17 @@ describe('LargeQueueBacklogAnalyzer', () => {
   it('respects custom threshold', async () => {
     const analyzer = new LargeQueueBacklogAnalyzer(100);
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true, approximateMessages: 101 }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+          approximateMessages: 101,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(1);
@@ -117,7 +197,16 @@ describe('LargeQueueBacklogAnalyzer', () => {
   it('treats missing approximateMessages as 0', async () => {
     const analyzer = new LargeQueueBacklogAnalyzer();
     const graph: SystemGraph = {
-      nodes: [{ id: 'queue:aws:orders', type: 'queue', name: 'orders', provider: 'aws', hasDLQ: true, encrypted: true }],
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -129,7 +218,15 @@ describe('MissingSecretRotationAnalyzer', () => {
 
   it('flags secret without rotation', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'secret:aws:db-password', type: 'secret', name: 'db-password', provider: 'aws', rotationEnabled: false }],
+      nodes: [
+        {
+          id: 'secret:aws:db-password',
+          type: 'secret',
+          name: 'db-password',
+          provider: 'aws',
+          rotationEnabled: false,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -140,7 +237,15 @@ describe('MissingSecretRotationAnalyzer', () => {
 
   it('does not flag secret with rotation enabled', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'secret:aws:db-password', type: 'secret', name: 'db-password', provider: 'aws', rotationEnabled: true }],
+      nodes: [
+        {
+          id: 'secret:aws:db-password',
+          type: 'secret',
+          name: 'db-password',
+          provider: 'aws',
+          rotationEnabled: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -160,7 +265,9 @@ describe('MissingLogRetentionAnalyzer', () => {
 
   it('flags log group with no retention policy', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'log_group:aws:/app/api', type: 'log_group', name: '/app/api', provider: 'aws' }],
+      nodes: [
+        { id: 'log_group:aws:/app/api', type: 'log_group', name: '/app/api', provider: 'aws' },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -171,7 +278,15 @@ describe('MissingLogRetentionAnalyzer', () => {
 
   it('flags log group with retention over 365 days', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'log_group:aws:/app/api', type: 'log_group', name: '/app/api', provider: 'aws', retentionDays: 400 }],
+      nodes: [
+        {
+          id: 'log_group:aws:/app/api',
+          type: 'log_group',
+          name: '/app/api',
+          provider: 'aws',
+          retentionDays: 400,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -182,7 +297,15 @@ describe('MissingLogRetentionAnalyzer', () => {
 
   it('does not flag log group with reasonable retention', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'log_group:aws:/app/api', type: 'log_group', name: '/app/api', provider: 'aws', retentionDays: 90 }],
+      nodes: [
+        {
+          id: 'log_group:aws:/app/api',
+          type: 'log_group',
+          name: '/app/api',
+          provider: 'aws',
+          retentionDays: 90,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -190,7 +313,15 @@ describe('MissingLogRetentionAnalyzer', () => {
 
   it('does not flag retention exactly at 365 days', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'log_group:aws:/app/api', type: 'log_group', name: '/app/api', provider: 'aws', retentionDays: 365 }],
+      nodes: [
+        {
+          id: 'log_group:aws:/app/api',
+          type: 'log_group',
+          name: '/app/api',
+          provider: 'aws',
+          retentionDays: 365,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -210,7 +341,9 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
 
   it('flags Lambda with default 128 MB memory', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', memoryMB: 128 }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', memoryMB: 128 },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -222,7 +355,9 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
 
   it('does not flag Lambda with higher memory', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', memoryMB: 512 }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', memoryMB: 512 },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -243,8 +378,27 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
   it('flags Lambda triggered by SQS queue with no DLQ', async () => {
     const graph: SystemGraph = {
       nodes: [
-        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue', sourceName: 'orders-queue', eventShape: 'event.Records[0].body' }] },
-        { id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: false, encrypted: true },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          triggers: [
+            {
+              type: 'sqs',
+              sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue',
+              sourceName: 'orders-queue',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
+        {
+          id: 'queue:aws:orders-queue',
+          type: 'queue',
+          name: 'orders-queue',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
       ],
       edges: [],
     };
@@ -259,8 +413,27 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
   it('does not flag Lambda triggered by SQS queue that has a DLQ', async () => {
     const graph: SystemGraph = {
       nodes: [
-        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue', sourceName: 'orders-queue', eventShape: 'event.Records[0].body' }] },
-        { id: 'queue:aws:orders-queue', type: 'queue', name: 'orders-queue', provider: 'aws', hasDLQ: true, encrypted: true },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          triggers: [
+            {
+              type: 'sqs',
+              sourceArn: 'arn:aws:sqs:us-east-1:000:orders-queue',
+              sourceName: 'orders-queue',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
+        {
+          id: 'queue:aws:orders-queue',
+          type: 'queue',
+          name: 'orders-queue',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
       ],
       edges: [],
     };
@@ -269,7 +442,9 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
 
   it('does not flag Lambda with no triggers', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [] }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [] },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -278,7 +453,20 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
   it('does not flag Lambda triggered by EventBridge', async () => {
     const graph: SystemGraph = {
       nodes: [
-        { id: 'lambda:aws:generateReport', type: 'lambda', name: 'generateReport', triggers: [{ type: 'eventbridge', sourceArn: 'arn:aws:events:us-east-1:000:rule/schedule', sourceName: 'schedule', eventShape: 'event.detail', ruleName: 'schedule' }] },
+        {
+          id: 'lambda:aws:generateReport',
+          type: 'lambda',
+          name: 'generateReport',
+          triggers: [
+            {
+              type: 'eventbridge',
+              sourceArn: 'arn:aws:events:us-east-1:000:rule/schedule',
+              sourceName: 'schedule',
+              eventShape: 'event.detail',
+              ruleName: 'schedule',
+            },
+          ],
+        },
       ],
       edges: [],
     };
@@ -288,7 +476,19 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
   it('does not flag when trigger source queue is not in the graph', async () => {
     const graph: SystemGraph = {
       nodes: [
-        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', triggers: [{ type: 'sqs', sourceArn: 'arn:aws:sqs:us-east-1:000:unknown-queue', sourceName: 'unknown-queue', eventShape: 'event.Records[0].body' }] },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          triggers: [
+            {
+              type: 'sqs',
+              sourceArn: 'arn:aws:sqs:us-east-1:000:unknown-queue',
+              sourceName: 'unknown-queue',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
       ],
       edges: [],
     };
@@ -309,7 +509,9 @@ describe('LambdaHighTimeoutAnalyzer', () => {
 
   it('flags Lambda with timeout >= 300s', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 300 }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 300 },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -320,7 +522,9 @@ describe('LambdaHighTimeoutAnalyzer', () => {
 
   it('flags Lambda with timeout above 300s', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 900 }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 900 },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(1);
@@ -328,7 +532,9 @@ describe('LambdaHighTimeoutAnalyzer', () => {
 
   it('does not flag Lambda with timeout below 300s', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 30 }],
+      nodes: [
+        { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 30 },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -348,7 +554,17 @@ describe('S3PublicAccessAnalyzer', () => {
 
   it('flags bucket with public access not blocked', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: false }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: false,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -360,7 +576,17 @@ describe('S3PublicAccessAnalyzer', () => {
 
   it('does not flag bucket with public access blocked', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -380,7 +606,17 @@ describe('S3MissingVersioningAnalyzer', () => {
 
   it('flags bucket with versioning disabled', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: false, encrypted: true, publicAccessBlocked: true }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: false,
+          encrypted: true,
+          publicAccessBlocked: true,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -392,7 +628,17 @@ describe('S3MissingVersioningAnalyzer', () => {
 
   it('does not flag bucket with versioning enabled', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
@@ -412,7 +658,17 @@ describe('S3UnencryptedAnalyzer', () => {
 
   it('flags bucket without server-side encryption', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: false, publicAccessBlocked: true }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: true,
+          encrypted: false,
+          publicAccessBlocked: true,
+        },
+      ],
       edges: [],
     };
     const findings = await analyzer.analyze(graph);
@@ -424,7 +680,17 @@ describe('S3UnencryptedAnalyzer', () => {
 
   it('does not flag bucket with encryption configured', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'bucket:aws:assets', type: 'bucket', name: 'assets', provider: 'aws', versioned: true, encrypted: true, publicAccessBlocked: true }],
+      nodes: [
+        {
+          id: 'bucket:aws:assets',
+          type: 'bucket',
+          name: 'assets',
+          provider: 'aws',
+          versioned: true,
+          encrypted: true,
+          publicAccessBlocked: true,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);

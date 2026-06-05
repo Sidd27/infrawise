@@ -49,7 +49,9 @@ export function detectRepoType(repoPath: string): 'typescript' | 'javascript' | 
 
 function readVersion(): string {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf-8')) as { version: string };
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf-8'),
+    ) as { version: string };
     return pkg.version;
   } catch {
     return 'unknown';
@@ -78,10 +80,14 @@ export const log = {
     console.log(`  ${chalk.green('✓')} ${msg}${detail ? chalk.dim(`  ${detail}`) : ''}`);
   },
   fail: (msg: string, detail?: string) => {
-    console.log(`  ${chalk.red('✗')} ${chalk.red(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`);
+    console.log(
+      `  ${chalk.red('✗')} ${chalk.red(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`,
+    );
   },
   warn: (msg: string, detail?: string) => {
-    console.log(`  ${chalk.yellow('⚠')} ${chalk.yellow(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`);
+    console.log(
+      `  ${chalk.yellow('⚠')} ${chalk.yellow(msg)}${detail ? chalk.dim(`\n    ${detail}`) : ''}`,
+    );
   },
   skip: (msg: string, detail?: string) => {
     console.log(`  ${chalk.dim('−')} ${chalk.dim(msg)}${detail ? chalk.dim(`  ${detail}`) : ''}`);
@@ -98,13 +104,16 @@ export const log = {
 
 function severityBadge(severity: Finding['severity']): string {
   switch (severity) {
-    case 'high':   return chalk.bgRed.white.bold(` HIGH `);
-    case 'medium': return chalk.bgYellow.black.bold(` MED  `);
-    case 'low':    return chalk.bgCyan.black.bold(` LOW  `);
-    case 'verify': return chalk.bgBlue.white.bold(` VER? `);
+    case 'high':
+      return chalk.bgRed.white.bold(` HIGH `);
+    case 'medium':
+      return chalk.bgYellow.black.bold(` MED  `);
+    case 'low':
+      return chalk.bgCyan.black.bold(` LOW  `);
+    case 'verify':
+      return chalk.bgBlue.white.bold(` VER? `);
   }
 }
-
 
 export function printFinding(finding: Finding, index: number): void {
   const badge = severityBadge(finding.severity);
@@ -116,20 +125,40 @@ export function printFinding(finding: Finding, index: number): void {
 }
 
 export function printSummaryBox(findings: Finding[]): void {
-  const high   = findings.filter((f) => f.severity === 'high').length;
+  const high = findings.filter((f) => f.severity === 'high').length;
   const medium = findings.filter((f) => f.severity === 'medium').length;
-  const low    = findings.filter((f) => f.severity === 'low').length;
+  const low = findings.filter((f) => f.severity === 'low').length;
   const verify = findings.filter((f) => f.severity === 'verify').length;
 
   console.log('');
   console.log(chalk.dim('  ┌─────────────────────────────┐'));
   console.log(chalk.dim('  │') + chalk.bold('  Analysis Summary             ') + chalk.dim('│'));
   console.log(chalk.dim('  ├─────────────────────────────┤'));
-  console.log(chalk.dim('  │') + `  ${chalk.red('●')} High     ${chalk.red.bold(String(high).padStart(3))}                 ` + chalk.dim('│'));
-  console.log(chalk.dim('  │') + `  ${chalk.yellow('●')} Medium   ${chalk.yellow.bold(String(medium).padStart(3))}                 ` + chalk.dim('│'));
-  console.log(chalk.dim('  │') + `  ${chalk.cyan('●')} Low      ${chalk.cyan.bold(String(low).padStart(3))}                 ` + chalk.dim('│'));
-  console.log(chalk.dim('  │') + `  ${chalk.blue('●')} Verify   ${chalk.blue.bold(String(verify).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(
+    chalk.dim('  │') +
+      `  ${chalk.red('●')} High     ${chalk.red.bold(String(high).padStart(3))}                 ` +
+      chalk.dim('│'),
+  );
+  console.log(
+    chalk.dim('  │') +
+      `  ${chalk.yellow('●')} Medium   ${chalk.yellow.bold(String(medium).padStart(3))}                 ` +
+      chalk.dim('│'),
+  );
+  console.log(
+    chalk.dim('  │') +
+      `  ${chalk.cyan('●')} Low      ${chalk.cyan.bold(String(low).padStart(3))}                 ` +
+      chalk.dim('│'),
+  );
+  console.log(
+    chalk.dim('  │') +
+      `  ${chalk.blue('●')} Verify   ${chalk.blue.bold(String(verify).padStart(3))}                 ` +
+      chalk.dim('│'),
+  );
   console.log(chalk.dim('  ├─────────────────────────────┤'));
-  console.log(chalk.dim('  │') + `  Total    ${chalk.bold(String(findings.length).padStart(3))}                 ` + chalk.dim('│'));
+  console.log(
+    chalk.dim('  │') +
+      `  Total    ${chalk.bold(String(findings.length).padStart(3))}                 ` +
+      chalk.dim('│'),
+  );
   console.log(chalk.dim('  └─────────────────────────────┘'));
 }

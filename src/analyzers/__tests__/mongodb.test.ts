@@ -12,7 +12,11 @@ function makeMongoQueryGraph(withIndex = false): SystemGraph {
   ];
   if (withIndex) {
     nodes.push({ id: 'index:app.users:idx_email', type: 'index', name: 'idx_email' });
-    edges.push({ from: 'table:mongodb:app.users', to: 'index:app.users:idx_email', type: 'uses_index' });
+    edges.push({
+      from: 'table:mongodb:app.users',
+      to: 'index:app.users:idx_email',
+      type: 'uses_index',
+    });
   }
   return { nodes, edges };
 }
@@ -57,7 +61,12 @@ describe('MissingMongoIndexAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/users.ts' },
-        { id: 'table:mongodb:app.users', type: 'table', name: 'app.users', databaseType: 'mongodb' },
+        {
+          id: 'table:mongodb:app.users',
+          type: 'table',
+          name: 'app.users',
+          databaseType: 'mongodb',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mongodb:app.users', type: 'scan' }],
     };
@@ -73,7 +82,12 @@ describe('MongoCollectionScanAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/users.ts' },
-        { id: 'table:mongodb:app.users', type: 'table', name: 'app.users', databaseType: 'mongodb' },
+        {
+          id: 'table:mongodb:app.users',
+          type: 'table',
+          name: 'app.users',
+          databaseType: 'mongodb',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mongodb:app.users', type: 'scan' }],
     };
@@ -91,7 +105,12 @@ describe('MongoCollectionScanAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/x.ts' },
-        { id: 'table:pg:public.orders', type: 'table', name: 'public.orders', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.orders',
+          type: 'table',
+          name: 'public.orders',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };
@@ -103,7 +122,12 @@ describe('MongoCollectionScanAnalyzer', () => {
       nodes: [
         { id: 'fn:a', type: 'function', name: 'a', file: 'a.ts' },
         { id: 'fn:b', type: 'function', name: 'b', file: 'b.ts' },
-        { id: 'table:mongodb:app.users', type: 'table', name: 'app.users', databaseType: 'mongodb' },
+        {
+          id: 'table:mongodb:app.users',
+          type: 'table',
+          name: 'app.users',
+          databaseType: 'mongodb',
+        },
       ],
       edges: [
         { from: 'fn:a', to: 'table:mongodb:app.users', type: 'scan' },

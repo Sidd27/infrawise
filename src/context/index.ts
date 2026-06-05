@@ -28,7 +28,16 @@ const DYNAMO_CLIENT_PATTERNS = ['DynamoDBClient', 'DynamoDB', 'dynamoDB', 'dynam
 
 const POSTGRES_QUERY_METHODS = new Set(['query', 'execute', 'exec']);
 
-const KNEX_METHODS = new Set(['select', 'where', 'join', 'from', 'insert', 'update', 'delete', 'del']);
+const KNEX_METHODS = new Set([
+  'select',
+  'where',
+  'join',
+  'from',
+  'insert',
+  'update',
+  'delete',
+  'del',
+]);
 
 // MySQL-specific patterns
 const MYSQL_QUERY_METHODS = new Set(['query', 'execute', 'exec']);
@@ -53,7 +62,15 @@ const MONGO_COLLECTION_METHODS = new Set(['collection']);
 
 // ── AWS service patterns ──────────────────────────────────────────────────────
 
-const SQS_COMMANDS = new Set(['SendMessageCommand', 'SendMessageBatchCommand', 'ReceiveMessageCommand', 'DeleteMessageCommand', 'sendMessage', 'sendMessageBatch', 'receiveMessage']);
+const SQS_COMMANDS = new Set([
+  'SendMessageCommand',
+  'SendMessageBatchCommand',
+  'ReceiveMessageCommand',
+  'DeleteMessageCommand',
+  'sendMessage',
+  'sendMessageBatch',
+  'receiveMessage',
+]);
 const SNS_COMMANDS = new Set(['PublishCommand', 'PublishBatchCommand', 'publish', 'publishBatch']);
 
 // kafkajs patterns — detection relies on variable naming (producer/consumer/kafka)
@@ -61,7 +78,14 @@ const KAFKA_PRODUCER_METHODS = new Set(['send', 'sendBatch']);
 const KAFKA_CONSUMER_METHODS = new Set(['subscribe']);
 const KAFKA_CLIENT_PATTERNS = ['kafka', 'producer', 'consumer'];
 const KAFKA_TOPIC_KEYS = ['topic'];
-const SSM_COMMANDS = new Set(['GetParameterCommand', 'GetParametersCommand', 'GetParametersByPathCommand', 'getParameter', 'getParameters', 'getParametersByPath']);
+const SSM_COMMANDS = new Set([
+  'GetParameterCommand',
+  'GetParametersCommand',
+  'GetParametersByPathCommand',
+  'getParameter',
+  'getParameters',
+  'getParametersByPath',
+]);
 const SECRETS_COMMANDS = new Set(['GetSecretValueCommand', 'getSecretValue']);
 const LAMBDA_COMMANDS = new Set(['InvokeCommand', 'InvokeAsyncCommand', 'invoke', 'invokeAsync']);
 
@@ -278,11 +302,7 @@ function detectPostgresOperations(
   if (KNEX_METHODS.has(methodName)) {
     const calleeText = objExpr.getText();
     // Check if it's a chained knex call
-    if (
-      calleeText.includes('knex') ||
-      calleeText.includes('db(') ||
-      calleeText.includes('trx(')
-    ) {
+    if (calleeText.includes('knex') || calleeText.includes('db(') || calleeText.includes('trx(')) {
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
@@ -294,7 +314,12 @@ function detectPostgresOperations(
     // Knex call expression style: knex('users').select(...)
     if (Node.isCallExpression(objExpr)) {
       const innerExpr = objExpr.getExpression();
-      if (innerExpr.getText().toLowerCase().match(/knex|db|trx/)) {
+      if (
+        innerExpr
+          .getText()
+          .toLowerCase()
+          .match(/knex|db|trx/)
+      ) {
         const innerArgs = objExpr.getArguments();
         const tableName =
           innerArgs.length > 0 && Node.isStringLiteral(innerArgs[0])
@@ -586,7 +611,10 @@ function detectAWSServiceOperations(
         filePath,
       };
     }
-    if (SSM_COMMANDS.has(methodName) && (objText.includes('ssm') || objText.includes('parameter'))) {
+    if (
+      SSM_COMMANDS.has(methodName) &&
+      (objText.includes('ssm') || objText.includes('parameter'))
+    ) {
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,
@@ -595,7 +623,10 @@ function detectAWSServiceOperations(
         filePath,
       };
     }
-    if (SECRETS_COMMANDS.has(methodName) && (objText.includes('secret') || objText.includes('secrets'))) {
+    if (
+      SECRETS_COMMANDS.has(methodName) &&
+      (objText.includes('secret') || objText.includes('secrets'))
+    ) {
       return {
         functionName: getEnclosingFunctionName(callExpr),
         operationType: methodName,

@@ -10,7 +10,9 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
   const configPath = path.join(cwd, 'infrawise.yaml');
 
   if (fs.existsSync(configPath) && !options.force) {
-    console.log(`\n  ${chalk.yellow('⚠')} ${chalk.yellow('infrawise.yaml already exists.')}  ${chalk.dim('Use --force to overwrite.')}\n`);
+    console.log(
+      `\n  ${chalk.yellow('⚠')} ${chalk.yellow('infrawise.yaml already exists.')}  ${chalk.dim('Use --force to overwrite.')}\n`,
+    );
     return;
   }
 
@@ -109,7 +111,9 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
 
   // ── AWS services ───────────────────────────────────────────────────────────
   console.log('\n  ' + chalk.bold('AWS Services'));
-  console.log(chalk.dim('  Infrawise will introspect these services using the credentials configured above.'));
+  console.log(
+    chalk.dim('  Infrawise will introspect these services using the credentials configured above.'),
+  );
   const services = await inquirer.prompt([
     {
       type: 'confirm',
@@ -193,28 +197,46 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
 
   // ── Build config ───────────────────────────────────────────────────────────
   const includeTables = services.dynamoTables
-    ? services.dynamoTables.split(',').map((t: string) => t.trim()).filter(Boolean)
+    ? services.dynamoTables
+        .split(',')
+        .map((t: string) => t.trim())
+        .filter(Boolean)
     : [];
 
   const ssmPaths = services.ssmPaths
-    ? services.ssmPaths.split(',').map((p: string) => p.trim()).filter(Boolean)
+    ? services.ssmPaths
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter(Boolean)
     : [];
 
   const logGroupPrefixes = services.logGroupPrefixes
-    ? services.logGroupPrefixes.split(',').map((p: string) => p.trim()).filter(Boolean)
+    ? services.logGroupPrefixes
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter(Boolean)
     : [];
 
   const isLocalStack = core.awsProfile === '__localstack__';
   const isEnvVars = core.awsProfile === '__env__';
   const resolvedProfile = isLocalStack || isEnvVars ? '' : core.awsProfile;
-  const resolvedEndpoint = isLocalStack ? (core.endpoint || 'http://localhost:4566') : undefined;
+  const resolvedEndpoint = isLocalStack ? core.endpoint || 'http://localhost:4566' : undefined;
 
   const configContent = generateDefaultConfig(core.project, {
     aws: { profile: resolvedProfile, region: core.region, endpoint: resolvedEndpoint },
     dynamodb: { enabled: services.dynamoEnabled, includeTables },
-    postgres: { enabled: databases.pgEnabled, connectionString: databases.pgConnectionString ?? '' },
-    mysql: { enabled: databases.mysqlEnabled, connectionString: databases.mysqlConnectionString ?? '' },
-    mongodb: { enabled: databases.mongoEnabled, connectionString: databases.mongoConnectionString ?? '' },
+    postgres: {
+      enabled: databases.pgEnabled,
+      connectionString: databases.pgConnectionString ?? '',
+    },
+    mysql: {
+      enabled: databases.mysqlEnabled,
+      connectionString: databases.mysqlConnectionString ?? '',
+    },
+    mongodb: {
+      enabled: databases.mongoEnabled,
+      connectionString: databases.mongoConnectionString ?? '',
+    },
     sqs: { enabled: services.sqsEnabled },
     sns: { enabled: services.snsEnabled },
     ssm: { enabled: services.ssmEnabled, paths: ssmPaths },

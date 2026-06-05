@@ -15,7 +15,11 @@ export class RDSPubliclyAccessibleAnalyzer implements Analyzer {
           issue: `RDS instance "${node.name}" is publicly accessible`,
           description: `"${node.name}" (${node.engine}) has PubliclyAccessible=true, meaning it is reachable from the internet. This exposes the database to brute-force and credential-stuffing attacks.`,
           recommendation: `Set PubliclyAccessible=false on "${node.name}" and use a bastion host, VPN, or VPC peering for private access. If public access is required, enforce strong passwords, IP allowlisting, and TLS.`,
-          metadata: { dbInstanceIdentifier: node.name, engine: node.engine, instanceClass: node.instanceClass },
+          metadata: {
+            dbInstanceIdentifier: node.name,
+            engine: node.engine,
+            instanceClass: node.instanceClass,
+          },
         });
       }
     }
@@ -36,7 +40,11 @@ export class RDSNoBackupAnalyzer implements Analyzer {
           issue: `RDS instance "${node.name}" has automated backups disabled`,
           description: `"${node.name}" has a backup retention period of 0, meaning automated backups are off. Any accidental deletion or corruption is unrecoverable without a manual snapshot.`,
           recommendation: `Enable automated backups on "${node.name}" with at least 7 days retention (35 days for production workloads). Enable point-in-time recovery.`,
-          metadata: { dbInstanceIdentifier: node.name, engine: node.engine, backupRetentionDays: node.backupRetentionDays },
+          metadata: {
+            dbInstanceIdentifier: node.name,
+            engine: node.engine,
+            backupRetentionDays: node.backupRetentionDays,
+          },
         });
       }
     }

@@ -157,11 +157,12 @@ export class LambdaMissingTriggerDLQAnalyzer implements Analyzer {
     for (const node of graph.nodes) {
       if (node.type !== 'lambda') continue;
       for (const trigger of node.triggers ?? []) {
-        if (trigger.type !== 'sqs' && trigger.type !== 'kinesis' && trigger.type !== 'dynamodb') continue;
+        if (trigger.type !== 'sqs' && trigger.type !== 'kinesis' && trigger.type !== 'dynamodb')
+          continue;
         // Check if there's a DLQ/destination on the trigger edge — we flag if the source queue itself has no DLQ
         // and the trigger is active, since failures will be silently dropped
         const sourceQueue = graph.nodes.find(
-          (n) => n.type === 'queue' && n.name === trigger.sourceName
+          (n) => n.type === 'queue' && n.name === trigger.sourceName,
         );
         if (sourceQueue && sourceQueue.type === 'queue' && !sourceQueue.hasDLQ) {
           findings.push({
@@ -169,7 +170,11 @@ export class LambdaMissingTriggerDLQAnalyzer implements Analyzer {
             issue: `Lambda "${node.name}" is triggered by "${trigger.sourceName}" which has no DLQ`,
             description: `"${node.name}" receives events from "${trigger.sourceName}" (${trigger.type.toUpperCase()}). If the Lambda handler fails, messages will be retried and eventually discarded with no failure record.`,
             recommendation: `Add a DLQ to "${trigger.sourceName}" and set a destination config on the event source mapping so failed batches are captured and inspectable.`,
-            metadata: { functionName: node.name, triggerSource: trigger.sourceName, triggerType: trigger.type },
+            metadata: {
+              functionName: node.name,
+              triggerSource: trigger.sourceName,
+              triggerType: trigger.type,
+            },
           });
         }
       }

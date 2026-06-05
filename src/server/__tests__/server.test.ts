@@ -9,20 +9,55 @@ const emptyGraph: SystemGraph = { nodes: [], edges: [] };
 const testGraph: SystemGraph = {
   nodes: [
     { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
-    { id: 'table:postgres:public.users', type: 'table', name: 'public.users', databaseType: 'postgres' },
+    {
+      id: 'table:postgres:public.users',
+      type: 'table',
+      name: 'public.users',
+      databaseType: 'postgres',
+    },
     { id: 'function:handler.ts:getOrder', type: 'function', name: 'getOrder', file: 'handler.ts' },
-    { id: 'queue:aws:payments', type: 'queue', name: 'payments', provider: 'aws', hasDLQ: false, encrypted: true },
-    { id: 'secret:aws:db-password', type: 'secret', name: 'db-password', provider: 'aws', rotationEnabled: false },
-    { id: 'lambda:aws:processor', type: 'lambda', name: 'processor', runtime: 'nodejs20.x', memoryMB: 128, timeoutSec: 30 },
+    {
+      id: 'queue:aws:payments',
+      type: 'queue',
+      name: 'payments',
+      provider: 'aws',
+      hasDLQ: false,
+      encrypted: true,
+    },
+    {
+      id: 'secret:aws:db-password',
+      type: 'secret',
+      name: 'db-password',
+      provider: 'aws',
+      rotationEnabled: false,
+    },
+    {
+      id: 'lambda:aws:processor',
+      type: 'lambda',
+      name: 'processor',
+      runtime: 'nodejs20.x',
+      memoryMB: 128,
+      timeoutSec: 30,
+    },
   ],
-  edges: [
-    { from: 'function:handler.ts:getOrder', to: 'table:dynamo:Orders', type: 'scan' },
-  ],
+  edges: [{ from: 'function:handler.ts:getOrder', to: 'table:dynamo:Orders', type: 'scan' }],
 };
 
 const testFindings: Finding[] = [
-  { severity: 'high', issue: 'Full table scan', description: 'Scan on Orders', recommendation: 'Use Query', metadata: { functionName: 'getOrder' } },
-  { severity: 'medium', issue: 'Missing index', description: 'No index on email', recommendation: 'Add index', metadata: {} },
+  {
+    severity: 'high',
+    issue: 'Full table scan',
+    description: 'Scan on Orders',
+    recommendation: 'Use Query',
+    metadata: { functionName: 'getOrder' },
+  },
+  {
+    severity: 'medium',
+    issue: 'Missing index',
+    description: 'No index on email',
+    recommendation: 'Add index',
+    metadata: {},
+  },
 ];
 
 async function makeClient(graph: SystemGraph, findings: Finding[]) {
@@ -127,7 +162,10 @@ describe('MCP Server — tool results', () => {
   });
 
   it('postgres_index_suggestions returns CREATE INDEX SQL', async () => {
-    const data = await callTool(client, 'postgres_index_suggestions', { table: 'users', column: 'email' });
+    const data = await callTool(client, 'postgres_index_suggestions', {
+      table: 'users',
+      column: 'email',
+    });
     expect(data.recommendation).toContain('CREATE INDEX CONCURRENTLY');
     expect(data.recommendation).toContain('idx_users_email');
     expect(data.notes.length).toBeGreaterThan(0);
@@ -135,15 +173,18 @@ describe('MCP Server — tool results', () => {
 
   it('postgres_index_suggestions sanitizes SQL injection in table and column', async () => {
     const data = await callTool(client, 'postgres_index_suggestions', {
-      table: "users; DROP TABLE users; --",
-      column: "email) WHERE 1=1; --",
+      table: 'users; DROP TABLE users; --',
+      column: 'email) WHERE 1=1; --',
     });
     // identifier positions must be word-chars only; structural parens/semicolon are fixed template
     expect(data.recommendation).toMatch(/^CREATE INDEX CONCURRENTLY \w+ ON \w+ \(\w+\);$/);
   });
 
   it('suggest_mongo_index returns createIndex command', async () => {
-    const data = await callTool(client, 'suggest_mongo_index', { collection: 'orders', field: 'userId' });
+    const data = await callTool(client, 'suggest_mongo_index', {
+      collection: 'orders',
+      field: 'userId',
+    });
     expect(data.recommendation).toContain('db.orders.createIndex');
     expect(data.recommendation).toContain('userId');
   });
@@ -158,20 +199,26 @@ describe('MCP Server — tool results', () => {
   });
 
   it('suggest_mongo_index allows dot notation in field names', async () => {
-    const data = await callTool(client, 'suggest_mongo_index', { collection: 'orders', field: 'address.city' });
+    const data = await callTool(client, 'suggest_mongo_index', {
+      collection: 'orders',
+      field: 'address.city',
+    });
     expect(data.recommendation).toContain('address.city');
   });
 
   it('mysql_index_suggestions returns ALTER TABLE SQL', async () => {
-    const data = await callTool(client, 'mysql_index_suggestions', { table: 'orders', column: 'status' });
+    const data = await callTool(client, 'mysql_index_suggestions', {
+      table: 'orders',
+      column: 'status',
+    });
     expect(data.recommendation).toContain('ALTER TABLE');
     expect(data.recommendation).toContain('idx_orders_status');
   });
 
   it('mysql_index_suggestions sanitizes SQL injection in table and column', async () => {
     const data = await callTool(client, 'mysql_index_suggestions', {
-      table: "orders` DROP TABLE orders; --",
-      column: "status) KEY idx2 (evil",
+      table: 'orders` DROP TABLE orders; --',
+      column: 'status) KEY idx2 (evil',
     });
     // identifier positions must be word-chars only; structural parens/semicolon are fixed template
     expect(data.recommendation).toMatch(/^ALTER TABLE \w+ ADD INDEX \w+ \(\w+\);$/);

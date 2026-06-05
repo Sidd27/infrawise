@@ -1,22 +1,12 @@
-import {
-  SQSClient,
-  ListQueuesCommand,
-  GetQueueAttributesCommand,
-} from '@aws-sdk/client-sqs';
+import { SQSClient, ListQueuesCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import {
   SNSClient,
   ListTopicsCommand,
   GetTopicAttributesCommand,
   ListSubscriptionsByTopicCommand,
 } from '@aws-sdk/client-sns';
-import {
-  SSMClient,
-  DescribeParametersCommand,
-} from '@aws-sdk/client-ssm';
-import {
-  SecretsManagerClient,
-  ListSecretsCommand,
-} from '@aws-sdk/client-secrets-manager';
+import { SSMClient, DescribeParametersCommand } from '@aws-sdk/client-ssm';
+import { SecretsManagerClient, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
 import {
   LambdaClient,
   ListFunctionsCommand,
@@ -27,10 +17,7 @@ import {
   ListRulesCommand,
   ListTargetsByRuleCommand,
 } from '@aws-sdk/client-eventbridge';
-import {
-  RDSClient,
-  DescribeDBInstancesCommand,
-} from '@aws-sdk/client-rds';
+import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { fromIni } from '@aws-sdk/credential-providers';
 import type {
   SQSQueueMetadata,
@@ -68,21 +55,30 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
     let nextToken: string | undefined;
     const queueUrls: string[] = [];
     do {
-      const res = await client.send(new ListQueuesCommand({ NextToken: nextToken, MaxResults: 1000 }));
+      const res = await client.send(
+        new ListQueuesCommand({ NextToken: nextToken, MaxResults: 1000 }),
+      );
       queueUrls.push(...(res.QueueUrls ?? []));
       nextToken = res.NextToken;
     } while (nextToken);
 
     for (const url of queueUrls) {
       try {
-        const attrs = await client.send(new GetQueueAttributesCommand({
-          QueueUrl: url,
-          AttributeNames: [
-            'QueueArn', 'VisibilityTimeout', 'MessageRetentionPeriod',
-            'RedrivePolicy', 'KmsMasterKeyId', 'SqsManagedSseEnabled',
-            'ApproximateNumberOfMessages', 'ApproximateNumberOfMessagesNotVisible',
-          ],
-        }));
+        const attrs = await client.send(
+          new GetQueueAttributesCommand({
+            QueueUrl: url,
+            AttributeNames: [
+              'QueueArn',
+              'VisibilityTimeout',
+              'MessageRetentionPeriod',
+              'RedrivePolicy',
+              'KmsMasterKeyId',
+              'SqsManagedSseEnabled',
+              'ApproximateNumberOfMessages',
+              'ApproximateNumberOfMessagesNotVisible',
+            ],
+          }),
+        );
         const a = attrs.Attributes ?? {};
         const arn = a['QueueArn'] ?? '';
         const name = arn.split(':').pop() ?? url.split('/').pop() ?? url;
@@ -106,7 +102,9 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
           approximateInflight: parseInt(a['ApproximateNumberOfMessagesNotVisible'] ?? '0', 10),
         });
       } catch (err) {
-        logger.warn(`SQS attrs failed for ${url}: ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn(
+          `SQS attrs failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   } catch (err) {
@@ -151,7 +149,9 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
           subscriptionProtocols: [...new Set(subs.map((s) => s.Protocol ?? 'unknown'))],
         });
       } catch (err) {
-        logger.warn(`SNS attrs failed for ${arn}: ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn(
+          `SNS attrs failed for ${arn}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   } catch (err) {
@@ -175,13 +175,15 @@ export async function extractSSMMetadata(
   try {
     let nextToken: string | undefined;
     do {
-      const res = await client.send(new DescribeParametersCommand({
-        NextToken: nextToken,
-        MaxResults: 50,
-        ParameterFilters: cfg.paths?.length
-          ? [{ Key: 'Path', Values: cfg.paths, Option: 'Recursive' }]
-          : undefined,
-      }));
+      const res = await client.send(
+        new DescribeParametersCommand({
+          NextToken: nextToken,
+          MaxResults: 50,
+          ParameterFilters: cfg.paths?.length
+            ? [{ Key: 'Path', Values: cfg.paths, Option: 'Recursive' }]
+            : undefined,
+        }),
+      );
       for (const p of res.Parameters ?? []) {
         parameters.push({
           name: p.Name ?? '',
@@ -206,7 +208,9 @@ export async function validateSSMAccess(cfg: AWSConfig = {}): Promise<void> {
 
 // ─── Secrets Manager ──────────────────────────────────────────────────────────
 
-export async function extractSecretsMetadata(cfg: AWSConfig = {}): Promise<SecretsManagerMetadata[]> {
+export async function extractSecretsMetadata(
+  cfg: AWSConfig = {},
+): Promise<SecretsManagerMetadata[]> {
   const client = new SecretsManagerClient(clientConfig(cfg));
   const secrets: SecretsManagerMetadata[] = [];
 
@@ -214,7 +218,9 @@ export async function extractSecretsMetadata(cfg: AWSConfig = {}): Promise<Secre
     let nextToken: string | undefined;
     do {
       // ListSecrets never returns secret values
-      const res = await client.send(new ListSecretsCommand({ NextToken: nextToken, MaxResults: 100 }));
+      const res = await client.send(
+        new ListSecretsCommand({ NextToken: nextToken, MaxResults: 100 }),
+      );
       for (const s of res.SecretList ?? []) {
         secrets.push({
           name: s.Name ?? '',
@@ -241,24 +247,24 @@ export async function validateSecretsAccess(cfg: AWSConfig = {}): Promise<void> 
 // ─── Lambda ───────────────────────────────────────────────────────────────────
 
 const EVENT_SHAPES: Record<string, string> = {
-  sqs:         'event.Records[0].body',
-  dynamodb:    'event.Records[0].dynamodb.NewImage',
-  kinesis:     'event.Records[0].kinesis.data  // base64',
-  msk:         'event.records[topic][0].value  // base64',
-  sns:         'event.Records[0].Sns.Message',
-  s3:          'event.Records[0].s3.object.key',
+  sqs: 'event.Records[0].body',
+  dynamodb: 'event.Records[0].dynamodb.NewImage',
+  kinesis: 'event.Records[0].kinesis.data  // base64',
+  msk: 'event.records[topic][0].value  // base64',
+  sns: 'event.Records[0].Sns.Message',
+  s3: 'event.Records[0].s3.object.key',
   eventbridge: 'event.detail',
-  unknown:     'event  // unknown trigger type',
+  unknown: 'event  // unknown trigger type',
 };
 
 function triggerFromArn(arn: string, batchSize?: number, state?: string): LambdaTrigger {
   let type: LambdaTrigger['type'] = 'unknown';
-  if (arn.includes(':sqs:'))      type = 'sqs';
+  if (arn.includes(':sqs:')) type = 'sqs';
   else if (arn.includes(':dynamodb:')) type = 'dynamodb';
-  else if (arn.includes(':kinesis:'))  type = 'kinesis';
+  else if (arn.includes(':kinesis:')) type = 'kinesis';
   else if (arn.includes(':kafka:') || arn.toLowerCase().includes('msk')) type = 'msk';
-  else if (arn.includes(':sns:'))  type = 'sns';
-  else if (arn.includes(':s3:'))   type = 's3';
+  else if (arn.includes(':sns:')) type = 'sns';
+  else if (arn.includes(':s3:')) type = 's3';
 
   const sourceName = arn.split(':').pop() ?? arn;
   return { type, sourceArn: arn, sourceName, eventShape: EVENT_SHAPES[type], batchSize, state };
@@ -271,7 +277,9 @@ async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, 
   try {
     let marker: string | undefined;
     do {
-      const res = await client.send(new ListEventSourceMappingsCommand({ Marker: marker, MaxItems: 100 }));
+      const res = await client.send(
+        new ListEventSourceMappingsCommand({ Marker: marker, MaxItems: 100 }),
+      );
       for (const m of res.EventSourceMappings ?? []) {
         if (!m.FunctionArn || !m.EventSourceArn) continue;
         const trigger = triggerFromArn(m.EventSourceArn, m.BatchSize, m.State);
@@ -282,12 +290,16 @@ async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, 
       marker = res.NextMarker;
     } while (marker);
   } catch (err) {
-    logger.warn(`Event source mappings fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn(
+      `Event source mappings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
   return triggerMap;
 }
 
-export async function extractEventBridgeMetadata(cfg: AWSConfig = {}): Promise<EventBridgeRuleMetadata[]> {
+export async function extractEventBridgeMetadata(
+  cfg: AWSConfig = {},
+): Promise<EventBridgeRuleMetadata[]> {
   const client = new EventBridgeClient(clientConfig(cfg));
   const rules: EventBridgeRuleMetadata[] = [];
 
@@ -309,7 +321,9 @@ export async function extractEventBridgeMetadata(cfg: AWSConfig = {}): Promise<E
             targetArns,
           });
         } catch (err) {
-          logger.warn(`EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`);
+          logger.warn(
+            `EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
       nextToken = res.NextToken;
@@ -324,7 +338,10 @@ export async function validateEventBridgeAccess(cfg: AWSConfig = {}): Promise<vo
   await new EventBridgeClient(clientConfig(cfg)).send(new ListRulesCommand({ Limit: 1 }));
 }
 
-export async function extractLambdaMetadata(cfg: AWSConfig = {}, includeFunctions?: string[]): Promise<LambdaFunctionMetadata[]> {
+export async function extractLambdaMetadata(
+  cfg: AWSConfig = {},
+  includeFunctions?: string[],
+): Promise<LambdaFunctionMetadata[]> {
   const client = new LambdaClient(clientConfig(cfg));
   const functions: LambdaFunctionMetadata[] = [];
 
@@ -375,7 +392,9 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
   try {
     let marker: string | undefined;
     do {
-      const res = await client.send(new DescribeDBInstancesCommand({ Marker: marker, MaxRecords: 100 }));
+      const res = await client.send(
+        new DescribeDBInstancesCommand({ Marker: marker, MaxRecords: 100 }),
+      );
       for (const db of res.DBInstances ?? []) {
         instances.push({
           dbInstanceIdentifier: db.DBInstanceIdentifier ?? '',

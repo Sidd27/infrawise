@@ -14,50 +14,72 @@ export const InfrawiseConfigSchema = z.object({
     })
     .optional()
     .default({ profile: 'default', region: 'us-east-1' }),
-  dynamodb: z.object({ enabled: z.boolean().optional().default(true), includeTables: z.array(z.string()).optional() }).optional(),
-  postgres: z.object({
-    enabled: z.boolean().optional().default(false),
-    connectionString: z.string().optional(),
-  }).optional(),
-  mysql: z.object({
-    enabled: z.boolean().optional().default(false),
-    connectionString: z.string().optional(),
-  }).optional(),
-  mongodb: z.object({
-    enabled: z.boolean().optional().default(false),
-    connectionString: z.string().optional(),
-    databases: z.array(z.string()).optional(),
-  }).optional(),
+  dynamodb: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      includeTables: z.array(z.string()).optional(),
+    })
+    .optional(),
+  postgres: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      connectionString: z.string().optional(),
+    })
+    .optional(),
+  mysql: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      connectionString: z.string().optional(),
+    })
+    .optional(),
+  mongodb: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      connectionString: z.string().optional(),
+      databases: z.array(z.string()).optional(),
+    })
+    .optional(),
   terraform: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   sqs: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   sns: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
-  ssm: z.object({
-    enabled: z.boolean().optional().default(true),
-    paths: z.array(z.string()).optional(),
-  }).optional(),
+  ssm: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      paths: z.array(z.string()).optional(),
+    })
+    .optional(),
   secretsManager: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
-  lambda: z.object({
-    enabled: z.boolean().optional().default(true),
-    includeFunctions: z.array(z.string()).optional(),
-  }).optional(),
+  lambda: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      includeFunctions: z.array(z.string()).optional(),
+    })
+    .optional(),
   eventbridge: z.object({ enabled: z.boolean().optional().default(true) }).optional(),
   rds: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   s3: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   kafka: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
-  cloudwatchLogs: z.object({
-    enabled: z.boolean().optional().default(false),
-    logGroupPrefixes: z.array(z.string()).optional(),
-    windowHours: z.number().int().positive().optional().default(24),
-  }).optional(),
-  analysis: z.object({
-    sampleSize: z.number().int().positive().optional().default(100),
-  }).optional(),
+  cloudwatchLogs: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      logGroupPrefixes: z.array(z.string()).optional(),
+      windowHours: z.number().int().positive().optional().default(24),
+    })
+    .optional(),
+  analysis: z
+    .object({
+      sampleSize: z.number().int().positive().optional().default(100),
+    })
+    .optional(),
 });
 
 export type ValidatedConfig = z.infer<typeof InfrawiseConfigSchema>;
 
 export class ConfigError extends Error {
-  constructor(message: string, public readonly details?: string[]) {
+  constructor(
+    message: string,
+    public readonly details?: string[],
+  ) {
     super(message);
     this.name = 'ConfigError';
   }
@@ -104,7 +126,10 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
   return result.data as InfrawiseConfig;
 }
 
-export function generateDefaultConfig(projectName: string, options?: Partial<InfrawiseConfig>): string {
+export function generateDefaultConfig(
+  projectName: string,
+  options?: Partial<InfrawiseConfig>,
+): string {
   const config: Record<string, unknown> = {
     project: projectName,
     aws: {
@@ -112,7 +137,10 @@ export function generateDefaultConfig(projectName: string, options?: Partial<Inf
       region: options?.aws?.region ?? 'us-east-1',
       ...(options?.aws?.endpoint ? { endpoint: options.aws.endpoint } : {}),
     },
-    dynamodb: { enabled: options?.dynamodb?.enabled ?? true, includeTables: options?.dynamodb?.includeTables ?? [] },
+    dynamodb: {
+      enabled: options?.dynamodb?.enabled ?? true,
+      includeTables: options?.dynamodb?.includeTables ?? [],
+    },
     postgres: {
       enabled: options?.postgres?.enabled ?? false,
       connectionString: options?.postgres?.connectionString ?? '',

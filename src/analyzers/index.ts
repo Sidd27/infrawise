@@ -51,7 +51,13 @@ export async function runAllAnalyzers(
   return allFindings;
 }
 
-export function summarizeFindings(findings: Finding[]): { total: number; high: number; medium: number; low: number; verify: number } {
+export function summarizeFindings(findings: Finding[]): {
+  total: number;
+  high: number;
+  medium: number;
+  low: number;
+  verify: number;
+} {
   const counts = { total: findings.length, high: 0, medium: 0, low: 0, verify: 0 };
   for (const f of findings) counts[f.severity]++;
   return counts;

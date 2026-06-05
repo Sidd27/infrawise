@@ -64,21 +64,34 @@ export async function extractS3Metadata(cfg: AWSConfig = {}): Promise<S3BucketMe
         }
       }
 
-      const versioned = versionResult.status === 'fulfilled'
-        ? versionResult.value.Status === 'Enabled'
-        : false;
+      const versioned =
+        versionResult.status === 'fulfilled' ? versionResult.value.Status === 'Enabled' : false;
 
-      const encrypted = encryptResult.status === 'fulfilled'
-        ? (encryptResult.value.ServerSideEncryptionConfiguration?.Rules?.length ?? 0) > 0
-        : false;
+      const encrypted =
+        encryptResult.status === 'fulfilled'
+          ? (encryptResult.value.ServerSideEncryptionConfiguration?.Rules?.length ?? 0) > 0
+          : false;
 
       let publicAccessBlocked = false;
       if (pabResult.status === 'fulfilled') {
         const pab = pabResult.value.PublicAccessBlockConfiguration ?? {};
-        publicAccessBlocked = !!(pab.BlockPublicAcls && pab.IgnorePublicAcls && pab.BlockPublicPolicy && pab.RestrictPublicBuckets);
+        publicAccessBlocked = !!(
+          pab.BlockPublicAcls &&
+          pab.IgnorePublicAcls &&
+          pab.BlockPublicPolicy &&
+          pab.RestrictPublicBuckets
+        );
       }
 
-      buckets.push({ name, arn, createdAt, versioned, encrypted, publicAccessBlocked, notifications });
+      buckets.push({
+        name,
+        arn,
+        createdAt,
+        versioned,
+        encrypted,
+        publicAccessBlocked,
+        notifications,
+      });
     }
   } catch (err) {
     logger.warn(`S3 list failed: ${err instanceof Error ? err.message : String(err)}`);

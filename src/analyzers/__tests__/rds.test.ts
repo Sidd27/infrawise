@@ -8,14 +8,16 @@ import {
 } from '../rds';
 import type { SystemGraph } from '../../types';
 
-function makeGraph(instances: Array<{
-  name: string;
-  publiclyAccessible?: boolean;
-  storageEncrypted?: boolean;
-  backupRetentionDays?: number;
-  deletionProtection?: boolean;
-  multiAZ?: boolean;
-}>): SystemGraph {
+function makeGraph(
+  instances: Array<{
+    name: string;
+    publiclyAccessible?: boolean;
+    storageEncrypted?: boolean;
+    backupRetentionDays?: number;
+    deletionProtection?: boolean;
+    multiAZ?: boolean;
+  }>,
+): SystemGraph {
   return {
     nodes: instances.map((inst) => ({
       id: `database_instance:aws:${inst.name}`,
@@ -53,7 +55,16 @@ describe('RDSPubliclyAccessibleAnalyzer', () => {
 
   it('only acts on database_instance nodes', async () => {
     const graph: SystemGraph = {
-      nodes: [{ id: 'q', type: 'queue', name: 'my-queue', provider: 'aws', hasDLQ: false, encrypted: false }],
+      nodes: [
+        {
+          id: 'q',
+          type: 'queue',
+          name: 'my-queue',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: false,
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);

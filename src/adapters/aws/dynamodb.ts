@@ -83,9 +83,7 @@ export async function extractDynamoMetadata(
     }
     logger.debug(`Found ${tableNames.length} DynamoDB table(s)`);
   } catch (err) {
-    throw new DynamoDBError(
-      err instanceof Error ? err.message : 'Failed to list DynamoDB tables',
-    );
+    throw new DynamoDBError(err instanceof Error ? err.message : 'Failed to list DynamoDB tables');
   }
 
   const results: DynamoTableMetadata[] = [];
@@ -99,7 +97,9 @@ export async function extractDynamoMetadata(
         logger.debug(`Described table: ${tableName}`);
       }
     } catch (err) {
-      logger.warn(`Failed to describe table ${tableName}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn(
+        `Failed to describe table ${tableName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

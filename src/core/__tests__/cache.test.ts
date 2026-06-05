@@ -42,7 +42,11 @@ describe('writeCache / readCache', () => {
   it('returns null when version does not match', () => {
     const filePath = path.join(CACHE_DIR, 'old-version.json');
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify({ timestamp: Date.now(), data: {}, version: '0.0.0' }), 'utf-8');
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ timestamp: Date.now(), data: {}, version: '0.0.0' }),
+      'utf-8',
+    );
     expect(readCache('old-version')).toBeNull();
   });
 

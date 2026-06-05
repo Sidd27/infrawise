@@ -12,7 +12,11 @@ function makeMySQLQueryGraph(withIndex = false): SystemGraph {
   ];
   if (withIndex) {
     nodes.push({ id: 'index:shop.orders:idx_status', type: 'index', name: 'idx_status' });
-    edges.push({ from: 'table:mysql:shop.orders', to: 'index:shop.orders:idx_status', type: 'uses_index' });
+    edges.push({
+      from: 'table:mysql:shop.orders',
+      to: 'index:shop.orders:idx_status',
+      type: 'uses_index',
+    });
   }
   return { nodes, edges };
 }
@@ -35,7 +39,12 @@ describe('MissingMySQLIndexAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' },
-        { id: 'table:pg:public.orders', type: 'table', name: 'public.orders', databaseType: 'postgres' },
+        {
+          id: 'table:pg:public.orders',
+          type: 'table',
+          name: 'public.orders',
+          databaseType: 'postgres',
+        },
       ],
       edges: [{ from: 'fn:fn1', to: 'table:pg:public.orders', type: 'query' }],
     };
@@ -57,7 +66,12 @@ describe('MissingMySQLIndexAnalyzer', () => {
       nodes: [
         { id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' },
         { id: 'fn:fn2', type: 'function', name: 'fn2', file: 'src/y.ts' },
-        { id: 'table:mysql:shop.orders', type: 'table', name: 'shop.orders', databaseType: 'mysql' },
+        {
+          id: 'table:mysql:shop.orders',
+          type: 'table',
+          name: 'shop.orders',
+          databaseType: 'mysql',
+        },
       ],
       edges: [
         { from: 'fn:fn1', to: 'table:mysql:shop.orders', type: 'query' },
@@ -77,7 +91,12 @@ describe('MySQLFullTableScanAnalyzer', () => {
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:listAll', type: 'function', name: 'listAll', file: 'src/orders.ts' },
-        { id: 'table:mysql:shop.orders', type: 'table', name: 'shop.orders', databaseType: 'mysql' },
+        {
+          id: 'table:mysql:shop.orders',
+          type: 'table',
+          name: 'shop.orders',
+          databaseType: 'mysql',
+        },
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mysql:shop.orders', type: 'scan' }],
     };
@@ -107,7 +126,12 @@ describe('MySQLFullTableScanAnalyzer', () => {
       nodes: [
         { id: 'fn:a', type: 'function', name: 'a', file: 'a.ts' },
         { id: 'fn:b', type: 'function', name: 'b', file: 'b.ts' },
-        { id: 'table:mysql:shop.orders', type: 'table', name: 'shop.orders', databaseType: 'mysql' },
+        {
+          id: 'table:mysql:shop.orders',
+          type: 'table',
+          name: 'shop.orders',
+          databaseType: 'mysql',
+        },
       ],
       edges: [
         { from: 'fn:a', to: 'table:mysql:shop.orders', type: 'scan' },

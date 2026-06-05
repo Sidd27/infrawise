@@ -29,48 +29,63 @@ export async function extractMySQLMetadata(
     connection = await mysql.createConnection(connectionString);
 
     // Get all user tables
-    const [tableRows] = await connection.execute<mysql.RowDataPacket[]>(`
+    const [tableRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `
       SELECT TABLE_SCHEMA, TABLE_NAME, ENGINE
       FROM information_schema.tables
       WHERE TABLE_TYPE = 'BASE TABLE'
         AND TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
       ORDER BY TABLE_SCHEMA, TABLE_NAME
-    `, [...SYSTEM_SCHEMAS]);
+    `,
+      [...SYSTEM_SCHEMAS],
+    );
 
     logger.debug(`Found ${tableRows.length} MySQL table(s)`);
 
     // Get all columns
-    const [columnRows] = await connection.execute<mysql.RowDataPacket[]>(`
+    const [columnRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `
       SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME
       FROM information_schema.columns
       WHERE TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
       ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
-    `, [...SYSTEM_SCHEMAS]);
+    `,
+      [...SYSTEM_SCHEMAS],
+    );
 
     // Get all indexes
-    const [indexRows] = await connection.execute<mysql.RowDataPacket[]>(`
+    const [indexRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `
       SELECT TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
       FROM information_schema.statistics
       WHERE TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
       GROUP BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
       ORDER BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
-    `, [...SYSTEM_SCHEMAS]);
+    `,
+      [...SYSTEM_SCHEMAS],
+    );
 
     // Get primary keys
-    const [pkRows] = await connection.execute<mysql.RowDataPacket[]>(`
+    const [pkRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `
       SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME
       FROM information_schema.key_column_usage
       WHERE CONSTRAINT_NAME = 'PRIMARY'
         AND TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
       ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
-    `, [...SYSTEM_SCHEMAS]);
+    `,
+      [...SYSTEM_SCHEMAS],
+    );
 
     // Build lookup maps
     const columnMap = new Map<string, string[]>();
     for (const row of columnRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
       let cols = columnMap.get(key);
-      if (!cols) { cols = []; columnMap.set(key, cols); }
+      if (!cols) {
+        cols = [];
+        columnMap.set(key, cols);
+      }
       cols.push(row['COLUMN_NAME'] as string);
     }
 
@@ -78,7 +93,10 @@ export async function extractMySQLMetadata(
     for (const row of indexRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
       let idxs = indexMap.get(key);
-      if (!idxs) { idxs = []; indexMap.set(key, idxs); }
+      if (!idxs) {
+        idxs = [];
+        indexMap.set(key, idxs);
+      }
       const idxName = row['INDEX_NAME'] as string;
       if (!idxs.includes(idxName)) idxs.push(idxName);
     }
@@ -87,7 +105,10 @@ export async function extractMySQLMetadata(
     for (const row of pkRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
       let pks = pkMap.get(key);
-      if (!pks) { pks = []; pkMap.set(key, pks); }
+      if (!pks) {
+        pks = [];
+        pkMap.set(key, pks);
+      }
       pks.push(row['COLUMN_NAME'] as string);
     }
 
@@ -96,7 +117,7 @@ export async function extractMySQLMetadata(
     for (const row of tableRows) {
       const schema = row['TABLE_SCHEMA'] as string;
       const table = row['TABLE_NAME'] as string;
-      const engine = row['ENGINE'] as string ?? 'InnoDB';
+      const engine = (row['ENGINE'] as string) ?? 'InnoDB';
       const key = `${schema}.${table}`;
 
       results.push({

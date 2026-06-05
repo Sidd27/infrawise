@@ -39,9 +39,7 @@ export async function extractMongoMetadata(
     } else {
       const adminDb = client.db('admin');
       const dbList = await adminDb.admin().listDatabases();
-      dbNames = dbList.databases
-        .map((d) => d.name)
-        .filter((name) => !SYSTEM_DATABASES.has(name));
+      dbNames = dbList.databases.map((d) => d.name).filter((name) => !SYSTEM_DATABASES.has(name));
     }
 
     logger.debug(`Introspecting ${dbNames.length} MongoDB database(s)`);
@@ -56,7 +54,9 @@ export async function extractMongoMetadata(
         const collections = await db.listCollections().toArray();
         collectionNames = collections.map((c) => c.name);
       } catch (err) {
-        logger.warn(`Skipping database "${dbName}": ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn(
+          `Skipping database "${dbName}": ${err instanceof Error ? err.message : String(err)}`,
+        );
         continue;
       }
 

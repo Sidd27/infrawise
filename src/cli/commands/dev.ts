@@ -174,9 +174,15 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, config);
           setGraphState(graph, findings, config);
-          spin.succeed(chalk.green('Analysis refreshed') + chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`));
+          spin.succeed(
+            chalk.green('Analysis refreshed') +
+              chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`),
+          );
         } catch (err) {
-          spin.warn(chalk.yellow('Refresh failed') + chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`));
+          spin.warn(
+            chalk.yellow('Refresh failed') +
+              chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
+          );
         } finally {
           refreshing = false;
         }

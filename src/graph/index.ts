@@ -46,7 +46,12 @@ export function buildGraph(
 
   for (const table of postgresMeta) {
     const nodeId = `table:postgres:${table.schema}.${table.table}`;
-    addNode({ id: nodeId, type: 'table', name: `${table.schema}.${table.table}`, databaseType: 'postgres' });
+    addNode({
+      id: nodeId,
+      type: 'table',
+      name: `${table.schema}.${table.table}`,
+      databaseType: 'postgres',
+    });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
       addNode({ id: indexNodeId, type: 'index', name: indexName });
@@ -56,7 +61,12 @@ export function buildGraph(
 
   for (const table of mysqlMeta) {
     const nodeId = `table:mysql:${table.schema}.${table.table}`;
-    addNode({ id: nodeId, type: 'table', name: `${table.schema}.${table.table}`, databaseType: 'mysql' });
+    addNode({
+      id: nodeId,
+      type: 'table',
+      name: `${table.schema}.${table.table}`,
+      databaseType: 'mysql',
+    });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
       addNode({ id: indexNodeId, type: 'index', name: indexName });
@@ -66,7 +76,12 @@ export function buildGraph(
 
   for (const coll of mongoMeta) {
     const nodeId = `table:mongodb:${coll.database}.${coll.collection}`;
-    addNode({ id: nodeId, type: 'table', name: `${coll.database}.${coll.collection}`, databaseType: 'mongodb' });
+    addNode({
+      id: nodeId,
+      type: 'table',
+      name: `${coll.database}.${coll.collection}`,
+      databaseType: 'mongodb',
+    });
     for (const idx of coll.indexes) {
       if (idx.name === '_id_') continue;
       const indexNodeId = `index:${coll.database}.${coll.collection}:${idx.name}`;
@@ -154,13 +169,32 @@ export function buildGraph(
       let sourceId: string;
       if (trigger.type === 'sqs') {
         sourceId = `queue:aws:${trigger.sourceName}`;
-        addNode({ id: sourceId, type: 'queue', name: trigger.sourceName, provider: 'aws', hasDLQ: false, encrypted: false });
+        addNode({
+          id: sourceId,
+          type: 'queue',
+          name: trigger.sourceName,
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: false,
+        });
       } else if (trigger.type === 'dynamodb') {
         sourceId = `table:dynamo:${trigger.sourceName}`;
-        addNode({ id: sourceId, type: 'table', name: trigger.sourceName, databaseType: 'dynamodb' });
+        addNode({
+          id: sourceId,
+          type: 'table',
+          name: trigger.sourceName,
+          databaseType: 'dynamodb',
+        });
       } else if (trigger.type === 'kinesis') {
         sourceId = `queue:aws:${trigger.sourceName}`;
-        addNode({ id: sourceId, type: 'queue', name: trigger.sourceName, provider: 'aws', hasDLQ: false, encrypted: false });
+        addNode({
+          id: sourceId,
+          type: 'queue',
+          name: trigger.sourceName,
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: false,
+        });
       } else {
         continue;
       }
@@ -259,7 +293,14 @@ export function buildGraph(
     // AWS service operations create edges to service nodes
     if (op.serviceType === 'sqs') {
       const queueId = `queue:aws:${op.target}`;
-      addNode({ id: queueId, type: 'queue', name: op.target, provider: 'aws', hasDLQ: false, encrypted: false });
+      addNode({
+        id: queueId,
+        type: 'queue',
+        name: op.target,
+        provider: 'aws',
+        hasDLQ: false,
+        encrypted: false,
+      });
       edges.push({ from: funcNodeId, to: queueId, type: 'publishes_to' });
       continue;
     }
@@ -281,14 +322,27 @@ export function buildGraph(
 
     if (op.serviceType === 'ssm') {
       const paramId = `parameter:aws:${op.target}`;
-      addNode({ id: paramId, type: 'parameter', name: op.target, provider: 'aws', paramType: 'String', tier: 'Standard' });
+      addNode({
+        id: paramId,
+        type: 'parameter',
+        name: op.target,
+        provider: 'aws',
+        paramType: 'String',
+        tier: 'Standard',
+      });
       edges.push({ from: funcNodeId, to: paramId, type: 'reads_parameter' });
       continue;
     }
 
     if (op.serviceType === 'secretsmanager') {
       const secretId = `secret:aws:${op.target}`;
-      addNode({ id: secretId, type: 'secret', name: op.target, provider: 'aws', rotationEnabled: false });
+      addNode({
+        id: secretId,
+        type: 'secret',
+        name: op.target,
+        provider: 'aws',
+        rotationEnabled: false,
+      });
       edges.push({ from: funcNodeId, to: secretId, type: 'reads_secret' });
       continue;
     }
@@ -327,7 +381,9 @@ export function buildGraph(
   return { nodes, edges };
 }
 
-function resolveEdgeType(operationType: string): Extract<GraphEdge, { type: 'query' | 'scan' | 'joins' }>['type'] {
+function resolveEdgeType(
+  operationType: string,
+): Extract<GraphEdge, { type: 'query' | 'scan' | 'joins' }>['type'] {
   const op = operationType.toLowerCase();
   if (op === 'scan' || op === 'scancommand') return 'scan';
   if (op === 'join' || op === 'joins') return 'joins';
@@ -341,7 +397,9 @@ export function getTableNodes(graph: SystemGraph): Extract<GraphNode, { type: 't
 }
 
 export function getFunctionNodes(graph: SystemGraph): Extract<GraphNode, { type: 'function' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'function' }> => n.type === 'function');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'function' }> => n.type === 'function',
+  );
 }
 
 export function getIndexNodes(graph: SystemGraph): Extract<GraphNode, { type: 'index' }>[] {
@@ -357,27 +415,41 @@ export function getTopicNodes(graph: SystemGraph): Extract<GraphNode, { type: 't
 }
 
 export function getSecretNodes(graph: SystemGraph): Extract<GraphNode, { type: 'secret' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'secret' }> => n.type === 'secret');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'secret' }> => n.type === 'secret',
+  );
 }
 
 export function getParameterNodes(graph: SystemGraph): Extract<GraphNode, { type: 'parameter' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'parameter' }> => n.type === 'parameter');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'parameter' }> => n.type === 'parameter',
+  );
 }
 
 export function getLogGroupNodes(graph: SystemGraph): Extract<GraphNode, { type: 'log_group' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'log_group' }> => n.type === 'log_group');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'log_group' }> => n.type === 'log_group',
+  );
 }
 
 export function getLambdaNodes(graph: SystemGraph): Extract<GraphNode, { type: 'lambda' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda',
+  );
 }
 
-export function getEventBridgeRuleNodes(graph: SystemGraph): Extract<GraphNode, { type: 'eventbridge_rule' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'eventbridge_rule' }> => n.type === 'eventbridge_rule');
+export function getEventBridgeRuleNodes(
+  graph: SystemGraph,
+): Extract<GraphNode, { type: 'eventbridge_rule' }>[] {
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'eventbridge_rule' }> => n.type === 'eventbridge_rule',
+  );
 }
 
 export function getBucketNodes(graph: SystemGraph): Extract<GraphNode, { type: 'bucket' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'bucket' }> => n.type === 'bucket');
+  return graph.nodes.filter(
+    (n): n is Extract<GraphNode, { type: 'bucket' }> => n.type === 'bucket',
+  );
 }
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
