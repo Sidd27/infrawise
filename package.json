@@ -60,6 +60,7 @@
     "lint": "eslint src",
     "typecheck": "tsc",
     "format": "prettier --write src",
+    "generate-diagrams": "mmdc -i docs/architecture.mmd -o docs/architecture.svg --backgroundColor transparent",
     "dev": "node dist/cli/index.js dev",
     "release": "node scripts/release.js",
     "prepare": "simple-git-hooks"
@@ -96,6 +97,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.15.0",
     "@types/inquirer": "^9.0.9",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.8.0",
@@ -120,6 +122,7 @@
   "pnpm": {
     "overrides": {
       "qs": ">=6.15.2"
-    }
+    },
+    "allowedBuildScripts": ["puppeteer", "simple-git-hooks"]
   }
 }

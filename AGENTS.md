@@ -16,7 +16,10 @@ Before running `pnpm release <patch|minor|major>`, every item below must be curr
 **Auto-updated by `pnpm release` — no action needed:**
 - `package.json` — version
 - `server.json` — version (MCP Registry manifest)
+- `docs/architecture.svg` — regenerated from `docs/architecture.mmd` before commit
 - Git commit, tag, push, draft GitHub release
+
+**If you change the architecture diagram:** edit `docs/architecture.mmd`, then run `pnpm generate-diagrams` to preview the SVG locally before committing.
 
 **After `pnpm release` — three required steps:**
 

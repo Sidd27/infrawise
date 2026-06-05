@@ -55,7 +55,12 @@ if (existsSync(serverJsonPath)) {
   console.log(`server.json: bumped to ${next}`);
 }
 
-execSync('git add package.json', { stdio: 'inherit' });
+// ── Regenerate architecture diagram ──────────────────────────────────────────
+
+console.log('\nGenerating architecture diagram...');
+execSync('pnpm generate-diagrams', { stdio: 'inherit' });
+
+execSync('git add package.json docs/architecture.svg', { stdio: 'inherit' });
 if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
 execSync(`git tag v${next}`, { stdio: 'inherit' });
