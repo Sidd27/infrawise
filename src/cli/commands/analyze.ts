@@ -529,7 +529,7 @@ export async function runCodeRefresh(
   graph: ReturnType<typeof buildGraph>;
   findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
 }> {
-  const cached = readCache<CachedMeta>('meta', Infinity);
+  const cached = readCache<CachedMeta>('meta', 60 * 60 * 1000);
   const dynamoMeta = cached?.dynamoMeta ?? [];
   const postgresMeta = cached?.postgresMeta ?? [];
   const mysqlMeta = cached?.mysqlMeta ?? [];
