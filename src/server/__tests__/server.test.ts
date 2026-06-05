@@ -252,6 +252,32 @@ describe('MCP Server — tool results', () => {
   });
 });
 
+describe('MCP Server — transport lifecycle', () => {
+  it('McpServer throws when connect() is called while a transport is still open', async () => {
+    // SDK design: connect() is one-shot per instance. Calling it twice without closing
+    // first throws — this is what happens with a shared server under concurrent HTTP requests.
+    const mcp = createMcpServer();
+    const [serverTransport1] = InMemoryTransport.createLinkedPair();
+    const [serverTransport2] = InMemoryTransport.createLinkedPair();
+
+    await mcp.connect(serverTransport1);
+    await expect(mcp.connect(serverTransport2)).rejects.toThrow(/Already connected/);
+  });
+
+  it('fresh McpServer per connection handles multiple sequential connections without error', async () => {
+    for (let i = 0; i < 3; i++) {
+      const mcp = createMcpServer();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+      await mcp.connect(serverTransport);
+      const client = new Client({ name: 'test', version: '1.0.0' });
+      await client.connect(clientTransport);
+      const { tools } = await client.listTools();
+      expect(tools.length).toBeGreaterThan(0);
+      await client.close();
+    }
+  });
+});
+
 describe('MCP Server — HTTP endpoints', () => {
   let fastify: ReturnType<typeof createServer>['fastify'];
 
@@ -270,5 +296,36 @@ describe('MCP Server — HTTP endpoints', () => {
     expect(body.status).toBe('ok');
     expect(body.graphNodes).toBe(testGraph.nodes.length);
     expect(body.findings).toBe(testFindings.length);
+  });
+
+  it('handles concurrent POST /mcp requests without transport collision', async () => {
+    // SDK throws "Already connected to a transport" if connect() is called on a shared
+    // McpServer while a prior transport is still open. Concurrent requests expose this.
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        fastify.inject({
+          method: 'POST',
+          url: '/mcp',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+          },
+          payload: {
+            jsonrpc: '2.0',
+            method: 'initialize',
+            params: {
+              protocolVersion: '2024-11-05',
+              capabilities: {},
+              clientInfo: { name: 'test', version: '1.0.0' },
+            },
+            id: i,
+          },
+        }),
+      ),
+    );
+
+    for (const res of responses) {
+      expect(res.statusCode).toBe(200);
+    }
   });
 });

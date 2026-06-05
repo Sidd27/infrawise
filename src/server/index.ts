@@ -560,8 +560,6 @@ export function createServer(port = 3000) {
   const fastify = Fastify({ logger: false });
   fastify.register(cors, { origin: true });
 
-  const mcp = createMcpServer();
-
   fastify.get('/health', async () => ({
     status: 'ok',
     version,
@@ -600,6 +598,9 @@ export function createServer(port = 3000) {
   }));
 
   fastify.post('/mcp', async (request, reply) => {
+    // Fresh McpServer per request: connect() is one-shot per instance and throws if called
+    // on a live server, so a shared instance breaks under concurrent requests.
+    const mcp = createMcpServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     reply.raw.on('close', () => transport.close());
     await mcp.connect(transport);
