@@ -468,16 +468,18 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // ── Cache ─────────────────────────────────────────────────────────────────────
-  writeCache('graph', graph);
-  writeCache('findings', findings);
-  writeCache('operations', operations);
-  writeCache('meta', {
-    dynamoMeta,
-    postgresMeta,
-    mysqlMeta,
-    mongoMeta,
-    servicesMeta,
-  } satisfies CachedMeta);
+  if (!options.noCache) {
+    writeCache('graph', graph);
+    writeCache('findings', findings);
+    writeCache('operations', operations);
+    writeCache('meta', {
+      dynamoMeta,
+      postgresMeta,
+      mysqlMeta,
+      mongoMeta,
+      servicesMeta,
+    } satisfies CachedMeta);
+  }
 
   // ── Output ────────────────────────────────────────────────────────────────────
   const displayFindings =
