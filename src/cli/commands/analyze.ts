@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, writeCache, readCache } from '../../core/index.js';
+import { loadConfig, formatError, writeCache, readCache, setCacheDir } from '../../core/index.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
@@ -120,6 +120,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   let config;
   try {
     config = loadConfig(options.config);
+    setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
     log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
     console.error(formatError(err));

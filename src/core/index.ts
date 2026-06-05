@@ -15,4 +15,4 @@ export {
   ConfigError,
   formatError,
 } from './errors.js';
-export { writeCache, readCache, clearCache } from './cache.js';
+export { writeCache, readCache, clearCache, setCacheDir } from './cache.js';

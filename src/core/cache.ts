@@ -3,11 +3,15 @@ import * as path from 'path';
 import type { CacheEntry } from '../types.js';
 
 const CACHE_VERSION = '1.0.0';
-const CACHE_DIR = path.join(process.cwd(), '.infrawise', 'cache');
+let cacheDir = path.join(process.cwd(), '.infrawise', 'cache');
+
+export function setCacheDir(dir: string): void {
+  cacheDir = path.join(dir, '.infrawise', 'cache');
+}
 
 function ensureCacheDir(): void {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
   }
 }
 
@@ -18,12 +22,12 @@ export function writeCache<T>(key: string, data: T): void {
     data,
     version: CACHE_VERSION,
   };
-  const filePath = path.join(CACHE_DIR, `${key}.json`);
+  const filePath = path.join(cacheDir, `${key}.json`);
   fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
 }
 
 export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
-  const filePath = path.join(CACHE_DIR, `${key}.json`);
+  const filePath = path.join(cacheDir, `${key}.json`);
   if (!fs.existsSync(filePath)) return null;
 
   try {
@@ -41,13 +45,13 @@ export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
 
 export function clearCache(key?: string): void {
   if (key) {
-    const filePath = path.join(CACHE_DIR, `${key}.json`);
+    const filePath = path.join(cacheDir, `${key}.json`);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } else {
-    if (fs.existsSync(CACHE_DIR)) {
-      const files = fs.readdirSync(CACHE_DIR);
+    if (fs.existsSync(cacheDir)) {
+      const files = fs.readdirSync(cacheDir);
       for (const file of files) {
-        fs.unlinkSync(path.join(CACHE_DIR, file));
+        fs.unlinkSync(path.join(cacheDir, file));
       }
     }
   }

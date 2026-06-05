@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, readCache } from '../../core/index.js';
+import { loadConfig, formatError, readCache, setCacheDir } from '../../core/index.js';
 import { createServer, setGraphState } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { log, printHeader } from '../utils.js';
@@ -72,6 +72,7 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   let config!: InfrawiseConfig;
   try {
     config = loadConfig(options.config);
+    setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
     log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
     console.error(formatError(err));
