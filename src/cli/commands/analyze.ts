@@ -580,7 +580,11 @@ export async function runCodeRefresh(
     ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
     ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
     ...(config.lambda?.enabled === true
-      ? [new LambdaDefaultMemoryAnalyzer(), new LambdaHighTimeoutAnalyzer()]
+      ? [
+          new LambdaDefaultMemoryAnalyzer(),
+          new LambdaHighTimeoutAnalyzer(),
+          new LambdaMissingTriggerDLQAnalyzer(),
+        ]
       : []),
     ...(config.rds?.enabled === true
       ? [
