@@ -72,7 +72,7 @@ export async function extractS3Metadata(cfg: AWSConfig = {}): Promise<S3BucketMe
           ? (encryptResult.value.ServerSideEncryptionConfiguration?.Rules?.length ?? 0) > 0
           : false;
 
-      let publicAccessBlocked = false;
+      let publicAccessBlocked: boolean | null = null;
       if (pabResult.status === 'fulfilled') {
         const pab = pabResult.value.PublicAccessBlockConfiguration ?? {};
         publicAccessBlocked = !!(
@@ -81,6 +81,11 @@ export async function extractS3Metadata(cfg: AWSConfig = {}): Promise<S3BucketMe
           pab.BlockPublicPolicy &&
           pab.RestrictPublicBuckets
         );
+      } else {
+        const httpStatus = (pabResult.reason as { $metadata?: { httpStatusCode?: number } })
+          ?.$metadata?.httpStatusCode;
+        if (httpStatus !== 403) publicAccessBlocked = false;
+        // 403 AccessDenied: leave as null — insufficient permissions, not a public access finding
       }
 
       buckets.push({

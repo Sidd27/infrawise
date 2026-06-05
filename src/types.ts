@@ -58,7 +58,7 @@ export type GraphNode =
       provider: string;
       versioned?: boolean;
       encrypted?: boolean;
-      publicAccessBlocked?: boolean;
+      publicAccessBlocked?: boolean | null;
     }
   | {
       id: string;
@@ -265,7 +265,7 @@ export interface S3BucketMetadata {
   createdAt?: string;
   versioned: boolean;
   encrypted: boolean;
-  publicAccessBlocked: boolean;
+  publicAccessBlocked: boolean | null;
   notifications: S3EventNotification[];
 }
 
