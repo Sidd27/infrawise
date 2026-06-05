@@ -4,6 +4,10 @@ import { InfrawiseError, logger } from '../../core/index.js';
 
 const SYSTEM_DATABASES = new Set(['admin', 'local', 'config']);
 
+function sanitizeConnectionDetail(s: string): string {
+  return s.replace(/\/\/[^:/@]+:[^@]+@/g, '//***:***@');
+}
+
 export class MongoConnectionError extends InfrawiseError {
   constructor(details?: string) {
     super(
@@ -13,7 +17,7 @@ export class MongoConnectionError extends InfrawiseError {
     );
     this.name = 'MongoConnectionError';
     if (details) {
-      this.message = `Unable to connect to MongoDB.\n\nPossible reasons:\n- invalid connection string\n- port 27017 not accessible\n- wrong credentials\n\nRun: infrawise doctor\n\nDetail: ${details}`;
+      this.message = `Unable to connect to MongoDB.\n\nPossible reasons:\n- invalid connection string\n- port 27017 not accessible\n- wrong credentials\n\nRun: infrawise doctor\n\nDetail: ${sanitizeConnectionDetail(details)}`;
     }
   }
 }

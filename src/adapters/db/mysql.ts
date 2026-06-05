@@ -4,6 +4,10 @@ import { InfrawiseError, logger } from '../../core/index.js';
 
 const SYSTEM_SCHEMAS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
 
+function sanitizeConnectionDetail(s: string): string {
+  return s.replace(/\/\/[^:/@]+:[^@]+@/g, '//***:***@');
+}
+
 export class MySQLConnectionError extends InfrawiseError {
   constructor(details?: string) {
     super(
@@ -13,7 +17,7 @@ export class MySQLConnectionError extends InfrawiseError {
     );
     this.name = 'MySQLConnectionError';
     if (details) {
-      this.message = `Unable to connect to MySQL.\n\nPossible reasons:\n- invalid connection string\n- port 3306 not accessible\n- wrong credentials\n\nRun: infrawise doctor\n\nDetail: ${details}`;
+      this.message = `Unable to connect to MySQL.\n\nPossible reasons:\n- invalid connection string\n- port 3306 not accessible\n- wrong credentials\n\nRun: infrawise doctor\n\nDetail: ${sanitizeConnectionDetail(details)}`;
     }
   }
 }
