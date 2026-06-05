@@ -37,10 +37,25 @@ interface AWSConfig {
   endpoint?: string;
 }
 
+function validateEndpoint(endpoint: string): void {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error(`Invalid aws.endpoint URL: "${endpoint}"`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`aws.endpoint must use http:// or https://, got "${url.protocol}//"`);
+  }
+}
+
 function clientConfig(cfg: AWSConfig) {
   const region = cfg.region ?? 'us-east-1';
   const base: Record<string, unknown> = { region };
-  if (cfg.endpoint) base.endpoint = cfg.endpoint;
+  if (cfg.endpoint) {
+    validateEndpoint(cfg.endpoint);
+    base.endpoint = cfg.endpoint;
+  }
   if (cfg.profile) base.credentials = fromIni({ profile: cfg.profile });
   return base;
 }
