@@ -131,7 +131,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 14 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). Start the server with `infrawise dev`.
+Infrawise exposes 15 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). Start the server with `infrawise dev`.
 
 ### `get_infra_overview`
 
