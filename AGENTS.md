@@ -336,6 +336,10 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 2. `analyze_function` on the relevant function → check existing patterns
 3. `suggest_gsi` or `postgres_index_suggestions` if an index is needed
 
+**Before writing an SNS publish call:**
+1. `get_topic_details` → check for filter policies on the target topic
+2. Include all `requiredAttributes` as `MessageAttributes` in the publish call — missing any will silently drop the message for that subscription
+
 **Reviewing an entire service:**
 1. `get_graph_summary` → full graph
 2. Review high-severity findings

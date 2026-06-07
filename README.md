@@ -345,6 +345,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
 | MongoDB schema                   | Collections, indexes                                                                                               |
 | SQS                              | Missing DLQs, unencrypted queues, large backlogs                                                                   |
+| SNS                              | Subscription filter policies — required message attributes per subscription                                        |
 | Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
 | Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), missing DLQ on trigger source |
