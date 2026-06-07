@@ -216,13 +216,14 @@ function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
     return result;
   }
   if (Node.isIdentifier(node)) {
-    const name = node.getText();
-    const decl = sourceFile
-      .getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-      .find((d) => d.getName() === name);
-    if (decl) {
-      const init = decl.getInitializer();
-      if (init) return resolveStringValue(init, sourceFile);
+    const symbol = node.getSymbol();
+    if (symbol) {
+      for (const decl of symbol.getDeclarations()) {
+        if (Node.isVariableDeclaration(decl)) {
+          const init = decl.getInitializer();
+          if (init) return resolveStringValue(init, sourceFile);
+        }
+      }
     }
   }
   return null;

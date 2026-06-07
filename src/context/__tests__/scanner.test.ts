@@ -281,6 +281,31 @@ describe('scanRepository — Kafka', () => {
   });
 });
 
+describe('scanRepository — scope-aware variable resolution', () => {
+  it('resolves identically named variables to their own enclosing scope', async () => {
+    writeFixture(
+      'scope-resolution.ts',
+      `
+      async function getUsers() {
+        const sql = 'SELECT * FROM users WHERE active = true';
+        await pool.query(sql);
+      }
+      async function getOrders() {
+        const sql = 'SELECT * FROM orders WHERE status = pending';
+        await pool.query(sql);
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const usersOp = ops.find((o) => o.functionName === 'getUsers' && o.serviceType === 'postgres');
+    const ordersOp = ops.find(
+      (o) => o.functionName === 'getOrders' && o.serviceType === 'postgres',
+    );
+    expect(usersOp?.target).toBe('users');
+    expect(ordersOp?.target).toBe('orders');
+  });
+});
+
 describe('scanRepository — edge cases', () => {
   it('throws RepositoryScanError for non-existent path', async () => {
     await expect(scanRepository('/tmp/definitely-does-not-exist-xyz')).rejects.toThrow();
