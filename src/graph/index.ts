@@ -113,6 +113,7 @@ export function buildGraph(
       provider: 'aws',
       subscriptionCount: t.subscriptionCount,
       encrypted: t.encrypted,
+      filterPolicies: t.filterPolicies?.length > 0 ? t.filterPolicies : undefined,
     });
   }
 

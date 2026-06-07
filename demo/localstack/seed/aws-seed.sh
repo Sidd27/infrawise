@@ -74,8 +74,30 @@ $AWS sqs create-queue --queue-name temp-processing-queue --no-cli-pager 2>/dev/n
 
 echo "  → SNS topics"
 
-$AWS sns create-topic --name order-events --no-cli-pager 2>/dev/null || true
-$AWS sns create-topic --name inventory-alerts --no-cli-pager 2>/dev/null || true
+ORDER_EVENTS_ARN=$($AWS sns create-topic --name order-events --no-cli-pager --query TopicArn --output text 2>/dev/null || true)
+INVENTORY_ALERTS_ARN=$($AWS sns create-topic --name inventory-alerts --no-cli-pager --query TopicArn --output text 2>/dev/null || true)
+
+# Subscribe notifications-queue to order-events with a filter policy
+# Filter requires 'eventType' and 'region' attributes — publishers must include these
+NOTIFICATIONS_QUEUE_ARN=$($AWS sqs get-queue-attributes \
+  --queue-url "http://localhost:4566/000000000000/notifications-queue" \
+  --attribute-names QueueArn --query Attributes.QueueArn --output text 2>/dev/null || true)
+
+if [ -n "$ORDER_EVENTS_ARN" ] && [ -n "$NOTIFICATIONS_QUEUE_ARN" ]; then
+  SUB_ARN=$($AWS sns subscribe \
+    --topic-arn "$ORDER_EVENTS_ARN" \
+    --protocol sqs \
+    --notification-endpoint "$NOTIFICATIONS_QUEUE_ARN" \
+    --no-cli-pager --query SubscriptionArn --output text 2>/dev/null || true)
+
+  if [ -n "$SUB_ARN" ] && [ "$SUB_ARN" != "None" ]; then
+    $AWS sns set-subscription-attributes \
+      --subscription-arn "$SUB_ARN" \
+      --attribute-name FilterPolicy \
+      --attribute-value '{"eventType":["order.created","order.updated"],"region":["us-east-1","us-west-2"]}' \
+      --no-cli-pager 2>/dev/null || true
+  fi
+fi
 
 # ── SSM Parameter Store ──────────────────────────────────────────────────────
 

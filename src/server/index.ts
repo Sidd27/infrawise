@@ -367,7 +367,7 @@ export function createMcpServer(): McpServer {
     'get_topic_details',
     {
       description:
-        'Returns all SNS topics with subscription count and encryption status. Call this when reviewing event fan-out patterns or checking whether a topic has the expected number of subscribers.',
+        'Returns all SNS topics with subscription count, encryption status, and filter policies. Filter policies list the message attributes each subscription requires — publishers must include these attributes or messages are silently dropped. Call this before writing any SNS publish code or when reviewing event fan-out patterns.',
       inputSchema: z.object({}),
     },
     logged('get_topic_details', async () => {
@@ -379,6 +379,7 @@ export function createMcpServer(): McpServer {
           provider: t.provider,
           subscriptionCount: t.subscriptionCount,
           encrypted: t.encrypted,
+          filterPolicies: t.filterPolicies ?? [],
         })),
       });
     }),

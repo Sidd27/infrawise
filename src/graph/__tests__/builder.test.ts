@@ -211,12 +211,36 @@ describe('buildGraph', () => {
 
   it('creates SNS topic nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      sns: [{ name: 'order-events', subscriptionCount: 2, encrypted: true }],
+      sns: [{ name: 'order-events', subscriptionCount: 2, encrypted: true, filterPolicies: [] }],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const topics = getTopicNodes(graph);
     expect(topics).toHaveLength(1);
     expect(topics[0].name).toBe('order-events');
+  });
+
+  it('attaches filter policies to SNS topic nodes', () => {
+    const services: ServicesMeta = {
+      sns: [
+        {
+          name: 'payments',
+          subscriptionCount: 1,
+          encrypted: false,
+          filterPolicies: [
+            {
+              subscriptionArn: 'arn:aws:sns:us-east-1:123:payments:abc',
+              protocol: 'sqs',
+              requiredAttributes: ['type', 'currency'],
+              scope: 'MessageAttributes',
+            },
+          ],
+        },
+      ],
+    };
+    const graph = buildGraph([], [], [], [], [], services);
+    const topics = getTopicNodes(graph);
+    expect(topics[0].filterPolicies).toHaveLength(1);
+    expect(topics[0].filterPolicies?.[0].requiredAttributes).toEqual(['type', 'currency']);
   });
 
   it('creates Lambda nodes from servicesMeta', () => {

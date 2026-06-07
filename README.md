@@ -170,7 +170,7 @@ To let Claude Code manage the server lifecycle automatically:
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
 | `mysql_index_suggestions`    | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table                                                      |
 | `get_queue_details`          | SQS queues — DLQ status, encryption, message counts                                                         |
-| `get_topic_details`          | SNS topics — subscription counts and protocols                                                              |
+| `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
 | `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), env var key names |

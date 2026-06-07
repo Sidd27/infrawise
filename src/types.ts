@@ -25,6 +25,12 @@ export type GraphNode =
       provider: string;
       subscriptionCount?: number;
       encrypted: boolean;
+      filterPolicies?: Array<{
+        subscriptionArn: string;
+        protocol: string;
+        requiredAttributes: string[];
+        scope: string;
+      }>;
     }
   | {
       id: string;
@@ -165,12 +171,20 @@ export interface SQSQueueMetadata {
   approximateInflight: number;
 }
 
+export interface SNSFilterPolicy {
+  subscriptionArn: string;
+  protocol: string;
+  requiredAttributes: string[];
+  scope: string;
+}
+
 export interface SNSTopicMetadata {
   name: string;
   arn: string;
   encrypted: boolean;
   subscriptionCount: number;
   subscriptionProtocols: string[];
+  filterPolicies: SNSFilterPolicy[];
 }
 
 export interface SSMParameterMetadata {

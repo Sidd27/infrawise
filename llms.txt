@@ -37,7 +37,7 @@ infrawise stdio   # stdio transport (for Claude Desktop)
 - `suggest_mongo_index` — exact db.collection.createIndex command
 - `mysql_index_suggestions` — exact ALTER TABLE ADD INDEX SQL
 - `get_queue_details` — SQS queues with DLQ and encryption status
-- `get_topic_details` — SNS topics with subscription count
+- `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
 - `get_lambda_overview` — Lambda config, memory, timeout, trigger event shapes

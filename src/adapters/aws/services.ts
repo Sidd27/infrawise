@@ -4,6 +4,7 @@ import {
   ListTopicsCommand,
   GetTopicAttributesCommand,
   ListSubscriptionsByTopicCommand,
+  GetSubscriptionAttributesCommand,
 } from '@aws-sdk/client-sns';
 import { SSMClient, DescribeParametersCommand } from '@aws-sdk/client-ssm';
 import { SecretsManagerClient, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
@@ -22,6 +23,7 @@ import { fromIni } from '@aws-sdk/credential-providers';
 import type {
   SQSQueueMetadata,
   SNSTopicMetadata,
+  SNSFilterPolicy,
   SSMParameterMetadata,
   SecretsManagerMetadata,
   LambdaFunctionMetadata,
@@ -156,12 +158,35 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
         const attrs = attrsRes.Attributes ?? {};
         const subs = subsRes.Subscriptions ?? [];
 
+        const filterPolicies: SNSFilterPolicy[] = [];
+        for (const sub of subs) {
+          if (!sub.SubscriptionArn || sub.SubscriptionArn === 'PendingConfirmation') continue;
+          try {
+            const subAttrs = await client.send(
+              new GetSubscriptionAttributesCommand({ SubscriptionArn: sub.SubscriptionArn }),
+            );
+            const fp = subAttrs.Attributes?.['FilterPolicy'];
+            if (fp) {
+              const parsed = JSON.parse(fp) as Record<string, unknown>;
+              filterPolicies.push({
+                subscriptionArn: sub.SubscriptionArn,
+                protocol: sub.Protocol ?? 'unknown',
+                requiredAttributes: Object.keys(parsed),
+                scope: subAttrs.Attributes?.['FilterPolicyScope'] ?? 'MessageAttributes',
+              });
+            }
+          } catch {
+            // skip subscription if attributes fetch fails
+          }
+        }
+
         topics.push({
           name: arn.split(':').pop() ?? arn,
           arn,
           encrypted: !!attrs['KmsMasterKeyId'],
           subscriptionCount: parseInt(attrs['SubscriptionsConfirmed'] ?? '0', 10),
           subscriptionProtocols: [...new Set(subs.map((s) => s.Protocol ?? 'unknown'))],
+          filterPolicies,
         });
       } catch (err) {
         logger.warn(

@@ -245,13 +245,13 @@ Returns: per-queue — name, provider, DLQ status, encryption, approximate messa
 
 ### `get_topic_details`
 
-All SNS topics with subscription metadata.
+All SNS topics with subscription metadata and filter policies.
 
 No inputs required.
 
-Returns: per-topic — name, provider, subscription count, encryption status.
+Returns: per-topic — name, provider, subscription count, encryption status, filterPolicies (array of `{ subscriptionArn, protocol, requiredAttributes, scope }`). `requiredAttributes` lists the message attribute keys that subscription's filter policy requires — any publish call missing these attributes will have its message silently dropped by that subscription.
 
-**When to call:** When reviewing event fan-out patterns or subscription coverage.
+**When to call:** Before writing any SNS publish code to know which message attributes are required. Also when reviewing event fan-out patterns or subscription coverage.
 
 ---
 
