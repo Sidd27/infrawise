@@ -8,17 +8,21 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/Sidd27/infrawise#readme",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "infrawise",
-      "version": "0.10.1",
+      "version": "0.10.2",
       "runtimeHint": "node",
       "transport": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "infrawise", "stdio"]
+        "args": [
+          "-y",
+          "infrawise",
+          "stdio"
+        ]
       }
     }
   ]
