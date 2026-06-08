@@ -55,35 +55,32 @@ npm install -g infrawise
 or use without installing:
 
 ```bash
-npx infrawise init
+npx infrawise start --claude
 ```
 
 ---
 
 ## Quick start
 
-**1. Initialize in your repo**
-
 ```bash
 cd your-project
-infrawise init
+infrawise start --claude
 ```
 
-Detects your AWS profile and region, asks a few questions, writes `infrawise.yaml`. That's the only file it creates in your project.
+That's it. Infrawise will:
 
-**2. Validate everything is connected**
+1. Ask a few questions and generate `infrawise.yaml` (first time only)
+2. Scan your AWS services, databases, and codebase
+3. Write `.mcp.json` so your editor auto-connects on every future launch
+4. Open Claude Code with all 15 MCP tools ready
+
+**Every time after:**
 
 ```bash
-infrawise doctor
+claude    # no infrawise command needed — editor manages the connection
 ```
 
-**3. Run analysis**
-
-```bash
-infrawise analyze
-```
-
-Or skip this step — `infrawise dev` auto-runs analysis if no cache exists.
+Analysis is cached for 24 hours. When the cache is stale, `infrawise stdio` (spawned automatically by your editor) refreshes it at session start. File changes are detected within the session and the code graph is updated automatically.
 
 ```
 Findings (3 total)
@@ -104,34 +101,47 @@ Findings (3 total)
 
 ## Using with AI coding assistants
 
-### Step 1: Start the MCP server
+### Claude Code (recommended)
 
 ```bash
-infrawise dev
+infrawise start --claude
 ```
 
-```
-  ✔ Config loaded          infrawise.yaml
-  ✔ Cached analysis loaded 42 nodes · 18 edges · 7 finding(s)
-  ✔ Server running
+Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise stdio` process — no server to start, no ports to configure.
 
-  ┌────────────────────────────────────────────────────┐
-  │ MCP Server                                        │
-  ├────────────────────────────────────────────────────┤
-  │ POST http://localhost:3000/mcp                    │
-  │ GET  http://localhost:3000/health                 │
-  ├────────────────────────────────────────────────────┤
-  │ Tools (13 active)                                 │
-  │ get_infra_overview · get_graph_summary            │
-  │ ...                                               │
-  └────────────────────────────────────────────────────┘
+### Cursor
 
-  Watching for file changes... Press Ctrl+C to stop
+```bash
+infrawise start --cursor
 ```
 
-### Step 2: Add to your editor settings
+Writes `.cursor/mcp.json` and opens Cursor. All 15 infrawise tools are available in Cursor's MCP panel.
 
-**Claude Code** — edit `.claude/settings.json` in your repo (project-level) or `~/.claude/settings.json` (global):
+### Windsurf
+
+```bash
+infrawise start --windsurf
+```
+
+Writes to `~/.codeium/windsurf/mcp_config.json` and opens Windsurf.
+
+### Any editor (no flag)
+
+```bash
+infrawise start
+```
+
+Writes `.mcp.json` and exits. Open whichever editor you prefer — point it at `infrawise stdio --config /path/to/infrawise.yaml` as an MCP server command.
+
+### HTTP transport (alternative)
+
+If your editor or workflow requires an HTTP MCP endpoint instead of stdio:
+
+```bash
+infrawise dev    # starts server at http://localhost:3000/mcp
+```
+
+Add to your editor's MCP config:
 
 ```json
 {
@@ -142,21 +152,6 @@ infrawise dev
   }
 }
 ```
-
-To let Claude Code manage the server lifecycle automatically:
-
-```json
-{
-  "mcpServers": {
-    "infrawise": {
-      "command": "infrawise",
-      "args": ["dev"]
-    }
-  }
-}
-```
-
-**Cursor** and **Windsurf** — add `http://localhost:3000/mcp` as an MCP server in editor settings.
 
 ### MCP tools
 
@@ -182,14 +177,18 @@ To let Claude Code manage the server lifecycle automatically:
 
 ## CLI reference
 
-| Command             | What it does                                                                 |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `infrawise init`    | Detect AWS + repo, generate `infrawise.yaml`                                 |
-| `infrawise auth`    | Select or switch AWS profile                                                 |
-| `infrawise analyze` | Scan repo + AWS, build graph, print findings                                 |
-| `infrawise dev`     | Start MCP server — auto-analyzes if no cache, watches files for live refresh |
-| `infrawise stdio`   | Start MCP server on stdio transport (for Claude Desktop)                     |
-| `infrawise doctor`  | Validate AWS access, DB connectivity, and config                             |
+| Command                      | What it does                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `infrawise start`            | **Primary command** — init + analyze + write editor MCP config, then exit         |
+| `infrawise start --claude`   | Same as above, then opens Claude Code                                             |
+| `infrawise start --cursor`   | Same as above, then opens Cursor                                                  |
+| `infrawise start --windsurf` | Same as above, then opens Windsurf                                                |
+| `infrawise init`             | Generate `infrawise.yaml` only (no analysis, no editor config)                   |
+| `infrawise auth`             | Select or switch AWS profile                                                      |
+| `infrawise analyze`          | Force a full re-scan — useful after major infrastructure changes                  |
+| `infrawise dev`              | HTTP transport alternative — starts server at `localhost:3000/mcp`               |
+| `infrawise stdio`            | Stdio transport — auto-managed by editors via `.mcp.json` (rarely run directly)  |
+| `infrawise doctor`           | Validate AWS access, DB connectivity, and config                                  |
 
 ### `infrawise analyze` options
 
@@ -216,7 +215,7 @@ infrawise analyze --severity high --output report.md
 
 ## Configuration
 
-`infrawise.yaml` is generated by `infrawise init` and lives in your repo root. Every service must be explicitly `enabled: true` — infrawise never connects to anything not listed in config.
+`infrawise.yaml` is generated by `infrawise start` (or `infrawise init` to create the file only) and lives in your repo root. Every service must be explicitly `enabled: true` — infrawise never connects to anything not listed in config.
 
 Connection strings support `${ENV_VAR}` substitution so passwords never need to be committed:
 

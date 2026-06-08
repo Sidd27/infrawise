@@ -519,7 +519,6 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   console.log('');
   log.dim(`Results cached in .infrawise/cache/`);
-  log.info(`Run ${chalk.cyan('infrawise dev')} to explore via the MCP server`);
   console.log('');
 }
 

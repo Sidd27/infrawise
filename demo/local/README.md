@@ -20,39 +20,18 @@ cd demo/local
 ./start.sh
 ```
 
-This starts Postgres, MySQL, and MongoDB, seeds each with intentional issues, and runs `infrawise init` to generate `infrawise.yaml`.
+Starts Postgres, MySQL, and MongoDB, seeds each with intentional issues, then runs `infrawise start --claude` — analyzes your databases and opens Claude Code with all MCP tools ready.
 
-When `infrawise init` runs, configure connections:
-- **Postgres**: `postgres://demo:demo@localhost:5432/demodb`
-- **MySQL**: `mysql://demo:demo@localhost:3306/demodb`
-- **MongoDB**: `mongodb://localhost:27017`
-
----
-
-## Analyze
+**Every time after** (databases already running, cache fresh):
 
 ```bash
-infrawise analyze
+claude    # infrawise connects automatically via .mcp.json
 ```
 
-### MCP server (Claude Code)
-
-```bash
-infrawise dev
-```
-
-Then add to your Claude Code MCP config:
-
-```json
-{
-  "mcpServers": {
-    "infrawise": {
-      "command": "infrawise",
-      "args": ["dev"]
-    }
-  }
-}
-```
+**Connection strings** (pre-configured in `infrawise.yaml`):
+- Postgres: `postgres://demo:demo@localhost:5432/demodb`
+- MySQL: `mysql://demo:demo@localhost:3306/demodb`
+- MongoDB: `mongodb://localhost:27017`
 
 ---
 
