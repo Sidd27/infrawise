@@ -13,6 +13,7 @@ Tests infrawise against AWS services emulated locally via LocalStack. Everything
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) running
 - [AWS CLI](https://aws.amazon.com/cli/) installed (`aws --version`)
 - infrawise on your PATH (`npm install -g infrawise` or built from source)
+- A free LocalStack auth token from [app.localstack.cloud](https://app.localstack.cloud)
 
 ---
 
@@ -20,53 +21,20 @@ Tests infrawise against AWS services emulated locally via LocalStack. Everything
 
 ```bash
 cd demo/localstack
+cp .env.example .env    # add your LocalStack auth token
 ./start.sh
 ```
 
-Starts LocalStack and seeds all AWS resources. Copy `.env.example` to `.env` and add your auth token before running — the token is required for `localstack:stable` and is free at [app.localstack.cloud](https://app.localstack.cloud).
+That's it. `start.sh` will:
 
----
+1. Start LocalStack and wait for it to be healthy
+2. Seed all AWS resources
+3. Run `infrawise start --claude` — analyzes your infrastructure and opens Claude Code
 
-## Analyze
-
-Before running any infrawise command, load the LocalStack credentials into your shell:
-
-```bash
-source .env
-```
-
-> **Required every terminal session.** This sets `AWS_ACCESS_KEY_ID=test` and `AWS_SECRET_ACCESS_KEY=test` — dummy values LocalStack accepts. Without this, infrawise will fall through to your real AWS profile and fail. Not needed when using infrawise against a real AWS account.
-
-Then configure and analyze:
+**Every time after** (LocalStack already running, cache fresh):
 
 ```bash
-infrawise init
-infrawise analyze
-```
-
-When `infrawise init` asks **AWS profile**, select **`LocalStack (local development)`**. It will then ask for the endpoint — use the default `http://localhost:4566`.
-
-### MCP server (Claude Code)
-
-```bash
-infrawise dev
-```
-
-Then add to your Claude Code MCP config:
-
-```json
-{
-  "mcpServers": {
-    "infrawise": {
-      "command": "infrawise",
-      "args": ["dev"],
-      "env": {
-        "AWS_ACCESS_KEY_ID": "test",
-        "AWS_SECRET_ACCESS_KEY": "test"
-      }
-    }
-  }
-}
+claude    # infrawise connects automatically via .mcp.json
 ```
 
 ---

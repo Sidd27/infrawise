@@ -9,6 +9,7 @@ import { runAnalyze } from './commands/analyze.js';
 import { runDev } from './commands/dev.js';
 import { runDoctor } from './commands/doctor.js';
 import { runStdio } from './commands/stdio.js';
+import { runStart } from './commands/start.js';
 
 const { version } = JSON.parse(
   readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
@@ -24,8 +25,27 @@ program
   .version(version);
 
 program
+  .command('start')
+  .description(
+    'Set up infrawise and connect your editor — runs init + analyze + writes editor MCP config',
+  )
+  .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
+  .option('--claude', 'Write .mcp.json and open Claude Code')
+  .option('--cursor', 'Write .cursor/mcp.json and open Cursor')
+  .option('--windsurf', 'Write Windsurf MCP config and open Windsurf')
+  .action(async (options) => {
+    printBanner();
+    await runStart({
+      config: options.config !== 'infrawise.yaml' ? options.config : undefined,
+      claude: options.claude,
+      cursor: options.cursor,
+      windsurf: options.windsurf,
+    });
+  });
+
+program
   .command('init')
-  .description('Detect AWS profile/region, discover DynamoDB tables, and generate infrawise.yaml')
+  .description('Detect AWS profile/region, ask setup questions, and generate infrawise.yaml')
   .option('--force', 'Overwrite existing infrawise.yaml')
   .action(async (options) => {
     printBanner();
@@ -61,7 +81,7 @@ program
 
 program
   .command('dev')
-  .description('Start Fastify MCP server on localhost:3000')
+  .description('Start MCP server over HTTP at localhost:3000 (alternative to stdio-based start)')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('-p, --port <number>', 'Port to listen on', '3000')
   .action(async (options) => {
@@ -74,7 +94,7 @@ program
 
 program
   .command('stdio')
-  .description('Start MCP server on stdio transport (for Claude Desktop and Glama)')
+  .description('Start MCP server on stdio transport — used by editors via .mcp.json (auto-managed)')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .action(async (options) => {
     await runStdio(options.config !== 'infrawise.yaml' ? options.config : undefined);

@@ -51,9 +51,9 @@ mcp-publisher publish server.json
 - When adding a new feature (new service type, new adapter, new tool): update `demo/local/app/` with a representative usage example and update `demo/local/infrawise.yaml` if needed. Demo must always stay in sync — no need to be asked.
 - **When a new feature adds a config key: update BOTH `src/types.ts` (the TypeScript interface) AND `src/core/config.ts` (the Zod schema).** If only `types.ts` is updated, Zod strips the key silently and the feature never activates — no error, just silent failure. Always add the matching `z.object(...)` entry to `InfrawiseConfigSchema` in `config.ts`.
 - **After every implementation, always update all three docs — no exceptions, no need to be asked:**
-  - `README.md` — analysis capabilities table, MCP tools table, configuration section, `--severity` flag docs
+  - `README.md` — CLI reference table (including `start` flags), MCP tools table, "Using with AI coding assistants" section, configuration section, `--severity` flag docs
   - `AGENTS.md` — MCP tool reference section, source layout, recommended usage patterns, expected LocalStack findings count
-  - `llms.txt` — tool count, tool list, AWS services description line
+  - `llms.txt` — quick start commands, tool count, tool list, AWS services description line
 - **Version must be in sync everywhere on every release.** `package.json` is the source of truth. `src/server/index.ts` reads it dynamically — no manual update needed there. `server.json` (MCP Registry manifest, committed) is bumped automatically by the release script.
 
 ## Running the LocalStack demo
@@ -80,7 +80,9 @@ Expected: 23+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DL
 To start the MCP server against LocalStack:
 
 ```bash
-infrawise dev --config infrawise.yaml
+infrawise dev --config infrawise.yaml    # HTTP transport, keeps server running in foreground
+# or for stdio-based editors:
+infrawise start --config infrawise.yaml  # writes .mcp.json, then open your editor
 ```
 
 Stop when done:
@@ -131,7 +133,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 15 tools via `POST http://localhost:3000/mcp` (JSON-RPC 2.0). Start the server with `infrawise dev`.
+Infrawise exposes 15 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise dev` starts the server at `POST http://localhost:3000/mcp`.
 
 ### `get_infra_overview`
 

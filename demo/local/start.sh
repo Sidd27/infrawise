@@ -38,35 +38,16 @@ echo "▶ Seeding MongoDB..."
 docker compose exec -T mongodb mongosh --quiet < seed/mongo-seed.js
 echo "  ✓ MongoDB seeded"
 
-# ── 3. Generate config via infrawise init ────────────────────────────────────
-
-echo ""
-echo "▶ Generating infrawise.yaml..."
-if [ ! -f infrawise.yaml ]; then
-  infrawise init
-else
-  echo "  infrawise.yaml already exists, skipping init"
-fi
-
-# ── 4. Done ──────────────────────────────────────────────────────────────────
+# ── 3. Start infrawise + open Claude ────────────────────────────────────────
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Local demo ready!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  Postgres  : localhost:5432  (user: demo  db: demodb)"
-echo "  MySQL     : localhost:3306  (user: demo  db: demodb)"
-echo "  MongoDB   : localhost:27017 (db: appdb)"
-echo "  Kafka     : detected from kafkajs code patterns (no broker needed)"
+
+infrawise start --claude
+
+# ── Cleanup hint ─────────────────────────────────────────────────────────────
+
 echo ""
-echo "  Analyze:"
-echo ""
-echo "    infrawise analyze"
-echo ""
-echo "  MCP server for Claude Code:"
-echo ""
-echo "    infrawise dev"
-echo ""
-echo "  Stop: docker compose down"
+echo "  Stop databases: docker compose down"
 echo ""

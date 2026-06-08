@@ -5,7 +5,7 @@ import inquirer from 'inquirer';
 import { generateDefaultConfig } from '../../core/index.js';
 import { readAWSProfiles, detectAWSRegion, detectRepoType, log, printHeader } from '../utils.js';
 
-export async function runInit(options: { force?: boolean } = {}): Promise<void> {
+export async function runInit(options: { force?: boolean; quiet?: boolean } = {}): Promise<void> {
   const cwd = process.cwd();
   const configPath = path.join(cwd, 'infrawise.yaml');
 
@@ -255,10 +255,12 @@ export async function runInit(options: { force?: boolean } = {}): Promise<void> 
 
   console.log('');
   log.success(`Created ${chalk.bold('infrawise.yaml')}`);
-  console.log('');
-  console.log(chalk.bold('  Next steps:'));
-  log.info(`Run ${chalk.cyan('infrawise doctor')} to validate your setup`);
-  log.info(`Run ${chalk.cyan('infrawise analyze')} to scan your infrastructure`);
-  log.info(`Run ${chalk.cyan('infrawise dev')} to start the MCP server`);
-  console.log('');
+
+  if (!options.quiet) {
+    console.log('');
+    console.log(chalk.bold('  Next steps:'));
+    log.info(`Run ${chalk.cyan('infrawise start')} to analyze and connect your editor`);
+    log.info(`Run ${chalk.cyan('infrawise doctor')} to validate your setup`);
+    console.log('');
+  }
 }
