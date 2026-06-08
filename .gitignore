@@ -29,3 +29,10 @@ dist/
 # Test coverage
 coverage/
 
+# Demo recordings — generated on demand via pnpm record, not committed
+docs/demo/gifs/
+docs/demo/casts/
+
+# Claude Code skills — local tooling, not part of the project
+docs/superpowers/
+

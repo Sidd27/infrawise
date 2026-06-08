@@ -61,6 +61,7 @@
     "typecheck": "tsc",
     "format": "prettier --write src",
     "generate-diagrams": "mmdc -i docs/architecture.mmd -o docs/architecture.svg --backgroundColor transparent",
+    "record": "bash docs/demo/record.sh",
     "dev": "node dist/cli/index.js dev",
     "release": "node scripts/release.js",
     "prepare": "simple-git-hooks"

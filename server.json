@@ -16,8 +16,9 @@
       "version": "0.10.1",
       "runtimeHint": "node",
       "transport": {
-        "type": "streamable-http",
-        "url": "http://localhost:3000/mcp"
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "infrawise", "stdio"]
       }
     }
   ]
