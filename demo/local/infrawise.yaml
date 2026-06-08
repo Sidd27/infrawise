@@ -16,7 +16,7 @@ mongodb:
   connectionString: mongodb://localhost:27017
   databases: []
 terraform:
-  enabled: true
+  enabled: false
 sqs:
   enabled: false
 sns:
