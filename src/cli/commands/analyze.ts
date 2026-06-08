@@ -77,6 +77,7 @@ interface AnalyzeOptions {
   noCache?: boolean;
   output?: string;
   severity?: 'high' | 'medium' | 'low';
+  silent?: boolean;
 }
 
 const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1, verify: 0 };
@@ -483,43 +484,45 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────
-  const displayFindings =
-    minSeverity > 0
-      ? findings.filter((f: Finding) => (SEVERITY_ORDER[f.severity] ?? 0) >= minSeverity)
-      : findings;
-
-  console.log('');
-  if (displayFindings.length === 0) {
-    const msg =
+  if (!options.silent) {
+    const displayFindings =
       minSeverity > 0
-        ? `No ${options.severity} (or higher) severity issues found.`
-        : 'Your infrastructure looks clean.';
-    console.log(`  ${chalk.green.bold('✓ No issues found!')}  ${chalk.dim(msg)}`);
-  } else {
-    const filterNote = minSeverity > 0 ? chalk.dim(` (${options.severity}+ only)`) : '';
-    console.log(
-      chalk.bold(`  Findings`) + chalk.dim(`  ${displayFindings.length} total`) + filterNote,
-    );
-    displayFindings.forEach((f: Finding, i: number) => printFinding(f, i));
-    printSummaryBox(displayFindings);
-    if (displayFindings.some((f: Finding) => f.severity === 'high')) {
-      console.log(
-        `\n  ${chalk.red.bold('Action required:')} ${chalk.red('High severity issues detected.')}`,
-      );
-    }
-  }
+        ? findings.filter((f: Finding) => (SEVERITY_ORDER[f.severity] ?? 0) >= minSeverity)
+        : findings;
 
-  if (options.output) {
-    const report = buildMarkdownReport(displayFindings, config.project);
-    const outPath = path.resolve(options.output);
-    fs.writeFileSync(outPath, report, 'utf8');
     console.log('');
-    log.success('Report saved', outPath);
-  }
+    if (displayFindings.length === 0) {
+      const msg =
+        minSeverity > 0
+          ? `No ${options.severity} (or higher) severity issues found.`
+          : 'Your infrastructure looks clean.';
+      console.log(`  ${chalk.green.bold('✓ No issues found!')}  ${chalk.dim(msg)}`);
+    } else {
+      const filterNote = minSeverity > 0 ? chalk.dim(` (${options.severity}+ only)`) : '';
+      console.log(
+        chalk.bold(`  Findings`) + chalk.dim(`  ${displayFindings.length} total`) + filterNote,
+      );
+      displayFindings.forEach((f: Finding, i: number) => printFinding(f, i));
+      printSummaryBox(displayFindings);
+      if (displayFindings.some((f: Finding) => f.severity === 'high')) {
+        console.log(
+          `\n  ${chalk.red.bold('Action required:')} ${chalk.red('High severity issues detected.')}`,
+        );
+      }
+    }
 
-  console.log('');
-  log.dim(`Results cached in .infrawise/cache/`);
-  console.log('');
+    if (options.output) {
+      const report = buildMarkdownReport(displayFindings, config.project);
+      const outPath = path.resolve(options.output);
+      fs.writeFileSync(outPath, report, 'utf8');
+      console.log('');
+      log.success('Report saved', outPath);
+    }
+
+    console.log('');
+    log.dim(`Results cached in .infrawise/cache/`);
+    console.log('');
+  }
 }
 
 export async function runCodeRefresh(

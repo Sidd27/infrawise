@@ -140,7 +140,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     const reason = (cachedGraph ?? cachedFindings) ? 'Cache is stale (>24h)' : 'No cache found';
     log.warn(`${reason} — running analysis...`);
     console.log('');
-    await runAnalyze({ config: options.config });
+    await runAnalyze({ config: options.config, silent: true });
     console.log('');
   }
 

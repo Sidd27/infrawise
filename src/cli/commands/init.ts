@@ -29,40 +29,77 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
   console.log('');
 
   // ── Core settings ──────────────────────────────────────────────────────────
-  const core = await inquirer.prompt([
+  const { project } = await inquirer.prompt([
     {
       type: 'input',
       name: 'project',
       message: 'Project name:',
       default: repoName,
     },
+  ]);
+
+  // ── Step 1: provider ───────────────────────────────────────────────────────
+  const { provider } = await inquirer.prompt([
     {
       type: 'select',
-      name: 'awsProfile',
-      message: 'AWS profile:',
+      name: 'provider',
+      message: 'Infrastructure:',
       choices: [
-        new inquirer.Separator('── no profile ──'),
-        { name: 'Environment variables  (CI/CD, real AWS)', value: '__env__' },
-        { name: 'LocalStack  (local development)', value: '__localstack__' },
-        new inquirer.Separator('── named profiles ──'),
-        ...profiles,
+        { name: 'AWS', value: 'aws' },
+        { name: 'LocalStack  (mimics AWS locally)', value: 'localstack' },
+        { name: 'Local  (no cloud — databases, queues, self-hosted services)', value: 'local' },
       ],
-      default: profiles[0],
-    },
-    {
-      type: 'input',
-      name: 'region',
-      message: 'AWS region:',
-      default: detectedRegion,
-    },
-    {
-      type: 'input',
-      name: 'endpoint',
-      message: 'LocalStack endpoint:',
-      default: 'http://localhost:4566',
-      when: (a) => a.awsProfile === '__localstack__',
     },
   ]);
+
+  // ── Step 2: AWS profile (aws only) ────────────────────────────────────────
+  let awsProfile = '__env__';
+  if (provider === 'aws') {
+    const answer = await inquirer.prompt([
+      {
+        type: 'select',
+        name: 'awsProfile',
+        message: 'AWS profile:',
+        choices: [
+          { name: 'Environment variables  (CI/CD)', value: '__env__' },
+          ...(profiles.length ? [new inquirer.Separator('── named profiles ──'), ...profiles] : []),
+        ],
+        default: profiles[0] ?? '__env__',
+      },
+    ]);
+    awsProfile = answer.awsProfile;
+  } else if (provider === 'localstack') {
+    awsProfile = '__localstack__';
+  }
+
+  // ── Step 3: region + endpoint ─────────────────────────────────────────────
+  let region = detectedRegion;
+  let endpoint: string | undefined;
+  if (provider !== 'local') {
+    const regionAnswer = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'region',
+        message: 'AWS region:',
+        default: detectedRegion,
+      },
+    ]);
+    region = regionAnswer.region;
+
+    if (provider === 'localstack') {
+      const endpointAnswer = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'endpoint',
+          message: 'LocalStack endpoint:',
+          default: 'http://localhost:4566',
+        },
+      ]);
+      endpoint = endpointAnswer.endpoint;
+    }
+  }
+
+  const core = { project, awsProfile, region, endpoint };
 
   // ── Databases ──────────────────────────────────────────────────────────────
   console.log('\n  ' + chalk.bold('Databases'));
@@ -109,91 +146,125 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
     },
   ]);
 
-  // ── AWS services ───────────────────────────────────────────────────────────
-  console.log('\n  ' + chalk.bold('AWS Services'));
-  console.log(
-    chalk.dim('  Infrawise will introspect these services using the credentials configured above.'),
-  );
-  const services = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'dynamoEnabled',
-      message: 'Introspect DynamoDB?',
-      default: true,
-    },
-    {
-      type: 'input',
-      name: 'dynamoTables',
-      message: 'DynamoDB tables to include:',
-      default: '',
-      suffix: chalk.dim(' (comma-separated, blank = all)'),
-      when: (a) => a.dynamoEnabled,
-    },
-    {
-      type: 'confirm',
-      name: 'sqsEnabled',
-      message: 'Introspect SQS queues?',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'snsEnabled',
-      message: 'Introspect SNS topics?',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'ssmEnabled',
-      message: 'Introspect SSM Parameter Store? (metadata only, no values)',
-      default: true,
-    },
-    {
-      type: 'input',
-      name: 'ssmPaths',
-      message: 'SSM path prefixes to filter:',
-      default: '',
-      suffix: chalk.dim(' (comma-separated, blank = all  e.g. /myapp/prod)'),
-      when: (a) => a.ssmEnabled,
-    },
-    {
-      type: 'confirm',
-      name: 'secretsEnabled',
-      message: 'Introspect Secrets Manager? (names & rotation only, no values)',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'lambdaEnabled',
-      message: 'Introspect Lambda functions?',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'eventbridgeEnabled',
-      message: 'Introspect EventBridge rules?',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'rdsEnabled',
-      message: 'Introspect RDS instances?',
-      default: true,
-    },
-    {
-      type: 'confirm',
-      name: 'logsEnabled',
-      message: 'Sample CloudWatch Logs? (error patterns only, no raw logs)',
-      default: false,
-    },
-    {
-      type: 'input',
-      name: 'logGroupPrefixes',
-      message: 'CloudWatch log group prefixes:',
-      default: '',
-      suffix: chalk.dim(' (comma-separated, blank = all)'),
-      when: (a) => a.logsEnabled,
-    },
-  ]);
+  // ── AWS services (skipped for local) ─────────────────────────────────────
+  let services: {
+    dynamoEnabled: boolean;
+    dynamoTables: string;
+    sqsEnabled: boolean;
+    snsEnabled: boolean;
+    ssmEnabled: boolean;
+    ssmPaths: string;
+    secretsEnabled: boolean;
+    lambdaEnabled: boolean;
+    eventbridgeEnabled: boolean;
+    rdsEnabled: boolean;
+    logsEnabled: boolean;
+    logGroupPrefixes: string;
+  };
+
+  if (provider === 'local') {
+    services = {
+      dynamoEnabled: false,
+      dynamoTables: '',
+      sqsEnabled: false,
+      snsEnabled: false,
+      ssmEnabled: false,
+      ssmPaths: '',
+      secretsEnabled: false,
+      lambdaEnabled: false,
+      eventbridgeEnabled: false,
+      rdsEnabled: false,
+      logsEnabled: false,
+      logGroupPrefixes: '',
+    };
+  } else {
+    console.log('\n  ' + chalk.bold('AWS Services'));
+    console.log(
+      chalk.dim(
+        '  Infrawise will introspect these services using the credentials configured above.',
+      ),
+    );
+    services = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'dynamoEnabled',
+        message: 'Introspect DynamoDB?',
+        default: true,
+      },
+      {
+        type: 'input',
+        name: 'dynamoTables',
+        message: 'DynamoDB tables to include:',
+        default: '',
+        suffix: chalk.dim(' (comma-separated, blank = all)'),
+        when: (a) => a.dynamoEnabled,
+      },
+      {
+        type: 'confirm',
+        name: 'sqsEnabled',
+        message: 'Introspect SQS queues?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'snsEnabled',
+        message: 'Introspect SNS topics?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'ssmEnabled',
+        message: 'Introspect SSM Parameter Store? (metadata only, no values)',
+        default: true,
+      },
+      {
+        type: 'input',
+        name: 'ssmPaths',
+        message: 'SSM path prefixes to filter:',
+        default: '',
+        suffix: chalk.dim(' (comma-separated, blank = all  e.g. /myapp/prod)'),
+        when: (a) => a.ssmEnabled,
+      },
+      {
+        type: 'confirm',
+        name: 'secretsEnabled',
+        message: 'Introspect Secrets Manager? (names & rotation only, no values)',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'lambdaEnabled',
+        message: 'Introspect Lambda functions?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'eventbridgeEnabled',
+        message: 'Introspect EventBridge rules?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'rdsEnabled',
+        message: 'Introspect RDS instances?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'logsEnabled',
+        message: 'Sample CloudWatch Logs? (error patterns only, no raw logs)',
+        default: false,
+      },
+      {
+        type: 'input',
+        name: 'logGroupPrefixes',
+        message: 'CloudWatch log group prefixes:',
+        default: '',
+        suffix: chalk.dim(' (comma-separated, blank = all)'),
+        when: (a) => a.logsEnabled,
+      },
+    ]);
+  } // end else (provider !== 'local')
 
   // ── Build config ───────────────────────────────────────────────────────────
   const includeTables = services.dynamoTables
@@ -220,10 +291,14 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
   const isLocalStack = core.awsProfile === '__localstack__';
   const isEnvVars = core.awsProfile === '__env__';
   const resolvedProfile = isLocalStack || isEnvVars ? '' : core.awsProfile;
-  const resolvedEndpoint = isLocalStack ? core.endpoint || 'http://localhost:4566' : undefined;
+  const resolvedEndpoint = isLocalStack ? (core.endpoint ?? 'http://localhost:4566') : undefined;
 
   const configContent = generateDefaultConfig(core.project, {
-    aws: { profile: resolvedProfile, region: core.region, endpoint: resolvedEndpoint },
+    aws: {
+      profile: resolvedProfile,
+      region: core.region ?? detectedRegion,
+      endpoint: resolvedEndpoint,
+    },
     dynamodb: { enabled: services.dynamoEnabled, includeTables },
     postgres: {
       enabled: databases.pgEnabled,
