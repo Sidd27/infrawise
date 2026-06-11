@@ -1,0 +1,146 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<style>
+  .editors {
+    position: relative;
+    z-index: 2;
+    padding: 64px 24px;
+  }
+  .editors .section-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 8px;
+  }
+  .editors-sub { font-size: 15px; color: var(--text-secondary); margin-bottom: 40px; }
+  .editor-cards { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 32px; }
+  .editor-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    transition: border-color 0.15s, background 0.15s;
+    min-width: 160px;
+  }
+  .editor-card:hover { border-color: rgba(255,255,255,0.14); background: var(--surface-2); }
+  .editor-logo { width: 32px; height: 32px; flex-shrink: 0; }
+  .editor-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .editor-mcp-note {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+    background: rgba(129,140,248,0.06);
+    border: 1px solid rgba(129,140,248,0.18);
+    border-radius: var(--radius-md);
+    max-width: 620px;
+  }
+  .editor-mcp-note-text { font-size: 13px; color: var(--text-secondary); flex: 1; }
+  .editor-mcp-note-text code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--teal);
+    background: rgba(52,211,153,0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .editor-mcp-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--indigo);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+  .editor-mcp-link:hover { opacity: 0.75; }
+  @media (max-width: 600px) {
+    .editor-card { min-width: calc(50% - 6px); flex: 1; }
+    .editor-mcp-note { flex-direction: column; align-items: flex-start; gap: 10px; }
+  }
+</style>
+
+<section class="editors">
+  <div class="section-inner">
+    <p class="label">Works With Your Editor</p>
+    <h2 class="section-headline">Drop-in for every AI coding tool.</h2>
+    <p class="editors-sub">Standard MCP protocol. No plugins, no extensions, no lock-in.</p>
+
+    <div class="editor-cards">
+      <!-- Claude Code -->
+      <div class="editor-card">
+        <svg class="editor-logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="rgba(129,140,248,0.12)"/>
+          <circle cx="16" cy="9" r="3" fill="#818cf8"/>
+          <circle cx="9" cy="22" r="3" fill="#818cf8"/>
+          <circle cx="23" cy="22" r="3" fill="#818cf8"/>
+          <line x1="16" y1="12" x2="9.8" y2="19.4" stroke="#818cf8" stroke-width="1.4" stroke-opacity="0.5"/>
+          <line x1="16" y1="12" x2="22.2" y2="19.4" stroke="#818cf8" stroke-width="1.4" stroke-opacity="0.5"/>
+          <line x1="12" y1="22" x2="20" y2="22" stroke="#818cf8" stroke-width="1.4" stroke-opacity="0.5"/>
+        </svg>
+        <span class="editor-name">Claude Code</span>
+      </div>
+
+      <!-- Cursor -->
+      <div class="editor-card">
+        <svg class="editor-logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="rgba(52,211,153,0.1)"/>
+          <path d="M9 7l1.8 17 4-4.5 3.6 6.5 2.4-1.3-3.6-6.5 5.8.3L9 7z" fill="#34d399"/>
+        </svg>
+        <span class="editor-name">Cursor</span>
+      </div>
+
+      <!-- Windsurf -->
+      <div class="editor-card">
+        <svg class="editor-logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="rgba(196,181,253,0.1)"/>
+          <path d="M7 11c2.5-3 6-3.5 9-2s6 4 9 3" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+          <path d="M7 16c2.5-3 6-3.5 9-2s6 4 9 3" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+          <path d="M7 21c2.5-3 6-3.5 9-2s6 4 9 3" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="editor-name">Windsurf</span>
+      </div>
+
+      <!-- VS Code -->
+      <div class="editor-card">
+        <svg class="editor-logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="rgba(96,165,250,0.1)"/>
+          <path d="M22.5 5.5L13.5 14 9 10.5 6.5 12l5.5 4.5L6.5 21l2.5 1.5 4.5-3.5 9 8.5 3-1.5V7L22.5 5.5z" fill="#60a5fa"/>
+        </svg>
+        <span class="editor-name">VS Code</span>
+      </div>
+
+      <!-- Any MCP -->
+      <div class="editor-card">
+        <svg class="editor-logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="rgba(148,163,184,0.08)"/>
+          <rect x="11" y="7" width="10" height="10" rx="2" stroke="#94a3b8" stroke-width="1.5"/>
+          <line x1="16" y1="17" x2="16" y2="21" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M11 21h10" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M11 23c0 2.2 2.2 4 5 4s5-1.8 5-4" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="8" y1="11" x2="11" y2="11" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="21" y1="11" x2="24" y2="11" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="editor-name">Any MCP client</span>
+      </div>
+    </div>
+
+    <div class="editor-mcp-note">
+      <p class="editor-mcp-note-text">
+        Claude Code reads <code>.mcp.json</code> automatically — just run <code>infrawise start</code> and open your editor.
+      </p>
+      <a href={`${base}/getting-started/installation/`} class="editor-mcp-link">Full setup guide →</a>
+    </div>
+  </div>
+</section>

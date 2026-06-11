@@ -1,0 +1,110 @@
+<style>
+  .problem {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .problem .section-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 28px;
+    max-width: 560px;
+  }
+  .pull-quote {
+    border-left: 2px solid var(--indigo);
+    padding-left: 18px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 36px;
+    max-width: 480px;
+    font-style: italic;
+  }
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 960px;
+  }
+  .panel {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  .panel--before { border-color: rgba(248,113,113,0.28); background: rgba(248,113,113,0.05); }
+  .panel--after  { border-color: rgba(52,211,153,0.28);  background: rgba(52,211,153,0.05);  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot--red   { background: var(--red);  }
+  .dot--green { background: var(--teal); }
+  .panel-code {
+    background: var(--surface-2);
+    padding: 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .panel-code .c   { color: var(--text-muted); }
+  .panel-code .s   { color: var(--indigo); }
+  .panel-code .str { color: var(--teal); }
+  @media (max-width: 680px) { .comparison { grid-template-columns: 1fr; } }
+</style>
+
+<section class="problem">
+  <div class="section-inner">
+    <p class="label">The Problem</p>
+    <h2 class="section-headline">AI writes wrong code.<br />Infrawise is the fix.</h2>
+
+    <blockquote class="pull-quote">
+      "New software developers don't write wrong code. Claude Code writes wrong code and they ship it."
+    </blockquote>
+
+    <div class="comparison">
+      <div class="panel panel--before">
+        <div class="panel-header">
+          <span class="dot dot--red"></span>
+          Without Infrawise
+        </div>
+        <pre class="panel-code"><code><span class="c"># AI writes from assumptions</span>
+response = table.query(
+  FilterExpression=<span class="s">Attr</span>(<span class="str">'userId'</span>).eq(user_id)
+)
+<span class="c"># ❌ Full table scan — GSI doesn't exist</span></code></pre>
+      </div>
+
+      <div class="panel panel--after">
+        <div class="panel-header">
+          <span class="dot dot--green"></span>
+          With Infrawise
+        </div>
+        <pre class="panel-code"><code><span class="c"># AI knows your actual schema</span>
+response = table.query(
+  IndexName=<span class="str">'userId-createdAt-index'</span>,
+  KeyConditionExpression=<span class="s">Key</span>(<span class="str">'userId'</span>).eq(user_id)
+)
+<span class="c"># ✅ Uses real GSI from suggest_gsi</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>

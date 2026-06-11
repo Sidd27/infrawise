@@ -36,3 +36,4 @@ docs/demo/casts/
 # Claude Code skills — local tooling, not part of the project
 docs/superpowers/
 
+.superpowers/

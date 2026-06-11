@@ -1,0 +1,181 @@
+# Architecture diagram definition.
+# Edit this file, then run: pnpm build-arch
+# Outputs:
+#   docs/architecture.svg        — GitHub README (static)
+#   website/public/arch-web.svg  — website inline version (no external deps)
+
+version: 1
+
+# ── layout ────────────────────────────────────────────────────────────────────
+# col/row indices; the script converts them to pixel coordinates.
+# col: horizontal position (0 = leftmost)
+# row: vertical position within a column (0 = topmost)
+# lines: number of text lines (affects node height)
+layout:
+  nodeW: 180         # default node width
+  nodeH: 44          # single-line node height
+  lineH: 18          # extra height per additional text line
+  colGap: 52         # horizontal gap between columns
+  rowGap: 18         # vertical gap between rows
+  groupPad: 20       # padding inside group boxes
+  groupLabelH: 28    # height reserved for group label at top
+
+# ── themes ────────────────────────────────────────────────────────────────────
+themes:
+  aws:
+    fill:   "rgba(28,17,8,0.90)"
+    stroke: "#f59e0b"
+    color:  "#fde68a"
+  db:
+    fill:   "rgba(7,26,20,0.90)"
+    stroke: "#34d399"
+    color:  "#a7f3d0"
+  iac:
+    fill:   "rgba(21,13,38,0.90)"
+    stroke: "#c4b5fd"
+    color:  "#ede9fe"
+  code:
+    fill:   "rgba(11,21,37,0.90)"
+    stroke: "#60a5fa"
+    color:  "#bfdbfe"
+  iw:
+    fill:   "rgba(13,17,23,0.90)"
+    stroke: "#818cf8"
+    color:  "#c7d2fe"
+  ai:
+    fill:   "rgba(7,26,20,0.90)"
+    stroke: "#34d399"
+    color:  "#a7f3d0"
+
+# ── nodes ─────────────────────────────────────────────────────────────────────
+nodes:
+  D:
+    label: "DynamoDB"
+    theme: aws
+    col: 0
+    row: 0
+
+  L:
+    label: "Lambda · SQS · SNS\nEventBridge · RDS"
+    theme: aws
+    col: 0
+    row: 1
+    lines: 2
+
+  S:
+    label: "Secrets Manager · SSM\nCloudWatch"
+    theme: aws
+    col: 0
+    row: 2
+    lines: 2
+
+  P:
+    label: "PostgreSQL · MySQL"
+    theme: db
+    col: 0
+    row: 3
+
+  M:
+    label: "MongoDB"
+    theme: db
+    col: 0
+    row: 4
+
+  T:
+    label: "Terraform · CDK\nCloudFormation"
+    theme: iac
+    col: 0
+    row: 5
+    lines: 2
+
+  C:
+    label: "TypeScript / JS"
+    theme: code
+    col: 0
+    row: 6
+
+  A:
+    label: "Adapters"
+    theme: iw
+    col: 2
+    row: 3
+
+  G:
+    label: "Graph Engine"
+    theme: iw
+    col: 3
+    row: 3
+
+  AN:
+    label: "27 Analyzers"
+    theme: iw
+    col: 4
+    row: 3
+
+  CA:
+    label: "Cache"
+    theme: iw
+    col: 5
+    row: 3
+
+  MCP:
+    label: "MCP Server\nlocalhost:3000/mcp"
+    theme: iw
+    col: 7
+    row: 3
+    lines: 2
+
+  CC:
+    label: "Claude Code"
+    theme: ai
+    col: 9
+    row: 2
+
+  CU:
+    label: "Cursor"
+    theme: ai
+    col: 9
+    row: 3
+
+  WS:
+    label: "Windsurf"
+    theme: ai
+    col: 9
+    row: 4
+
+# ── groups ────────────────────────────────────────────────────────────────────
+groups:
+  IN:
+    label: "Your Infrastructure & Code"
+    nodes: [D, L, S, P, M, T, C]
+    stroke: "rgba(255,255,255,0.10)"
+    labelColor: "#94a3b8"
+
+  SV:
+    label: "infrawise serve"
+    nodes: [MCP]
+    stroke: "#1e2a3a"
+    labelColor: "#64748b"
+
+  AI:
+    label: "AI Coding Assistants"
+    nodes: [CC, CU, WS]
+    stroke: "#1e2a3a"
+    labelColor: "#64748b"
+
+# ── edges ─────────────────────────────────────────────────────────────────────
+edges:
+  - { from: D,   to: A   }
+  - { from: L,   to: A   }
+  - { from: S,   to: A   }
+  - { from: P,   to: A   }
+  - { from: M,   to: A   }
+  - { from: T,   to: A   }
+  - { from: C,   to: A   }
+  - { from: A,   to: G   }
+  - { from: G,   to: AN  }
+  - { from: AN,  to: CA  }
+  - { from: CA,  to: MCP }
+  - { from: MCP, to: CC  }
+  - { from: MCP, to: CU  }
+  - { from: MCP, to: WS  }

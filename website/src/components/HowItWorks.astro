@@ -1,0 +1,119 @@
+---
+const steps = [
+  { n: 1, title: 'Scan',                color: '#818cf8', badge: null,                                                         desc: 'Reads AWS services, databases, and IaC files statically — no agents, no polling.' },
+  { n: 2, title: 'Build the graph',     color: '#c4b5fd', badge: null,                                                         desc: 'Constructs a typed graph of every node and edge: tables, queues, lambdas, topics, buckets.' },
+  { n: 3, title: 'Analyze',             color: '#a78bfa', badge: { text: '23 rule-based analyzers', color: '#f87171' },        desc: 'Rule-based analyzers flag missing indexes, absent DLQs, default Lambda memory, and more.' },
+  { n: 4, title: 'Serve via MCP',       color: '#34d399', badge: { text: '15 tools',                color: '#34d399' },        desc: 'Exposes the graph and findings as 15 MCP tools your editor can query during generation.' },
+  { n: 5, title: 'AI writes correct code', color: '#6ee7b7', badge: null,                                                      desc: 'Right GSI name, right event shape, right DLQ config — grounded in your actual infrastructure.' },
+]
+---
+
+<style>
+  .how {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .how .section-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 40px;
+  }
+  .pipeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .pipeline-line {
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    background: var(--gradient-line);
+    opacity: 0.75;
+    border-radius: 2px;
+  }
+  .step {
+    display: flex;
+    gap: 20px;
+    padding: 16px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .step-node {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.4);
+    border: 1.5px solid var(--c, #818cf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+    box-shadow: 0 0 10px var(--c, #818cf8), 0 0 0 4px rgba(0,0,0,0.6);
+  }
+  .step-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c, #818cf8);
+  }
+  .step-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+    flex-wrap: wrap;
+  }
+  .step-n { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; opacity: 0.7; }
+  .step-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+  .step-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 2px 8px;
+    border-radius: 100px;
+    border: 1px solid;
+  }
+  .step-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; max-width: 380px; }
+</style>
+
+<section class="how">
+  <div class="section-inner">
+    <p class="label">How It Works</p>
+    <h2 class="section-headline">Five steps. One command.</h2>
+
+    <div class="pipeline">
+      <div class="pipeline-line" aria-hidden="true"></div>
+      {steps.map(step => (
+        <div class="step">
+          <div class="step-node" style={`--c: ${step.color}`} aria-hidden="true">
+            <div class="step-dot"></div>
+          </div>
+          <div>
+            <div class="step-title-row">
+              <span class="step-n" style={`color: ${step.color}`}>{step.n}</span>
+              <span class="step-title">{step.title}</span>
+              {step.badge && (
+                <span class="step-badge" style={`color: ${step.badge.color}; background: ${step.badge.color}1a; border-color: ${step.badge.color}40`}>
+                  {step.badge.text}
+                </span>
+              )}
+            </div>
+            <p class="step-desc">{step.desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

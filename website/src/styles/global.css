@@ -1,0 +1,37 @@
+/* CSS custom properties — safe to inject into all pages including Starlight docs */
+
+:root {
+  --bg:            #020814;
+  --surface:       #0d1117;
+  --surface-2:     #111827;
+  --border:        rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #475569;
+
+  --indigo:       #818cf8;
+  --indigo-dark:  #4f46e5;
+  --teal:         #34d399;
+  --teal-dark:    #0d9488;
+  --violet:       #c4b5fd;
+  --violet-dark:  #7c3aed;
+  --blue:         #60a5fa;
+  --green:        #6ee7b7;
+  --red:          #f87171;
+
+  --gradient-cta:  linear-gradient(135deg, #4f46e5, #818cf8);
+  --gradient-line: linear-gradient(180deg, #818cf8, #34d399);
+
+  --font-sans:  'Space Grotesk', system-ui, sans-serif;
+  --font-serif: 'Libre Baskerville', Georgia, serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --section-gap: 96px;
+  --max-page:    1200px;
+}

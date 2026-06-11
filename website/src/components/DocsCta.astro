@@ -1,0 +1,43 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<style>
+  .docs-cta {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px calc(var(--section-gap) * 1.5);
+  }
+  .docs-cta-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .docs-cta-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    letter-spacing: -1px;
+    margin-bottom: 14px;
+  }
+  .docs-cta-sub {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: 32px;
+    max-width: 400px;
+  }
+  .docs-cta-btn { font-size: 16px; padding: 14px 28px; }
+</style>
+
+<section class="docs-cta">
+  <div class="docs-cta-inner">
+    <h2 class="docs-cta-headline">Ready to go deeper?</h2>
+    <p class="docs-cta-sub">
+      Full configuration reference, all CLI flags, and all 15 MCP tools documented
+      with inputs, return shapes, and usage patterns.
+    </p>
+    <a href={`${base}/getting-started/installation/`} class="btn btn--primary docs-cta-btn">
+      View full docs →
+    </a>
+  </div>
+</section>

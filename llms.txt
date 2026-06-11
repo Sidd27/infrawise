@@ -1,6 +1,6 @@
 # Infrawise
 
-> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
+> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, RDS), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
 
 ## Problem it solves
 
@@ -15,7 +15,7 @@ Infrawise answers all of these via 15 MCP tools served over Streamable HTTP.
 ## Docs
 
 - [README](https://github.com/Sidd27/infrawise/blob/main/README.md)
-- [MCP tool reference](https://github.com/Sidd27/infrawise/blob/main/CLAUDE.md)
+- [MCP tool reference](https://github.com/Sidd27/infrawise/blob/main/AGENTS.md)
 - [AI agent instructions](https://github.com/Sidd27/infrawise/blob/main/AGENTS.md)
 
 ## Quick start
@@ -52,7 +52,7 @@ infrawise dev     # start MCP server at http://localhost:3000/mcp
 
 ## Works with
 
-Claude Code, Cursor, GitHub Copilot, ChatGPT (via MCP plugin), and any MCP-compatible client.
+Claude Code, Cursor, Windsurf, and any MCP-compatible client.
 
 ## What infrawise never does
 

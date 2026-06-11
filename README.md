@@ -168,7 +168,7 @@ Add to your editor's MCP config:
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
-| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), env var key names |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
@@ -414,10 +414,10 @@ src/
   core/         Config (Zod + YAML), logger (Pino), local cache
   graph/        Graph engine — nodes, edges, builder
   adapters/
-    aws/        DynamoDB, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS, CloudWatch
+    aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS, CloudWatch
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
-  analyzers/    23 rule-based analyzers
+  analyzers/    27 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)

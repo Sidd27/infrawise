@@ -16,10 +16,16 @@ Before running `pnpm release <patch|minor|major>`, every item below must be curr
 **Auto-updated by `pnpm release` — no action needed:**
 - `package.json` — version
 - `server.json` — version (MCP Registry manifest)
-- `docs/architecture.svg` — regenerated from `docs/architecture.mmd` before commit
+- `docs/architecture.svg` — regenerated from `docs/architecture.yml` before commit
 - Git commit, tag, push, draft GitHub release
 
-**If you change the architecture diagram:** edit `docs/architecture.mmd`, then run `pnpm generate-diagrams` to preview the SVG locally before committing.
+**If you change the architecture diagram:**
+1. Edit `docs/architecture.yml` — the single source of truth for all diagram variants
+2. Run `pnpm build-arch` — generates two outputs:
+   - `docs/architecture.svg` — static SVG for the GitHub README
+   - `website/public/arch-web.svg` — inlined by the website's `ArchDiagram.astro` component
+3. The website diagram automatically gets flowing-light edge animations and `font-family` from the page; no extra steps needed
+4. Commit both generated SVG files alongside your YAML change
 
 **After `pnpm release` — three required steps:**
 
@@ -167,7 +173,7 @@ Analyze a single function for infrastructure issues, including trigger event sha
 |---|---|---|
 | `function` | string | yes |
 
-Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rules fetched on-demand, related findings, deduplicated recommendations.
+Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
 
 **When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source. Also use when a function touches a database, queue, or other service.
 

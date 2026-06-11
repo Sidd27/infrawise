@@ -1,0 +1,109 @@
+---
+import '../styles/global.css'
+import Nav from '../components/Nav.astro'
+import StarField from '../components/StarField.astro'
+import InfraNodes from '../components/InfraNodes.astro'
+import Hero from '../components/Hero.astro'
+import TrustStrip from '../components/TrustStrip.astro'
+import ProblemSection from '../components/ProblemSection.astro'
+import QuickStart from '../components/QuickStart.astro'
+import HowItWorks from '../components/HowItWorks.astro'
+import EditorsSection from '../components/EditorsSection.astro'
+import ArchDiagram from '../components/ArchDiagram.astro'
+import DocsCta from '../components/DocsCta.astro'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infrawise — AI-aware infrastructure layer</title>
+  <meta name="description" content="Infrawise connects your AI coding assistant to your real infrastructure. 15 MCP tools. One command." />
+  <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="page-shell">
+    <StarField />
+    <InfraNodes />
+    <Nav />
+    <main>
+      <Hero />
+      <TrustStrip />
+      <ProblemSection />
+      <QuickStart />
+      <HowItWorks />
+      <EditorsSection />
+      <ArchDiagram />
+      <DocsCta />
+    </main>
+  </div>
+</body>
+</html>
+
+<style is:global>
+  /* Reset + base — landing page only, does not touch Starlight docs */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body { overflow-x: hidden; }
+  a    { color: inherit; text-decoration: none; }
+  img, svg { display: block; }
+
+  .page-shell {
+    position: relative;
+    min-height: 100vh;
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--indigo);
+  }
+  .label--teal { color: var(--teal); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+    text-decoration: none;
+  }
+  .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn--primary {
+    background: var(--gradient-cta);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(79, 70, 229, 0.35);
+  }
+  .btn--ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+</style>

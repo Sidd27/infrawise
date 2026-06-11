@@ -1,0 +1,104 @@
+---
+const nodes = [
+  // Cluster 1 — hero area
+  { cx: 940,  cy: 140,  color: '#34d399', label: 'DynamoDB'    },
+  { cx: 810,  cy: 260,  color: '#818cf8', label: 'Lambda'      },
+  { cx: 1070, cy: 310,  color: '#c4b5fd', label: 'SQS'         },
+  { cx: 860,  cy: 460,  color: '#818cf8', label: 'SNS'         },
+  { cx: 1010, cy: 560,  color: '#60a5fa', label: 'S3'          },
+  // Cluster 2 — problem section
+  { cx: 870,  cy: 760,  color: '#818cf8', label: 'EventBridge' },
+  { cx: 750,  cy: 880,  color: '#a78bfa', label: 'Terraform'   },
+  { cx: 1000, cy: 940,  color: '#34d399', label: 'MongoDB'     },
+  { cx: 820,  cy: 1090, color: '#34d399', label: 'Redis'       },
+  { cx: 970,  cy: 1220, color: '#60a5fa', label: 'SSM'         },
+  // Cluster 3 — how it works
+  { cx: 740,  cy: 1420, color: '#818cf8', label: 'CloudWatch'  },
+  { cx: 880,  cy: 1510, color: '#60a5fa', label: 'RDS'         },
+  { cx: 980,  cy: 1660, color: '#c4b5fd', label: 'Kafka'       },
+  { cx: 790,  cy: 1780, color: '#818cf8', label: 'Lambda'      },
+  { cx: 940,  cy: 1920, color: '#60a5fa', label: 'S3'          },
+]
+
+const edges = [
+  // c1
+  { x1: 940,  y1: 140,  x2: 810,  y2: 260  },
+  { x1: 940,  y1: 140,  x2: 1070, y2: 310  },
+  { x1: 810,  y1: 260,  x2: 860,  y2: 460  },
+  { x1: 1070, y1: 310,  x2: 1010, y2: 560  },
+  { x1: 860,  y1: 460,  x2: 1010, y2: 560  },
+  // c2
+  { x1: 870,  y1: 760,  x2: 750,  y2: 880  },
+  { x1: 870,  y1: 760,  x2: 1000, y2: 940  },
+  { x1: 750,  y1: 880,  x2: 820,  y2: 1090 },
+  { x1: 1000, y1: 940,  x2: 970,  y2: 1220 },
+  { x1: 820,  y1: 1090, x2: 970,  y2: 1220 },
+  // c3
+  { x1: 740,  y1: 1420, x2: 880,  y2: 1510 },
+  { x1: 880,  y1: 1510, x2: 980,  y2: 1660 },
+  { x1: 740,  y1: 1420, x2: 790,  y2: 1780 },
+  { x1: 980,  y1: 1660, x2: 940,  y2: 1920 },
+  { x1: 790,  y1: 1780, x2: 940,  y2: 1920 },
+]
+
+const xEdges = [
+  { x1: 810,  y1: 260,  x2: 870,  y2: 760  },
+  { x1: 1000, y1: 940,  x2: 880,  y2: 1510 },
+]
+---
+
+<style>
+  .infra-nodes {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+  @media (max-width: 900px) { .infra-nodes { display: none; } }
+</style>
+
+<svg class="infra-nodes" viewBox="0 0 1440 4000" preserveAspectRatio="xMidYMin slice"
+     xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    {nodes.map((n, i) => (
+      <radialGradient id={`gn-${i}`}>
+        <stop offset="0%"   stop-color={n.color} stop-opacity="0.45"/>
+        <stop offset="100%" stop-color={n.color} stop-opacity="0"/>
+      </radialGradient>
+    ))}
+    <radialGradient id="gn-stray">
+      <stop offset="0%"   stop-color="#34d399" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  {xEdges.map(e => (
+    <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+          stroke="rgba(129,140,248,0.07)" stroke-width="1" stroke-dasharray="5,7"/>
+  ))}
+
+  {edges.map(e => (
+    <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+          stroke="rgba(129,140,248,0.22)" stroke-width="1.2" stroke-dasharray="3,5"/>
+  ))}
+
+  {nodes.map((n, i) => (
+    <g>
+      <circle cx={n.cx} cy={n.cy} r="32" fill={`url(#gn-${i})`}/>
+      <circle cx={n.cx} cy={n.cy} r="11" fill={n.color} fill-opacity="0.1"
+              stroke={n.color} stroke-width="1.2" stroke-opacity="0.55"/>
+      <circle cx={n.cx} cy={n.cy} r="5"  fill={n.color} fill-opacity="0.9"/>
+      <circle cx={n.cx} cy={n.cy} r="2"  fill="white"   fill-opacity="0.9"/>
+      <text x={n.cx + 15} y={n.cy + 5}
+            font-family="'Space Grotesk', system-ui, sans-serif"
+            font-size="11" fill={n.color} fill-opacity="0.65">{n.label}</text>
+    </g>
+  ))}
+
+  <circle cx={600} cy={2700} r="26" fill="url(#gn-stray)"/>
+  <circle cx={600} cy={2700} r="9"  fill="#34d399" fill-opacity="0.08"
+          stroke="#34d399" stroke-width="1" stroke-opacity="0.22"/>
+  <circle cx={600} cy={2700} r="4"  fill="#34d399" fill-opacity="0.3"/>
+  <circle cx={600} cy={2700} r="1.5" fill="white"  fill-opacity="0.5"/>
+</svg>

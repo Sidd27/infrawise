@@ -1,0 +1,91 @@
+---
+import { readFileSync } from 'node:fs'
+import { join }         from 'node:path'
+
+// Inline the SVG so the page's CSS and our animation styles apply.
+const svgRaw = readFileSync(join(process.cwd(), 'public/arch-web.svg'), 'utf8')
+---
+
+<style>
+  .arch {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .arch-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(24px, 3vw, 34px);
+    font-weight: 900;
+    line-height: 1.2;
+    letter-spacing: -0.8px;
+    margin: 12px 0 32px;
+  }
+
+  /* ── SVG wrapper ─────────────────────────────────────────────── */
+  .arch-svg-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+    padding: 28px 0 12px;
+  }
+  .arch-svg-wrap svg {
+    display: block;
+    min-width: 860px;
+    width: 100%;
+    height: auto;
+  }
+
+  /* ── font override — safe because arch-web.svg uses text not foreignObject ─ */
+  .arch-svg-wrap text,
+  .arch-svg-wrap tspan {
+    font-family: var(--font-sans) !important;
+  }
+
+  /* ── flowing light animation on edge paths ─────────────────────── */
+  @keyframes arch-flow {
+    from { stroke-dashoffset: 60; }
+    to   { stroke-dashoffset: 0;  }
+  }
+
+  .arch-svg-wrap .arch-edges path {
+    stroke-dasharray: 6 4;
+    animation: arch-flow 2s linear infinite;
+  }
+
+  /* stagger per-edge so they don't all pulse together */
+  .arch-svg-wrap .arch-edges path:nth-child(1)  { animation-delay: -0.0s; }
+  .arch-svg-wrap .arch-edges path:nth-child(2)  { animation-delay: -0.3s; }
+  .arch-svg-wrap .arch-edges path:nth-child(3)  { animation-delay: -0.6s; }
+  .arch-svg-wrap .arch-edges path:nth-child(4)  { animation-delay: -0.9s; }
+  .arch-svg-wrap .arch-edges path:nth-child(5)  { animation-delay: -1.2s; }
+  .arch-svg-wrap .arch-edges path:nth-child(6)  { animation-delay: -1.5s; }
+  .arch-svg-wrap .arch-edges path:nth-child(7)  { animation-delay: -1.8s; }
+  .arch-svg-wrap .arch-edges path:nth-child(8)  { animation-delay: -0.4s; }
+  .arch-svg-wrap .arch-edges path:nth-child(9)  { animation-delay: -0.7s; }
+  .arch-svg-wrap .arch-edges path:nth-child(10) { animation-delay: -1.0s; }
+  .arch-svg-wrap .arch-edges path:nth-child(11) { animation-delay: -1.3s; }
+  .arch-svg-wrap .arch-edges path:nth-child(12) { animation-delay: -1.6s; }
+  .arch-svg-wrap .arch-edges path:nth-child(13) { animation-delay: -1.9s; }
+  .arch-svg-wrap .arch-edges path:nth-child(14) { animation-delay: -0.2s; }
+
+  /* node hover lift */
+  .arch-svg-wrap .arch-node {
+    transition: filter 0.2s;
+    cursor: default;
+  }
+  .arch-svg-wrap .arch-node:hover {
+    filter: brightness(1.25);
+  }
+</style>
+
+<section class="arch">
+  <div class="arch-inner">
+    <p class="label">Architecture</p>
+    <h2 class="section-headline">How Infrawise connects to your tools.</h2>
+    <div class="arch-svg-wrap" set:html={svgRaw} />
+  </div>
+</section>

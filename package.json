@@ -60,7 +60,8 @@
     "lint": "eslint src",
     "typecheck": "tsc",
     "format": "prettier --write src",
-    "generate-diagrams": "mmdc -i docs/architecture.mmd -o docs/architecture.svg --backgroundColor transparent",
+    "build-arch": "node scripts/build-arch.mjs",
+    "generate-diagrams": "node scripts/build-arch.mjs",
     "record": "bash docs/demo/record.sh",
     "dev": "node dist/cli/index.js dev",
     "release": "node scripts/release.js",
@@ -106,6 +107,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
     "@vitest/coverage-v8": "^4.1.6",
+    "@xmldom/xmldom": "^0.9.10",
     "eslint": "^10.4.0",
     "prettier": "^3.8.3",
     "simple-git-hooks": "^2.13.1",
@@ -122,7 +124,8 @@
   },
   "pnpm": {
     "overrides": {
-      "qs": ">=6.15.2"
+      "qs": ">=6.15.2",
+      "vite": "^7"
     },
     "allowedBuildScripts": [
       "puppeteer",

@@ -1,0 +1,71 @@
+/* Override Starlight CSS variables to match the landing page theme.
+   Applied to both light + dark so we effectively force our dark palette always. */
+
+:root,
+:root[data-theme='dark'],
+:root[data-theme='light'] {
+  /* Accent = indigo */
+  --sl-color-accent-low:  #312e81;
+  --sl-color-accent:      #818cf8;
+  --sl-color-accent-high: #c7d2fe;
+
+  /* Backgrounds */
+  --sl-color-bg:            #020814;
+  --sl-color-bg-nav:        rgba(2, 8, 20, 0.92);
+  --sl-color-bg-sidebar:    #0d1117;
+  --sl-color-bg-inline-code:#0d1117;
+  --sl-color-bg-accent:     rgba(129, 140, 248, 0.08);
+
+  /* Gray scale — bright (#f1f5f9) to near-black (#020814) */
+  --sl-color-white:   #f1f5f9;
+  --sl-color-gray-1:  #f1f5f9;
+  --sl-color-gray-2:  #e2e8f0;
+  --sl-color-gray-3:  #cbd5e1;
+  --sl-color-gray-4:  #94a3b8;
+  --sl-color-gray-5:  #64748b;
+  --sl-color-gray-6:  #334155;
+  --sl-color-gray-7:  #0d1117;
+  --sl-color-black:   #020814;
+
+  /* Text */
+  --sl-color-text:        #f1f5f9;
+  --sl-color-text-accent: #c7d2fe;
+  --sl-color-text-invert: #020814;
+
+  /* Borders */
+  --sl-color-hairline:       rgba(255, 255, 255, 0.05);
+  --sl-color-hairline-light: rgba(255, 255, 255, 0.08);
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.05);
+
+  /* Fonts */
+  --sl-font:      'Space Grotesk', system-ui, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Nav glassmorphism */
+header.header {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Sidebar active link = indigo left border (matches landing page nav style) */
+a[aria-current='page'] {
+  border-inline-start-color: var(--sl-color-accent) !important;
+  background-color: rgba(129, 140, 248, 0.06) !important;
+  color: var(--sl-color-accent-high) !important;
+}
+
+/* Code block background matches --surface */
+.expressive-code .frame {
+  background: #0d1117 !important;
+}
+.expressive-code pre {
+  background: #0d1117 !important;
+}
+
+/* Inline code pill */
+code:not(pre code) {
+  background: rgba(129, 140, 248, 0.08) !important;
+  border: 1px solid rgba(129, 140, 248, 0.15) !important;
+  color: #34d399 !important;
+}
