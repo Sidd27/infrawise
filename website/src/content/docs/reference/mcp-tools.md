@@ -3,13 +3,11 @@ title: MCP tools reference
 description: All 15 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
 Infrawise exposes **15 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
 
-<Aside type="tip">
+:::tip
 Start every session with `get_infra_overview`. It costs one tool call and gives you everything you need to know what infrastructure exists before writing any code.
-</Aside>
+:::
 
 ---
 
@@ -183,9 +181,9 @@ Per topic:
 
 **When to call:** Before writing any SNS publish call. Check `requiredAttributes` on the target topic — if you don't include all of them as `MessageAttributes` in your publish, affected subscriptions will drop the message with no error, no retry, and no DLQ entry.
 
-<Aside type="caution">
+:::caution
 Missing `MessageAttributes` in an SNS publish silently drops the message for filtered subscriptions. There is no error thrown and no DLQ entry. Always check filter policies before publishing.
-</Aside>
+:::
 
 ---
 
@@ -277,9 +275,9 @@ Per bucket:
 
 **When to call:** When checking which buckets exist before writing upload or delete handlers, reviewing bucket security posture, or confirming public access is blocked before assuming bucket contents are private.
 
-<Aside type="caution">
+:::caution
 Check `publicAccessBlocked` before assuming a bucket's contents are private. A bucket without this flag set is potentially publicly readable depending on its bucket policy.
-</Aside>
+:::
 
 ---
 
