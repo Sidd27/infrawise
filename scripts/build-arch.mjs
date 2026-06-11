@@ -261,7 +261,7 @@ export function renderSVG(spec, positions, groupBoxes, opts = {}) {
 
   const sizeAttrs = opts.responsive ? '' : ` width="${W}" height="${H}"`
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"${sizeAttrs} role="img" aria-label="Infrawise architecture diagram">
-  <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 23 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
+  <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 27 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
   ${defs}
   <rect width="${W}" height="${H}" fill="${bg}" />
   ${groups}

@@ -32,7 +32,13 @@ const svgRaw = readFileSync(join(process.cwd(), 'public/arch-web.svg'), 'utf8')
     border-radius: var(--radius-lg);
     padding: 28px 0 12px;
   }
-  .arch-svg-wrap svg {
+
+  /*
+   * SVG is injected via set:html so its elements don't carry Astro's scope
+   * attribute — all child selectors must use :global() to avoid the compiled
+   * :where(.astro-HASH) guard silently failing to match.
+   */
+  .arch-svg-wrap :global(svg) {
     display: block;
     width: 100%;
     height: auto;
@@ -42,9 +48,9 @@ const svgRaw = readFileSync(join(process.cwd(), 'public/arch-web.svg'), 'utf8')
     .arch { display: none; }
   }
 
-  /* ── font override — safe because arch-web.svg uses text not foreignObject ─ */
-  .arch-svg-wrap text,
-  .arch-svg-wrap tspan {
+  /* ── font override ───────────────────────────────────────────── */
+  .arch-svg-wrap :global(text),
+  .arch-svg-wrap :global(tspan) {
     font-family: var(--font-sans) !important;
   }
 
@@ -54,33 +60,33 @@ const svgRaw = readFileSync(join(process.cwd(), 'public/arch-web.svg'), 'utf8')
     to   { stroke-dashoffset: 0;  }
   }
 
-  .arch-svg-wrap .arch-edges path {
+  .arch-svg-wrap :global(.arch-edges path) {
     stroke-dasharray: 6 4;
     animation: arch-flow 2s linear infinite;
   }
 
   /* stagger per-edge so they don't all pulse together */
-  .arch-svg-wrap .arch-edges path:nth-child(1)  { animation-delay: -0.0s; }
-  .arch-svg-wrap .arch-edges path:nth-child(2)  { animation-delay: -0.3s; }
-  .arch-svg-wrap .arch-edges path:nth-child(3)  { animation-delay: -0.6s; }
-  .arch-svg-wrap .arch-edges path:nth-child(4)  { animation-delay: -0.9s; }
-  .arch-svg-wrap .arch-edges path:nth-child(5)  { animation-delay: -1.2s; }
-  .arch-svg-wrap .arch-edges path:nth-child(6)  { animation-delay: -1.5s; }
-  .arch-svg-wrap .arch-edges path:nth-child(7)  { animation-delay: -1.8s; }
-  .arch-svg-wrap .arch-edges path:nth-child(8)  { animation-delay: -0.4s; }
-  .arch-svg-wrap .arch-edges path:nth-child(9)  { animation-delay: -0.7s; }
-  .arch-svg-wrap .arch-edges path:nth-child(10) { animation-delay: -1.0s; }
-  .arch-svg-wrap .arch-edges path:nth-child(11) { animation-delay: -1.3s; }
-  .arch-svg-wrap .arch-edges path:nth-child(12) { animation-delay: -1.6s; }
-  .arch-svg-wrap .arch-edges path:nth-child(13) { animation-delay: -1.9s; }
-  .arch-svg-wrap .arch-edges path:nth-child(14) { animation-delay: -0.2s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(1))  { animation-delay: -0.0s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(2))  { animation-delay: -0.3s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(3))  { animation-delay: -0.6s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(4))  { animation-delay: -0.9s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(5))  { animation-delay: -1.2s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(6))  { animation-delay: -1.5s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(7))  { animation-delay: -1.8s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(8))  { animation-delay: -0.4s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(9))  { animation-delay: -0.7s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(10)) { animation-delay: -1.0s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(11)) { animation-delay: -1.3s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(12)) { animation-delay: -1.6s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(13)) { animation-delay: -1.9s; }
+  .arch-svg-wrap :global(.arch-edges path:nth-child(14)) { animation-delay: -0.2s; }
 
   /* node hover lift */
-  .arch-svg-wrap .arch-node {
+  .arch-svg-wrap :global(.arch-node) {
     transition: filter 0.2s;
     cursor: default;
   }
-  .arch-svg-wrap .arch-node:hover {
+  .arch-svg-wrap :global(.arch-node:hover) {
     filter: brightness(1.25);
   }
 </style>

@@ -19,3 +19,9 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# Astro scaffold boilerplate
+README.md
+
+# IDE
+.vscode/
