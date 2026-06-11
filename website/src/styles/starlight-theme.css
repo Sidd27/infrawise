@@ -344,8 +344,10 @@ a[aria-current='page']:hover {
 /* ─── Tables ──────────────────────────────────────────────────────────────── */
 
 .sl-markdown-content table {
+  display: table !important;
   border-collapse: collapse !important;
   width: 100% !important;
+  min-width: 100% !important;
   border: 1px solid rgba(255,255,255,0.06) !important;
   border-radius: 8px !important;
   overflow: hidden !important;
