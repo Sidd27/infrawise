@@ -37,7 +37,7 @@
   "agentskills": {
     "infrawise": "./AGENTS.md"
   },
-  "homepage": "https://github.com/Sidd27/infrawise#readme",
+  "homepage": "https://sidd27.github.io/infrawise/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Sidd27/infrawise.git"

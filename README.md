@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![infrawise MCP server](https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg)](https://glama.ai/mcp/servers/Sidd27/infrawise)
 
-**Understand your infrastructure, not just your code.**
+**[sidd27.github.io/infrawise](https://sidd27.github.io/infrawise/) — Understand your infrastructure, not just your code.**
 
 Infrawise gives AI coding assistants deterministic infrastructure awareness.
 
