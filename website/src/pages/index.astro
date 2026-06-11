@@ -32,6 +32,69 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:title"       content="Infrawise — AI-aware infrastructure layer" />
   <meta name="twitter:description" content="Infrawise connects your AI coding assistant to your real infrastructure. 15 MCP tools. One command." />
+  <script type="application/ld+json">{JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Infrawise",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Linux, Windows",
+    "url": "https://sidd27.github.io/infrawise/",
+    "downloadUrl": "https://www.npmjs.com/package/infrawise",
+    "softwareVersion": "0.10.2",
+    "releaseNotes": "https://github.com/Sidd27/infrawise/releases",
+    "description": "Infrawise is an open-source MCP server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 27 rule-based analyzers, exposes 15 MCP tools, and never stores or transmits your infrastructure data.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://github.com/Sidd27/infrawise/blob/main/LICENSE",
+    "codeRepository": "https://github.com/Sidd27/infrawise",
+    "author": { "@type": "Person", "name": "Sidd27", "url": "https://github.com/Sidd27" },
+    "keywords": ["MCP server", "infrastructure", "AWS", "Claude Code", "Cursor", "AI coding assistant", "Model Context Protocol"]
+  })}</script>
+  <script type="application/ld+json">{JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Infrawise?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure, databases, and IaC files. It runs 27 rule-based analyzers and exposes 15 MCP tools your AI can call while writing code — all locally, with no data leaving your machine." }
+      },
+      {
+        "@type": "Question",
+        "name": "What is an MCP server?",
+        "acceptedAnswer": { "@type": "Answer", "text": "MCP (Model Context Protocol) is an open standard that lets AI coding assistants like Claude Code and Cursor call external tools during code generation. An MCP server exposes tools — functions the AI can invoke to fetch real data — so the assistant can ground its output in actual system state instead of guessing." }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I install Infrawise?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Install Infrawise with npm: `npm install -g infrawise`. Then run `infrawise start --claude` to scan your infrastructure and connect Claude Code, or `infrawise start --cursor` for Cursor. Requires Node.js 18+ and AWS credentials already configured." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Infrawise work with Claude Code?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Running `infrawise start --claude` writes `.mcp.json` to your project directory. Claude Code reads this file automatically on next launch and registers all 15 Infrawise tools — no extension or plugin needed." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Infrawise store or transmit my infrastructure data?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Infrawise runs entirely on your local machine. It never sends infrastructure data, findings, or configuration to any external server. There is no telemetry and no cloud sync. Secret values and SSM parameter values are never read." }
+      },
+      {
+        "@type": "Question",
+        "name": "What AWS services does Infrawise analyze?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise analyzes DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM Parameter Store, S3, CloudWatch Logs, EventBridge, and RDS. It also reads PostgreSQL, MySQL, and MongoDB databases, and IaC files from Terraform, CloudFormation, and CDK." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Infrawise need write permissions to AWS?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Infrawise only calls read-only AWS APIs (Describe, List, Get). It never creates, modifies, or deletes any AWS resource. The minimum IAM policy uses only read actions." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I use Infrawise without a real AWS account?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. The LocalStack demo lets you run Infrawise against locally emulated AWS services using Docker. You need a free LocalStack account but no real AWS account or credentials." }
+      }
+    ]
+  })}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />

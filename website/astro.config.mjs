@@ -26,6 +26,20 @@ export default defineConfig({
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' } },
 				{ tag: 'link', attrs: { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap' } },
+				{ tag: 'script', attrs: { type: 'application/ld+json' }, content: JSON.stringify({
+					"@context": "https://schema.org",
+					"@type": "TechArticle",
+					"publisher": {
+						"@type": "Person",
+						"name": "Sidd27",
+						"url": "https://github.com/Sidd27"
+					},
+					"isPartOf": {
+						"@type": "WebSite",
+						"name": "Infrawise",
+						"url": "https://sidd27.github.io/infrawise/"
+					}
+				}) },
 			],
 			sidebar: [
 				{
