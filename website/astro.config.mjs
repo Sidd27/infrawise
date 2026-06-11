@@ -63,7 +63,6 @@ export default defineConfig({
 					items: [
 						{ label: 'Analysis capabilities', slug: 'guides/analysis'         },
 						{ label: 'LocalStack demo',        slug: 'guides/localstack-demo' },
-						{ label: 'Contributing',           slug: 'guides/contributing'    },
 					],
 				},
 			],

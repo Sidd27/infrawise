@@ -391,6 +391,10 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 - **No telemetry** — zero data collection
 - **Credentials** — uses your existing AWS credential chain, never stored by infrawise
 
+### 🔒 Security & Project Naming Note
+
+You might see this package flagged on certain supply-chain security scanners under "deceptive naming." This is a false positive triggered by automated tools because of the prefix "infra." This project is completely safe, independent, and unaffiliated with any commercial trademarks.
+
 ---
 
 ## Architecture overview

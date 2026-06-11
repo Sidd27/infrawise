@@ -88,3 +88,7 @@ Not directly. Infrawise targets editors with native MCP support: Claude Code and
 ### What happens when I run `infrawise start`?
 
 `infrawise start` does three things in sequence: reads `infrawise.yaml` in the current directory, scans the configured AWS services and databases using read-only API calls, runs the 27 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
+
+### Why do some security scanners flag Infrawise?
+
+Some supply-chain security scanners flag this package under "deceptive naming" because of the prefix "infra." This is a false positive from automated tooling. Infrawise is completely safe, open-source, and unaffiliated with any commercial trademarks. You can verify by reading the [source on GitHub](https://github.com/Sidd27/infrawise).
