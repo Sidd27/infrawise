@@ -10,7 +10,6 @@ export default defineConfig({
 			title: 'infrawise',
 			description: 'AI-aware infrastructure layer for your codebase',
 			logo: { src: './src/assets/logo.svg', alt: 'infrawise logo' },
-			favicon: './public/favicon.svg',
 			social: [
 				{ icon: 'npm',    label: 'npm',    href: 'https://www.npmjs.com/package/infrawise' },
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/Sidd27/infrawise' },
@@ -22,6 +21,7 @@ export default defineConfig({
 			// Force dark theme: runs before Starlight's own theme script to prevent
 			// any flash of light mode, even when the user's OS prefers light.
 			head: [
+				{ tag: 'link', attrs: { rel: 'icon', type: 'image/svg+xml', href: '/infrawise/favicon.svg' } },
 				{ tag: 'script', content: "localStorage.setItem('starlight-theme','dark');document.documentElement.setAttribute('data-theme','dark');" },
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' } },

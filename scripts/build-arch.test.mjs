@@ -290,7 +290,7 @@ describe('renderSVG', () => {
     const svg  = renderSVG(spec, pos, grps, { bg: 'transparent' })
     expect(svg).toMatch(/^<svg /)
     // All 14 nodes present
-    for (const id of ['D','L','S','P','M','T','C','A','G','AN','CA','MCP','CC','CU','WS']) {
+    for (const id of ['D','L','S','P','M','T','C','A','G','AN','CA','MCP','CC','CU','MC']) {
       expect(svg).toContain(`data-id="${id}"`)
     }
     // All 3 groups present

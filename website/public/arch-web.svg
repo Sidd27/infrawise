@@ -75,7 +75,7 @@
     <title>MCP → CU</title>
   </path>
   <path d="M 1360 301 C 1388.6 301 1383.4 372 1412 372" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
-    <title>MCP → WS</title>
+    <title>MCP → MC</title>
   </path></g>
   
   <g class="arch-node" data-id="D">
@@ -152,9 +152,9 @@
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
     <text x="1502" y="294" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CURSOR</text>
   </g>
-  <g class="arch-node" data-id="WS">
+  <g class="arch-node" data-id="MC">
     <rect x="1412" y="350" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="1502" y="374" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">WINDSURF</text>
+    <text x="1502" y="374" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">ANY MCP CLIENT</text>
   </g>
 </svg>

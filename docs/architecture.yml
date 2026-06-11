@@ -137,8 +137,8 @@ nodes:
     col: 9
     row: 3
 
-  WS:
-    label: "Windsurf"
+  MC:
+    label: "Any MCP Client"
     theme: ai
     col: 9
     row: 4
@@ -159,7 +159,7 @@ groups:
 
   AI:
     label: "AI Coding Assistants"
-    nodes: [CC, CU, WS]
+    nodes: [CC, CU, MC]
     stroke: "#1e2a3a"
     labelColor: "#64748b"
 
@@ -178,4 +178,4 @@ edges:
   - { from: CA,  to: MCP }
   - { from: MCP, to: CC  }
   - { from: MCP, to: CU  }
-  - { from: MCP, to: WS  }
+  - { from: MCP, to: MC  }
