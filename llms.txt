@@ -52,7 +52,7 @@ infrawise dev     # start MCP server at http://localhost:3000/mcp
 
 ## Works with
 
-Claude Code, Cursor, Windsurf, and any MCP-compatible client.
+Claude Code, Cursor, and any MCP-compatible client.
 
 ## What infrawise never does
 

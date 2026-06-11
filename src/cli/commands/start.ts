@@ -14,7 +14,6 @@ interface StartOptions {
   config?: string;
   claude?: boolean;
   cursor?: boolean;
-  windsurf?: boolean;
 }
 
 function writeMcpJson(configAbsPath: string): void {
@@ -45,32 +44,7 @@ function writeCursorMcp(configAbsPath: string): void {
   log.success('Cursor config written', '.cursor/mcp.json');
 }
 
-function writeWindsurfMcp(configAbsPath: string): void {
-  const windsurfDir = path.join(process.env.HOME ?? '', '.codeium', 'windsurf');
-  if (!fs.existsSync(windsurfDir)) fs.mkdirSync(windsurfDir, { recursive: true });
-  const mcpConfigPath = path.join(windsurfDir, 'mcp_config.json');
-
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(mcpConfigPath)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf-8')) as Record<string, unknown>;
-    } catch {
-      // corrupt file — overwrite cleanly
-    }
-  }
-
-  const servers = (existing.mcpServers as Record<string, unknown>) ?? {};
-  servers['infrawise'] = {
-    command: 'infrawise',
-    args: ['stdio', '--config', configAbsPath],
-  };
-  existing.mcpServers = servers;
-
-  fs.writeFileSync(mcpConfigPath, JSON.stringify(existing, null, 2), 'utf-8');
-  log.success('Windsurf config written', mcpConfigPath);
-}
-
-function launchEditor(editor: 'claude' | 'cursor' | 'windsurf'): Promise<void> {
+function launchEditor(editor: 'claude' | 'cursor'): Promise<void> {
   return new Promise((resolve) => {
     if (editor === 'claude') {
       console.log('');
@@ -89,7 +63,7 @@ function launchEditor(editor: 'claude' | 'cursor' | 'windsurf'): Promise<void> {
       const cmd = editor;
       const args = ['.'];
       console.log('');
-      console.log(chalk.dim(`  Opening ${editor === 'cursor' ? 'Cursor' : 'Windsurf'}...`));
+      console.log(chalk.dim('  Opening Cursor...'));
       const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
       child.on('error', (err) => {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -148,16 +122,9 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   console.log('');
   writeMcpJson(configAbsPath);
   if (options.cursor) writeCursorMcp(configAbsPath);
-  if (options.windsurf) writeWindsurfMcp(configAbsPath);
 
   // Step 4 — launch editor or print instructions
-  const editor = options.claude
-    ? 'claude'
-    : options.cursor
-      ? 'cursor'
-      : options.windsurf
-        ? 'windsurf'
-        : null;
+  const editor = options.claude ? 'claude' : options.cursor ? 'cursor' : null;
 
   if (!editor) {
     console.log('');
@@ -165,7 +132,6 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     console.log('');
     console.log(chalk.dim('  Claude Code:  claude'));
     console.log(chalk.dim('  Cursor:       cursor .'));
-    console.log(chalk.dim('  Windsurf:     windsurf .'));
     console.log('');
     console.log(chalk.dim('  Next time just open your editor — no infrawise command needed.'));
     console.log('');

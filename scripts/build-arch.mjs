@@ -215,7 +215,8 @@ function glowFilter(id = 'arch-glow', blur = 3, boost = 2.5) {
  * @param {object} positions   Output of computePositions()
  * @param {object} groupBoxes  Output of computeGroups()
  * @param {object} opts
- * @param {string} opts.bg     Background colour; 'transparent' for web use
+ * @param {string}  opts.bg         Background colour; 'transparent' for web use
+ * @param {boolean} opts.responsive Strip width/height attrs so CSS controls size
  */
 export function renderSVG(spec, positions, groupBoxes, opts = {}) {
   const bg = opts.bg ?? 'transparent'
@@ -258,7 +259,8 @@ export function renderSVG(spec, positions, groupBoxes, opts = {}) {
     })
     .join('')
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Infrawise architecture diagram">
+  const sizeAttrs = opts.responsive ? '' : ` width="${W}" height="${H}"`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"${sizeAttrs} role="img" aria-label="Infrawise architecture diagram">
   <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 23 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
   ${defs}
   <rect width="${W}" height="${H}" fill="${bg}" />
@@ -294,7 +296,7 @@ export function buildArch(inputPath, outputPath, opts = {}) {
 
 export function buildAll(inputPath = resolve(ROOT, 'docs/architecture.yml')) {
   buildArch(inputPath, resolve(ROOT, 'docs/architecture.svg'),       { bg: 'transparent' })
-  buildArch(inputPath, resolve(ROOT, 'website/public/arch-web.svg'), { bg: 'transparent' })
+  buildArch(inputPath, resolve(ROOT, 'website/public/arch-web.svg'), { bg: 'transparent', responsive: true })
 }
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────

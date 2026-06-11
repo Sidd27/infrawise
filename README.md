@@ -117,14 +117,6 @@ infrawise start --cursor
 
 Writes `.cursor/mcp.json` and opens Cursor. All 15 infrawise tools are available in Cursor's MCP panel.
 
-### Windsurf
-
-```bash
-infrawise start --windsurf
-```
-
-Writes to `~/.codeium/windsurf/mcp_config.json` and opens Windsurf.
-
 ### Any editor (no flag)
 
 ```bash
@@ -182,7 +174,6 @@ Add to your editor's MCP config:
 | `infrawise start`            | **Primary command** — init + analyze + write editor MCP config, then exit         |
 | `infrawise start --claude`   | Same as above, then opens Claude Code                                             |
 | `infrawise start --cursor`   | Same as above, then opens Cursor                                                  |
-| `infrawise start --windsurf` | Same as above, then opens Windsurf                                                |
 | `infrawise init`             | Generate `infrawise.yaml` only (no analysis, no editor config)                   |
 | `infrawise auth`             | Select or switch AWS profile                                                      |
 | `infrawise analyze`          | Force a full re-scan — useful after major infrastructure changes                  |

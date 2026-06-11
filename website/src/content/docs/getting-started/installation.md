@@ -25,13 +25,13 @@ infrawise start --claude
 
 Scans your infrastructure, writes `.mcp.json` to the current directory. Claude Code reads it automatically on next launch — no plugin, no extension, no config file to hand-edit.
 
-## Wire it up — Cursor or Windsurf
+## Wire it up — Cursor
 
 ```bash
-infrawise start
+infrawise start --cursor
 ```
 
-Then point your editor at the MCP server. Check [MCP tools](/infrawise/reference/mcp-tools/) for what gets exposed.
+Writes `.cursor/mcp.json` and opens Cursor. All 15 infrawise tools are available in Cursor's MCP panel.
 
 ## HTTP transport
 

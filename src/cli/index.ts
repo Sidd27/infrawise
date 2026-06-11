@@ -32,14 +32,12 @@ program
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('--claude', 'Write .mcp.json and open Claude Code')
   .option('--cursor', 'Write .cursor/mcp.json and open Cursor')
-  .option('--windsurf', 'Write Windsurf MCP config and open Windsurf')
   .action(async (options) => {
     printBanner();
     await runStart({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       claude: options.claude,
       cursor: options.cursor,
-      windsurf: options.windsurf,
     });
   });
 

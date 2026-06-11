@@ -1,71 +1,567 @@
-/* Override Starlight CSS variables to match the landing page theme.
-   Applied to both light + dark so we effectively force our dark palette always. */
+/*
+ * Starlight theme — aligned to the infrawise landing page design system.
+ * Covers: variables, typography, sidebar, nav, TOC, content, asides,
+ *         code blocks, tables, pagination, search, scrollbar.
+ */
 
+/* ─── CSS variables ───────────────────────────────────────────────────────── */
+
+/* Light theme is disabled — dark only. The toggle is hidden below. */
 :root,
-:root[data-theme='dark'],
-:root[data-theme='light'] {
-  /* Accent = indigo */
-  --sl-color-accent-low:  #312e81;
+:root[data-theme='dark'] {
+  /* accent — indigo matches landing page --indigo */
+  --sl-color-accent-low:  #1e1b4b;
   --sl-color-accent:      #818cf8;
   --sl-color-accent-high: #c7d2fe;
 
-  /* Backgrounds */
+  /* backgrounds */
   --sl-color-bg:            #020814;
-  --sl-color-bg-nav:        rgba(2, 8, 20, 0.92);
-  --sl-color-bg-sidebar:    #0d1117;
+  --sl-color-bg-nav:        rgba(2, 8, 20, 0.85);
+  --sl-color-bg-sidebar:    #0a0f1a;
   --sl-color-bg-inline-code:#0d1117;
-  --sl-color-bg-accent:     rgba(129, 140, 248, 0.08);
+  --sl-color-bg-accent:     rgba(129, 140, 248, 0.07);
 
-  /* Gray scale — bright (#f1f5f9) to near-black (#020814) */
-  --sl-color-white:   #f1f5f9;
-  --sl-color-gray-1:  #f1f5f9;
-  --sl-color-gray-2:  #e2e8f0;
-  --sl-color-gray-3:  #cbd5e1;
-  --sl-color-gray-4:  #94a3b8;
-  --sl-color-gray-5:  #64748b;
-  --sl-color-gray-6:  #334155;
-  --sl-color-gray-7:  #0d1117;
-  --sl-color-black:   #020814;
+  /* gray scale */
+  --sl-color-white:  #f1f5f9;
+  --sl-color-gray-1: #e2e8f0;
+  --sl-color-gray-2: #cbd5e1;
+  --sl-color-gray-3: #94a3b8;
+  --sl-color-gray-4: #64748b;
+  --sl-color-gray-5: #334155;
+  --sl-color-gray-6: #1e293b;
+  --sl-color-gray-7: #0d1117;
+  --sl-color-black:  #020814;
 
-  /* Text */
-  --sl-color-text:        #f1f5f9;
+  /* text */
+  --sl-color-text:        #e2e8f0;
   --sl-color-text-accent: #c7d2fe;
   --sl-color-text-invert: #020814;
 
-  /* Borders */
+  /* semantic colors — used by asides/badges */
+  --sl-color-blue:        #818cf8;
+  --sl-color-blue-high:   #c7d2fe;
+  --sl-color-blue-low:    #1e1b4b;
+  --sl-color-green:       #34d399;
+  --sl-color-green-high:  #a7f3d0;
+  --sl-color-green-low:   #064e3b;
+  --sl-color-orange:      #f59e0b;
+  --sl-color-orange-high: #fde68a;
+  --sl-color-orange-low:  #451a03;
+  --sl-color-red:         #f87171;
+  --sl-color-red-high:    #fecaca;
+  --sl-color-red-low:     #450a0a;
+  --sl-color-purple:      #c4b5fd;
+  --sl-color-purple-high: #ede9fe;
+  --sl-color-purple-low:  #2e1065;
+
+  /* borders */
   --sl-color-hairline:       rgba(255, 255, 255, 0.05);
   --sl-color-hairline-light: rgba(255, 255, 255, 0.08);
-  --sl-color-hairline-shade: rgba(255, 255, 255, 0.05);
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.04);
 
-  /* Fonts */
+  /* asides */
+  --sl-color-asides-border:       #818cf8;
+  --sl-color-asides-text-accent:  #c7d2fe;
+
+  /* fonts */
   --sl-font:      'Space Grotesk', system-ui, sans-serif;
   --sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* text sizes — match landing page scale */
+  --sl-text-h1: 2.25rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.2rem;
+  --sl-text-h4: 1rem;
+  --sl-text-body: 0.9375rem;
+  --sl-text-body-sm: 0.875rem;
+  --sl-text-code: 0.85rem;
+
+  /* sidebar */
+  --sl-sidebar-width: 17rem;
+  --sl-sidebar-pad-x: 1.25rem;
+
+  /* nav */
+  --sl-nav-height: 4rem;
+
+  /* shadows */
+  --sl-shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --sl-shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+  --sl-shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
 }
 
-/* Nav glassmorphism */
+/* ─── Base & reset ────────────────────────────────────────────────────────── */
+
+body {
+  background: #020814;
+  font-family: var(--sl-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar — thin, dark */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #020814; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+/* ─── Site header / nav ───────────────────────────────────────────────────── */
+
 header.header {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--sl-color-bg-nav) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 1px 0 rgba(129, 140, 248, 0.06);
 }
 
-/* Sidebar active link = indigo left border (matches landing page nav style) */
+/* Site title in nav */
+.site-title {
+  font-family: var(--sl-font);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.2px;
+  color: var(--sl-color-white) !important;
+  gap: 0.6rem;
+}
+.site-title:hover { opacity: 0.85; }
+
+/* Social / GitHub icon */
+.social-icons a {
+  color: var(--sl-color-gray-3) !important;
+  transition: color 0.15s;
+}
+.social-icons a:hover { color: var(--sl-color-white) !important; }
+
+/* Search button */
+site-search button {
+  border-radius: 8px !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  color: var(--sl-color-gray-3) !important;
+  font-size: 0.8125rem !important;
+}
+site-search button:hover {
+  background: rgba(255,255,255,0.07) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+  color: var(--sl-color-white) !important;
+}
+
+/* Hide theme toggle — light theme is removed */
+starlight-theme-select,
+.theme-select,
+[data-theme-toggle] { display: none !important; }
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+
+nav.sidebar {
+  background: var(--sl-color-bg-sidebar) !important;
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Sidebar inner scroll */
+.sidebar-content {
+  padding-top: 1.5rem;
+}
+
+/* Group label — caps + teal accent line */
+.group-label {
+  padding: 0 !important;
+  margin: 1.5rem 0 0.35rem !important;
+}
+.group-label span {
+  display: block;
+  font-size: 0.6875rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: var(--sl-color-gray-4) !important;
+  padding: 0 1.25rem 0.45rem !important;
+  border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+}
+
+/* Sidebar items */
+.sidebar-content a {
+  font-size: 0.875rem !important;
+  font-weight: 450 !important;
+  color: var(--sl-color-gray-3) !important;
+  border-radius: 6px !important;
+  padding: 0.35rem 0.75rem !important;
+  margin: 1px 0.5rem !important;
+  transition: background 0.12s, color 0.12s !important;
+  text-decoration: none !important;
+}
+.sidebar-content a:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--sl-color-white) !important;
+}
+
+/* Active page link */
 a[aria-current='page'] {
-  border-inline-start-color: var(--sl-color-accent) !important;
-  background-color: rgba(129, 140, 248, 0.06) !important;
+  background: rgba(129, 140, 248, 0.1) !important;
   color: var(--sl-color-accent-high) !important;
+  font-weight: 600 !important;
+  border-inline-start: 2px solid var(--sl-color-accent) !important;
+  padding-inline-start: calc(0.75rem - 2px) !important;
+}
+a[aria-current='page']:hover {
+  background: rgba(129, 140, 248, 0.14) !important;
 }
 
-/* Code block background matches --surface */
-.expressive-code .frame {
-  background: #0d1117 !important;
+/* ─── Right sidebar / TOC ─────────────────────────────────────────────────── */
+
+.right-sidebar-container {
+  border-inline-start: 1px solid rgba(255,255,255,0.04) !important;
 }
-.expressive-code pre {
-  background: #0d1117 !important;
+.right-sidebar {
+  padding: 1.5rem 1rem !important;
 }
 
-/* Inline code pill */
-code:not(pre code) {
+#starlight__on-this-page,
+#starlight__on-this-page--mobile {
+  font-size: 0.6875rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: var(--sl-color-gray-4) !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.right-sidebar a {
+  font-size: 0.8125rem !important;
+  color: var(--sl-color-gray-3) !important;
+  text-decoration: none !important;
+  padding: 0.25rem 0 !important;
+  transition: color 0.12s !important;
+  display: block;
+}
+.right-sidebar a:hover { color: var(--sl-color-white) !important; }
+.right-sidebar a[aria-current='true'] {
+  color: var(--sl-color-accent) !important;
+  font-weight: 600 !important;
+}
+
+/* ─── Content ─────────────────────────────────────────────────────────────── */
+
+.content-panel {
+  background: var(--sl-color-bg);
+  padding-bottom: 3rem;
+}
+
+.sl-markdown-content {
+  color: var(--sl-color-text);
+  line-height: 1.7;
+}
+
+/* Page title */
+.page-title,
+.sl-markdown-content h1 {
+  font-size: var(--sl-text-h1) !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.04em !important;
+  color: var(--sl-color-white) !important;
+  margin-bottom: 1rem !important;
+}
+
+/* H2 — with subtle teal top accent */
+.sl-markdown-content h2 {
+  font-size: var(--sl-text-h2) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  color: var(--sl-color-white) !important;
+  margin-top: 2.5rem !important;
+  padding-top: 1.5rem !important;
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+  line-height: 1.25 !important;
+}
+
+.sl-markdown-content h3 {
+  font-size: var(--sl-text-h3) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--sl-color-white) !important;
+  margin-top: 1.75rem !important;
+  line-height: 1.3 !important;
+}
+
+.sl-markdown-content h4 {
+  font-size: var(--sl-text-h4) !important;
+  font-weight: 600 !important;
+  color: var(--sl-color-gray-1) !important;
+  margin-top: 1.5rem !important;
+}
+
+/* Anchor links on headings */
+.sl-heading-wrapper .sl-anchor-link {
+  color: var(--sl-color-gray-5) !important;
+  transition: color 0.15s !important;
+}
+.sl-heading-wrapper:hover .sl-anchor-link { color: var(--sl-color-accent) !important; }
+
+/* Body text */
+.sl-markdown-content p { margin-bottom: 1.1rem; }
+.sl-markdown-content p,
+.sl-markdown-content li {
+  color: #cbd5e1;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+/* Links — teal, no underline on rest, underline on hover */
+.sl-markdown-content a {
+  color: var(--sl-color-green) !important;
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  transition: color 0.12s, opacity 0.12s !important;
+}
+.sl-markdown-content a:hover {
+  color: #6ee7b7 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Inline code */
+.sl-markdown-content :not(pre) > code {
   background: rgba(129, 140, 248, 0.08) !important;
-  border: 1px solid rgba(129, 140, 248, 0.15) !important;
+  border: 1px solid rgba(129, 140, 248, 0.14) !important;
   color: #34d399 !important;
+  font-family: var(--sl-font-mono) !important;
+  font-size: 0.8125rem !important;
+  padding: 0.1em 0.45em !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
 }
+
+/* Horizontal rule */
+.sl-markdown-content hr {
+  border-color: rgba(255,255,255,0.06) !important;
+  margin: 2rem 0 !important;
+}
+
+/* Strong + em */
+.sl-markdown-content strong { color: var(--sl-color-white) !important; font-weight: 600 !important; }
+.sl-markdown-content em { color: var(--sl-color-gray-2) !important; }
+
+/* ─── Tables ──────────────────────────────────────────────────────────────── */
+
+.sl-markdown-content table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  font-size: 0.875rem !important;
+}
+.sl-markdown-content thead tr {
+  background: #0d1117 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
+.sl-markdown-content th {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--sl-color-gray-3) !important;
+  padding: 0.75rem 1rem !important;
+  text-align: left !important;
+}
+.sl-markdown-content td {
+  padding: 0.65rem 1rem !important;
+  color: #cbd5e1 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+  vertical-align: top !important;
+}
+.sl-markdown-content tbody tr { background: transparent !important; }
+.sl-markdown-content tbody tr:hover { background: rgba(255,255,255,0.02) !important; }
+.sl-markdown-content tbody tr:last-child td { border-bottom: none !important; }
+
+/* ─── Blockquote ──────────────────────────────────────────────────────────── */
+
+.sl-markdown-content blockquote {
+  border-inline-start: 3px solid var(--sl-color-accent) !important;
+  background: rgba(129, 140, 248, 0.05) !important;
+  margin: 1.5rem 0 !important;
+  padding: 0.75rem 1.25rem !important;
+  border-radius: 0 6px 6px 0 !important;
+}
+.sl-markdown-content blockquote p { color: var(--sl-color-gray-2) !important; margin: 0 !important; }
+
+/* ─── Lists ───────────────────────────────────────────────────────────────── */
+
+.sl-markdown-content ul li::marker { color: var(--sl-color-accent) !important; }
+.sl-markdown-content ol li::marker { color: var(--sl-color-accent) !important; font-weight: 700 !important; }
+
+/* ─── Asides / callouts ───────────────────────────────────────────────────── */
+
+.starlight-aside {
+  border-radius: 8px !important;
+  border: 1px solid !important;
+  padding: 1rem 1.25rem !important;
+  margin: 1.5rem 0 !important;
+}
+.starlight-aside--note {
+  background: rgba(129, 140, 248, 0.06) !important;
+  border-color: rgba(129, 140, 248, 0.2) !important;
+  --sl-color-asides-text-accent: #c7d2fe !important;
+  --sl-color-asides-border: #818cf8 !important;
+}
+.starlight-aside--tip {
+  background: rgba(52, 211, 153, 0.06) !important;
+  border-color: rgba(52, 211, 153, 0.2) !important;
+  --sl-color-asides-text-accent: #6ee7b7 !important;
+  --sl-color-asides-border: #34d399 !important;
+}
+.starlight-aside--caution {
+  background: rgba(245, 158, 11, 0.06) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+  --sl-color-asides-text-accent: #fde68a !important;
+  --sl-color-asides-border: #f59e0b !important;
+}
+.starlight-aside--danger {
+  background: rgba(248, 113, 113, 0.06) !important;
+  border-color: rgba(248, 113, 113, 0.2) !important;
+  --sl-color-asides-text-accent: #fca5a5 !important;
+  --sl-color-asides-border: #f87171 !important;
+}
+.starlight-aside .starlight-aside__title {
+  font-size: 0.8125rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--sl-color-asides-text-accent) !important;
+  margin-bottom: 0.4rem !important;
+}
+.starlight-aside .starlight-aside__content p { color: var(--sl-color-gray-2) !important; }
+.starlight-aside .starlight-aside__content a { color: var(--sl-color-asides-text-accent) !important; }
+
+/* ─── Code blocks (expressive-code) ──────────────────────────────────────── */
+
+.expressive-code {
+  margin: 1.25rem 0 !important;
+}
+.expressive-code .frame {
+  border: 1px solid rgba(255,255,255,0.07) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+}
+.expressive-code .frame pre,
+.expressive-code pre {
+  background: #070d19 !important;
+  font-size: var(--sl-text-code) !important;
+  line-height: 1.65 !important;
+  padding: 1.1rem 1.25rem !important;
+}
+/* Code frame header bar */
+.expressive-code .frame .header {
+  background: #0d1117 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  font-size: 0.75rem !important;
+  color: var(--sl-color-gray-4) !important;
+}
+/* Terminal tab title */
+.expressive-code .frame .title {
+  font-family: var(--sl-font-mono) !important;
+  font-size: 0.75rem !important;
+  color: var(--sl-color-gray-4) !important;
+}
+/* Copy button */
+.expressive-code .copy button {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 5px !important;
+  transition: background 0.15s !important;
+}
+.expressive-code .copy button:hover {
+  background: rgba(255,255,255,0.1) !important;
+}
+
+/* ─── Breadcrumbs ─────────────────────────────────────────────────────────── */
+
+.sl-breadcrumbs {
+  font-size: 0.8125rem !important;
+}
+.sl-breadcrumbs li { color: var(--sl-color-gray-4) !important; }
+.sl-breadcrumbs a {
+  color: var(--sl-color-gray-4) !important;
+  text-decoration: none !important;
+  transition: color 0.12s !important;
+}
+.sl-breadcrumbs a:hover { color: var(--sl-color-white) !important; }
+.sl-breadcrumbs [aria-current='page'] { color: var(--sl-color-gray-3) !important; }
+
+/* ─── Pagination ──────────────────────────────────────────────────────────── */
+
+.pagination-links {
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+  margin-top: 3rem !important;
+  padding-top: 1.5rem !important;
+  gap: 1rem !important;
+}
+.pagination-links a {
+  background: #0d1117 !important;
+  border: 1px solid rgba(255,255,255,0.07) !important;
+  border-radius: 10px !important;
+  padding: 1rem 1.25rem !important;
+  text-decoration: none !important;
+  transition: border-color 0.15s, background 0.15s !important;
+  flex: 1 !important;
+}
+.pagination-links a:hover {
+  border-color: rgba(129, 140, 248, 0.3) !important;
+  background: #0f1520 !important;
+}
+.pagination-links .link-title {
+  color: var(--sl-color-white) !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+}
+.pagination-links .link-description {
+  font-size: 0.75rem !important;
+  color: var(--sl-color-gray-4) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  font-weight: 600 !important;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────── */
+
+footer.sl-flex {
+  border-top: 1px solid rgba(255,255,255,0.05) !important;
+  padding-top: 1rem !important;
+  font-size: 0.8125rem !important;
+}
+footer.sl-flex a {
+  color: var(--sl-color-gray-4) !important;
+  text-decoration: none !important;
+  transition: color 0.12s !important;
+}
+footer.sl-flex a:hover { color: var(--sl-color-accent) !important; }
+
+/* ─── Search dialog ───────────────────────────────────────────────────────── */
+
+dialog[open] {
+  background: #0d1117 !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7) !important;
+}
+dialog::backdrop { background: rgba(2, 8, 20, 0.85) !important; }
+
+.pagefind-ui .pagefind-ui__search-input {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
+  color: var(--sl-color-white) !important;
+  font-family: var(--sl-font) !important;
+}
+.pagefind-ui .pagefind-ui__search-input:focus {
+  border-color: var(--sl-color-accent) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.15) !important;
+}
+.pagefind-ui .pagefind-ui__result {
+  border-color: rgba(255,255,255,0.05) !important;
+}
+.pagefind-ui .pagefind-ui__result-link { color: var(--sl-color-accent-high) !important; }
+.pagefind-ui .pagefind-ui__result-excerpt { color: var(--sl-color-gray-3) !important; }
+.pagefind-ui mark { background: rgba(129,140,248,0.2) !important; color: var(--sl-color-accent-high) !important; }

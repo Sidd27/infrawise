@@ -34,9 +34,12 @@ const svgRaw = readFileSync(join(process.cwd(), 'public/arch-web.svg'), 'utf8')
   }
   .arch-svg-wrap svg {
     display: block;
-    min-width: 860px;
     width: 100%;
     height: auto;
+  }
+
+  @media (max-width: 767px) {
+    .arch { display: none; }
   }
 
   /* ── font override — safe because arch-web.svg uses text not foreignObject ─ */

@@ -35,3 +35,9 @@
   --section-gap: 96px;
   --max-page:    1200px;
 }
+
+@media (max-width: 767px) {
+  :root {
+    --section-gap: 52px;
+  }
+}

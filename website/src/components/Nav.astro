@@ -1,4 +1,5 @@
 ---
+import logoSrc from '../assets/logo.svg?url'
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 ---
 
@@ -57,31 +58,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 <header class="nav">
   <div class="nav-inner">
     <a href={`${base}/`} class="logo" aria-label="Infrawise home">
-      <svg width="34" height="34" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="nav-logo-hg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#34d399"/>
-            <stop offset="100%" stop-color="#818cf8"/>
-          </linearGradient>
-          <radialGradient id="nav-logo-ng">
-            <stop offset="0%" stop-color="#34d399" stop-opacity="0.65"/>
-            <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <rect width="44" height="44" rx="10" fill="#0d1117"/>
-        <polygon points="22,4.5 36,12.5 36,29.5 22,37.5 8,29.5 8,12.5" fill="rgba(13,148,136,0.07)"/>
-        <polygon points="22,4.5 36,12.5 36,29.5 22,37.5 8,29.5 8,12.5" fill="none" stroke="url(#nav-logo-hg)" stroke-width="1" stroke-dasharray="2,2.5" opacity="0.9"/>
-        <circle cx="22" cy="4.5" r="8" fill="url(#nav-logo-ng)"/>
-        <circle cx="22" cy="4.5" r="3" fill="#065f46" stroke="#34d399" stroke-width="1.2"/>
-        <circle cx="22" cy="4.5" r="1.2" fill="#34d399"/>
-        <circle cx="36" cy="29.5" r="7.5" fill="url(#nav-logo-ng)"/>
-        <circle cx="36" cy="29.5" r="2.8" fill="#065f46" stroke="#34d399" stroke-width="1.2"/>
-        <circle cx="36" cy="29.5" r="1.1" fill="#34d399"/>
-        <circle cx="8" cy="29.5" r="7.5" fill="url(#nav-logo-ng)"/>
-        <circle cx="8" cy="29.5" r="2.8" fill="#065f46" stroke="#34d399" stroke-width="1.2"/>
-        <circle cx="8" cy="29.5" r="1.1" fill="#34d399"/>
-        <text x="22" y="29" text-anchor="middle" font-family="'Libre Baskerville', Georgia, serif" font-weight="700" font-size="19" fill="#e0fdf4">I</text>
-      </svg>
+      <img src={logoSrc} width="34" height="34" alt="" aria-hidden="true" />
       <span class="logo-wordmark">infrawise</span>
     </a>
 

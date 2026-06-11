@@ -15,20 +15,24 @@
   <polygon points="16,3 26.4,9 26.4,21 16,27 5.6,21 5.6,9"
            fill="none" stroke="url(#hg)" stroke-width="1"
            stroke-dasharray="2,2" opacity="0.9"/>
-  <circle cx="16" cy="3" r="4" fill="url(#ng)"/>
-  <circle cx="16" cy="3" r="2.2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="16" cy="3" r="0.9" fill="#34d399"/>
-  <circle cx="16" cy="3" r="0.4" fill="white"/>
-  <circle cx="26.4" cy="21" r="3.8" fill="url(#ng)"/>
-  <circle cx="26.4" cy="21" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="26.4" cy="21" r="0.8" fill="#34d399"/>
-  <circle cx="5.6" cy="21" r="3.8" fill="url(#ng)"/>
-  <circle cx="5.6" cy="21" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="5.6" cy="21" r="0.8" fill="#34d399"/>
-  <circle cx="26.4" cy="9" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <circle cx="16" cy="27" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <circle cx="5.6" cy="9" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <text x="16" y="20.5" text-anchor="middle"
+  <!-- Bright nodes: top-left, top-right, bottom-center (inverted triangle) -->
+  <circle cx="5.6" cy="9" r="3.8" fill="url(#ng)"/>
+  <circle cx="5.6" cy="9" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
+  <circle cx="5.6" cy="9" r="0.8" fill="#34d399"/>
+  <circle cx="5.6" cy="9" r="0.35" fill="white" fill-opacity="0.9"/>
+  <circle cx="26.4" cy="9" r="3.8" fill="url(#ng)"/>
+  <circle cx="26.4" cy="9" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
+  <circle cx="26.4" cy="9" r="0.8" fill="#34d399"/>
+  <circle cx="26.4" cy="9" r="0.35" fill="white" fill-opacity="0.9"/>
+  <circle cx="16" cy="27" r="4" fill="url(#ng)"/>
+  <circle cx="16" cy="27" r="2.2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
+  <circle cx="16" cy="27" r="0.9" fill="#34d399"/>
+  <circle cx="16" cy="27" r="0.4" fill="white" fill-opacity="0.9"/>
+  <!-- Ghost nodes: top-center, bottom-left, bottom-right -->
+  <circle cx="16" cy="3" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
+  <circle cx="5.6" cy="21" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
+  <circle cx="26.4" cy="21" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
+  <text x="16" y="19" text-anchor="middle"
         font-family="'Libre Baskerville', Georgia, serif"
         font-weight="700" font-size="13" fill="#e0fdf4">I</text>
 </svg>
