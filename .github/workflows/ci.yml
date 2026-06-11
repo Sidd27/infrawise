@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main, master, develop]
+    paths-ignore:
+      - 'website/**'
+      - 'docs/**'
+      - '**.md'
+      - 'llms.txt'
   pull_request:
     branches: [main, master, develop]
+    paths-ignore:
+      - 'website/**'
+      - 'docs/**'
+      - '**.md'
+      - 'llms.txt'
 
 env:
   NODE_VERSION: '24'
