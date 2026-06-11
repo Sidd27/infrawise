@@ -65,6 +65,16 @@ export default defineConfig({
 						{ label: 'LocalStack demo',        slug: 'guides/localstack-demo' },
 					],
 				},
+				{
+					label: 'Use Cases',
+					items: [
+						{ label: 'DynamoDB scan detection',   slug: 'use-cases/dynamodb-scans'      },
+						{ label: 'SQS dead-letter queues',    slug: 'use-cases/sqs-dlq'             },
+						{ label: 'Lambda event shapes',       slug: 'use-cases/lambda-event-shapes' },
+						{ label: 'IaC drift detection',       slug: 'use-cases/iac-drift'           },
+						{ label: 'AWS security posture',      slug: 'use-cases/security-posture'    },
+					],
+				},
 			],
 			expressiveCode: { themes: ['github-dark'] },
 		}),
