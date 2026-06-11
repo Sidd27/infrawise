@@ -26,6 +26,9 @@ dist/
 .mcp.json
 .cursor/mcp.json
 
+# Local infrawise config — personal dev configs, not for the repo root
+infrawise.yaml
+
 # Test coverage
 coverage/
 
