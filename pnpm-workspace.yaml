@@ -1,3 +1,14 @@
 packages:
   - '.'
   - 'website'
+overrides:
+  qs: '>=6.15.2'
+  vite: ^7
+allowedBuildScripts:
+  - puppeteer
+  - simple-git-hooks
+allowBuilds:
+  esbuild: true
+  puppeteer: true
+  sharp: true
+  simple-git-hooks: true
