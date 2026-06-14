@@ -361,6 +361,9 @@ Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions ca
 | MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |
 | Missing Mongo Index        | Medium   | Collections queried without secondary indexes |
 | Collection Scan            | High     | `find()` calls without filter predicates      |
+| Pipeline: scan in consumer | High / Verify | Full scan inside an event-triggered Lambda handler (High when the lambda-to-code link is IaC-proven, Verify when name-matched) |
+| Pipeline: repeated table access | Medium / Verify | Same table read by 2+ functions in one service pipeline |
+| Pipeline: missing DLQ hop  | Medium   | Mid-pipeline queue (has producer and consumer) with no Dead Letter Queue |
 
 Non-TypeScript/JavaScript projects still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) is skipped.
 
@@ -412,7 +415,7 @@ src/
     aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS, CloudWatch
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
-  analyzers/    27 rule-based analyzers
+  analyzers/    28 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)
