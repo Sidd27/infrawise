@@ -749,6 +749,43 @@ describe('extractCDKSchema', () => {
   });
 });
 
+// ─── IaC lambda handler extraction ─────────────────────────────────────────
+
+describe('IaC lambda handler extraction', () => {
+  it('captures handler from a terraform aws_lambda_function', async () => {
+    write(
+      dir,
+      'main.tf',
+      `resource "aws_lambda_function" "fulfill" {
+         function_name = "fulfill-prod"
+         runtime       = "nodejs20.x"
+         handler       = "src/fulfill.handler"
+       }`,
+    );
+    const schema = await extractTerraformSchema(dir);
+    const fn = schema.lambdas.find((l) => l.name === 'fulfill-prod');
+    expect(fn?.handler).toBe('src/fulfill.handler');
+  });
+
+  it('captures Handler from a CloudFormation AWS::Lambda::Function', async () => {
+    write(
+      dir,
+      'template.yaml',
+      `AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  Fulfill:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: fulfill-prod
+      Runtime: nodejs20.x
+      Handler: src/fulfill.handler`,
+    );
+    const schema = await extractCloudFormationSchema(dir);
+    const fn = schema.lambdas.find((l) => l.name === 'fulfill-prod');
+    expect(fn?.handler).toBe('src/fulfill.handler');
+  });
+});
+
 // ─── Combined / merge ──────────────────────────────────────────────────────
 
 describe('extractIaCSchema (combined)', () => {

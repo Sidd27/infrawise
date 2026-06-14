@@ -45,6 +45,7 @@ export interface IaCTopic {
 export interface IaCLambda {
   name: string;
   runtime?: string;
+  handler?: string;
   source: IaCSource;
   filePath: string;
 }
@@ -240,6 +241,7 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           schema.lambdas.push({
             name: tfStr(body, 'function_name') ?? resourceName,
             runtime: tfStr(body, 'runtime'),
+            handler: tfStr(body, 'handler'),
             source: 'terraform',
             filePath,
           });
@@ -421,6 +423,7 @@ function processCFNResources(
         schema.lambdas.push({
           name: cfnStr(props, 'FunctionName') ?? logicalId,
           runtime: cfnStr(props, 'Runtime'),
+          handler: cfnStr(props, 'Handler'),
           source,
           filePath,
         });
