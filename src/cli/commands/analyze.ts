@@ -7,7 +7,7 @@ import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
 import { extractMongoMetadata } from '../../adapters/db/mongodb.js';
-import { extractIaCSchema } from '../../adapters/iac/terraform.js';
+import { extractIaCSchema, type IaCLambda } from '../../adapters/iac/terraform.js';
 import {
   extractSQSMetadata,
   extractSNSMetadata,
@@ -24,6 +24,7 @@ import { buildGraph } from '../../graph/index.js';
 import {
   runAllAnalyzers,
   IaCDriftAnalyzer,
+  PipelineAnalyzer,
   FullTableScanAnalyzer,
   MissingGSIAnalyzer,
   HotPartitionAnalyzer,
@@ -358,6 +359,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
+  let iacLambdas: IaCLambda[] = [];
   {
     const s = mkSpinner('Extracting IaC schema (Terraform / CloudFormation / CDK)...');
     try {
@@ -375,6 +377,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         iacSchema.apiGateways.length;
       iacDriftAnalyzer = new IaCDriftAnalyzer();
       iacDriftAnalyzer.setIaCSchema(iacSchema);
+      iacLambdas = iacSchema.lambdas;
       s.succeed(chalk.green('IaC schema') + chalk.dim(`  ${total} resource(s) across TF/CFN/CDK`));
     } catch (err) {
       s.warn(
@@ -418,6 +421,8 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
   {
     const s = mkSpinner('Running analyzers...');
+    const pipelineAnalyzer = new PipelineAnalyzer();
+    pipelineAnalyzer.setIaCLambdas(iacLambdas);
     const analyzers = [
       ...(config.dynamodb?.enabled === true
         ? [new FullTableScanAnalyzer(), new MissingGSIAnalyzer(), new HotPartitionAnalyzer()]
@@ -464,6 +469,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
           ]
         : []),
       ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
+      pipelineAnalyzer,
     ];
     findings = await runAllAnalyzers(graph, analyzers);
     s.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${findings.length} finding(s)`));
@@ -541,10 +547,12 @@ export async function runCodeRefresh(
 
   // Re-run IaC schema (pure file scan, no AWS calls)
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
+  let iacLambdas: IaCLambda[] = [];
   try {
     const iacSchema = await extractIaCSchema(repoPath);
     iacDriftAnalyzer = new IaCDriftAnalyzer();
     iacDriftAnalyzer.setIaCSchema(iacSchema);
+    iacLambdas = iacSchema.lambdas;
   } catch {
     // IaC scan is best-effort
   }
@@ -566,6 +574,8 @@ export async function runCodeRefresh(
     servicesMeta,
   );
 
+  const pipelineAnalyzer = new PipelineAnalyzer();
+  pipelineAnalyzer.setIaCLambdas(iacLambdas);
   const analyzers = [
     ...(config.dynamodb?.enabled === true
       ? [new FullTableScanAnalyzer(), new MissingGSIAnalyzer(), new HotPartitionAnalyzer()]
@@ -608,6 +618,7 @@ export async function runCodeRefresh(
         ]
       : []),
     ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
+    pipelineAnalyzer,
   ];
 
   const findings = await runAllAnalyzers(graph, analyzers);

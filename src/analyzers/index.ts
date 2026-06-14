@@ -6,6 +6,7 @@ export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './p
 export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql.js';
 export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb.js';
 export { IaCDriftAnalyzer } from './terraform.js';
+export { PipelineAnalyzer } from './pipeline.js';
 export {
   MissingDLQAnalyzer,
   UnencryptedQueueAnalyzer,
