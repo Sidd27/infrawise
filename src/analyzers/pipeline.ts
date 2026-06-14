@@ -115,7 +115,7 @@ function detectScanInPipeline(
     const table = nodeById.get(e.to);
     const lambda = nodeById.get(link.lambdaId);
     if (!fn || fn.type !== 'function' || !table || table.type !== 'table') continue;
-    const dedupe = `${e.from} ${e.to}`;
+    const dedupe = `${e.from}\0${e.to}`;
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
     const inferred = link.confidence === 'inferred';

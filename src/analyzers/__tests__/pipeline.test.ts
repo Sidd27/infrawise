@@ -250,4 +250,44 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
     const findings = await analyzer.analyze(graph);
     expect(findings.filter((f) => f.issue.includes('multiple stages'))).toHaveLength(0);
   });
+
+  it('caps repeated access to VERIFY when the pipeline link is heuristic', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:src/producer.ts:produce',
+          type: 'function',
+          name: 'produce',
+          file: 'src/producer.ts',
+        },
+        {
+          id: 'queue:aws:q',
+          type: 'queue',
+          name: 'q',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
+        { id: 'lambda:aws:consume', type: 'lambda', name: 'consume' },
+        {
+          id: 'function:src/consume.ts:consume',
+          type: 'function',
+          name: 'consume',
+          file: 'src/consume.ts',
+        },
+        { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+      ],
+      edges: [
+        { from: 'function:src/producer.ts:produce', to: 'queue:aws:q', type: 'publishes_to' },
+        { from: 'queue:aws:q', to: 'lambda:aws:consume', type: 'triggers' },
+        { from: 'function:src/producer.ts:produce', to: 'table:dynamo:Orders', type: 'query' },
+        { from: 'function:src/consume.ts:consume', to: 'table:dynamo:Orders', type: 'query' },
+      ],
+    };
+    // no setIaCLambdas -> only the heuristic linker can connect lambda:consume to function consume
+    const findings = await new PipelineAnalyzer().analyze(graph);
+    const repeated = findings.filter((f) => f.issue.includes('multiple stages'));
+    expect(repeated).toHaveLength(1);
+    expect(repeated[0]!.severity).toBe('verify');
+  });
 });
