@@ -87,8 +87,8 @@
     <rect x="20" y="110" width="180" height="80" rx="6" ry="6"
       fill="rgba(28,17,8,0.90)" stroke="#f59e0b" stroke-width="1.5" />
     <text x="110" y="134" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">LAMBDA · SQS · SNS</text>
-    <text x="110" y="152" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">API GATEWAY · EVENTBRIDGE</text>
-    <text x="110" y="170" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">RDS</text>
+    <text x="110" y="152" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">API GATEWAY · RDS</text>
+    <text x="110" y="170" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">EVENTBRIDGE</text>
   </g>
   <g class="arch-node" data-id="S">
     <rect x="20" y="208" width="180" height="62" rx="6" ry="6"

@@ -1,0 +1,227 @@
+---
+interface CodeLine { text: string; type: 'normal' | 'comment' | 'ok' | 'err' }
+
+interface UseCase {
+  id: string
+  title: string
+  desc: string
+  tool: string
+  before: CodeLine[]
+  after: CodeLine[]
+}
+
+const cases: UseCase[] = [
+  {
+    id: 'event-shape',
+    title: 'Wrong Lambda event shape',
+    desc: 'AI guesses the handler signature. SQS, S3, and EventBridge all use different shapes — getting it wrong means silent undefined at runtime.',
+    tool: 'analyze_function',
+    before: [
+      { text: '# AI guesses the payload structure',        type: 'comment' },
+      { text: 'def handler(event, context):',              type: 'normal'  },
+      { text: '    body = json.loads(event["body"])',      type: 'normal'  },
+      { text: '    process(body["orderId"])',               type: 'normal'  },
+      { text: '# ❌ SQS wraps in Records — event["body"] is None', type: 'err' },
+    ],
+    after: [
+      { text: '# analyze_function returns the exact event shape', type: 'comment' },
+      { text: 'def handler(event, context):',                     type: 'normal'  },
+      { text: '    body = json.loads(event["Records"][0]["body"])', type: 'normal' },
+      { text: '    process(body["orderId"])',                       type: 'normal' },
+      { text: '# ✅ Correct shape — no silent failures',           type: 'ok'     },
+    ],
+  },
+  {
+    id: 'fifo-group',
+    title: 'FIFO queue missing MessageGroupId',
+    desc: "AI writes a standard SendMessage call without checking if the queue is FIFO. FIFO queues require MessageGroupId — omitting it throws a runtime error.",
+    tool: 'get_queue_details',
+    before: [
+      { text: '# AI writes a standard SendMessage call',      type: 'comment' },
+      { text: 'sqs.send_message(',                            type: 'normal'  },
+      { text: '    QueueUrl=queue_url,',                      type: 'normal'  },
+      { text: '    MessageBody=json.dumps(order),',           type: 'normal'  },
+      { text: ')',                                            type: 'normal'  },
+      { text: '# ❌ FIFO queue — InvalidParameterValue at runtime', type: 'err' },
+    ],
+    after: [
+      { text: '# get_queue_details shows isFifo: true',      type: 'comment' },
+      { text: 'sqs.send_message(',                           type: 'normal'  },
+      { text: '    QueueUrl=queue_url,',                     type: 'normal'  },
+      { text: '    MessageBody=json.dumps(order),',          type: 'normal'  },
+      { text: '    MessageGroupId=order["customerId"],',     type: 'normal'  },
+      { text: ')',                                           type: 'normal'  },
+      { text: '# ✅ Required field included — no runtime error', type: 'ok' },
+    ],
+  },
+  {
+    id: 'sns-filter',
+    title: 'SNS message silently dropped',
+    desc: 'A subscription has a filter policy requiring specific message attributes. Missing one drops the message with no error, no retry, and no DLQ entry.',
+    tool: 'get_topic_details',
+    before: [
+      { text: '# AI publishes without checking filter policies', type: 'comment' },
+      { text: 'sns.publish(',                                    type: 'normal'  },
+      { text: '    TopicArn=topic_arn,',                        type: 'normal'  },
+      { text: '    Message=json.dumps(payload),',               type: 'normal'  },
+      { text: ')',                                              type: 'normal'  },
+      { text: '# ❌ "eventType" required — subscription drops it silently', type: 'err' },
+    ],
+    after: [
+      { text: '# get_topic_details reveals requiredAttributes',  type: 'comment' },
+      { text: 'sns.publish(',                                    type: 'normal'  },
+      { text: '    TopicArn=topic_arn,',                        type: 'normal'  },
+      { text: '    Message=json.dumps(payload),',               type: 'normal'  },
+      { text: '    MessageAttributes={',                        type: 'normal'  },
+      { text: '        "eventType": {"DataType": "String",',    type: 'normal'  },
+      { text: '                      "StringValue": "order.created"},', type: 'normal' },
+      { text: '    },',                                         type: 'normal'  },
+      { text: ')',                                              type: 'normal'  },
+      { text: '# ✅ All required attributes present — delivered', type: 'ok'   },
+    ],
+  },
+]
+---
+
+<style>
+  .usecases {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .usecases .section-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 8px;
+    max-width: 560px;
+  }
+  .section-sub {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 52px;
+    max-width: 500px;
+  }
+  .case-list {
+    display: flex;
+    flex-direction: column;
+    gap: 52px;
+  }
+  .case-tool {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--teal);
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.18);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
+  }
+  .case-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+  }
+  .case-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 560px;
+    margin-bottom: 16px;
+  }
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 960px;
+  }
+  .panel {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  .panel--before { border-color: rgba(248,113,113,0.28); background: rgba(248,113,113,0.05); }
+  .panel--after  { border-color: rgba(52,211,153,0.28);  background: rgba(52,211,153,0.05);  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot--red   { background: var(--red);  }
+  .dot--green { background: var(--teal); }
+  .panel-code {
+    background: var(--surface-2);
+    padding: 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.75;
+    overflow-x: auto;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre;
+  }
+  .panel-code .c   { color: var(--text-muted); }
+  .panel-code .ok  { color: var(--teal); }
+  .panel-code .err { color: var(--red); opacity: 0.85; }
+  @media (max-width: 680px) { .comparison { grid-template-columns: 1fr; } }
+</style>
+
+<section class="usecases">
+  <div class="section-inner">
+    <p class="label">Where It Helps</p>
+    <h2 class="section-headline">The bugs that only appear at runtime.</h2>
+    <p class="section-sub">AI hallucinates queue types, event shapes, and filter policies. Infrawise gives it your actual infrastructure so it stops guessing.</p>
+
+    <div class="case-list">
+      {cases.map(c => (
+        <div class="case-block">
+          <span class="case-tool">{c.tool}</span>
+          <h3 class="case-title">{c.title}</h3>
+          <p class="case-desc">{c.desc}</p>
+          <div class="comparison">
+            <div class="panel panel--before">
+              <div class="panel-header">
+                <span class="dot dot--red"></span>
+                Without Infrawise
+              </div>
+              <pre class="panel-code"><code>{c.before.map(line => (
+                line.type === 'normal'
+                  ? line.text + '\n'
+                  : <span class={line.type === 'err' ? 'err' : line.type === 'ok' ? 'ok' : 'c'}>{line.text + '\n'}</span>
+              ))}</code></pre>
+            </div>
+            <div class="panel panel--after">
+              <div class="panel-header">
+                <span class="dot dot--green"></span>
+                With Infrawise
+              </div>
+              <pre class="panel-code"><code>{c.after.map(line => (
+                line.type === 'normal'
+                  ? line.text + '\n'
+                  : <span class={line.type === 'ok' ? 'ok' : line.type === 'err' ? 'err' : 'c'}>{line.text + '\n'}</span>
+              ))}</code></pre>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

@@ -12,51 +12,51 @@ version: 1
 # row: vertical position within a column (0 = topmost)
 # lines: number of text lines (affects node height)
 layout:
-  nodeW: 180         # default node width
-  nodeH: 44          # single-line node height
-  lineH: 18          # extra height per additional text line
-  colGap: 52         # horizontal gap between columns
-  rowGap: 18         # vertical gap between rows
-  groupPad: 20       # padding inside group boxes
-  groupLabelH: 28    # height reserved for group label at top
+  nodeW: 180 # default node width
+  nodeH: 44 # single-line node height
+  lineH: 18 # extra height per additional text line
+  colGap: 52 # horizontal gap between columns
+  rowGap: 18 # vertical gap between rows
+  groupPad: 20 # padding inside group boxes
+  groupLabelH: 28 # height reserved for group label at top
 
 # ── themes ────────────────────────────────────────────────────────────────────
 themes:
   aws:
-    fill:   "rgba(28,17,8,0.90)"
-    stroke: "#f59e0b"
-    color:  "#fde68a"
+    fill: 'rgba(28,17,8,0.90)'
+    stroke: '#f59e0b'
+    color: '#fde68a'
   db:
-    fill:   "rgba(7,26,20,0.90)"
-    stroke: "#34d399"
-    color:  "#a7f3d0"
+    fill: 'rgba(7,26,20,0.90)'
+    stroke: '#34d399'
+    color: '#a7f3d0'
   iac:
-    fill:   "rgba(21,13,38,0.90)"
-    stroke: "#c4b5fd"
-    color:  "#ede9fe"
+    fill: 'rgba(21,13,38,0.90)'
+    stroke: '#c4b5fd'
+    color: '#ede9fe'
   code:
-    fill:   "rgba(11,21,37,0.90)"
-    stroke: "#60a5fa"
-    color:  "#bfdbfe"
+    fill: 'rgba(11,21,37,0.90)'
+    stroke: '#60a5fa'
+    color: '#bfdbfe'
   iw:
-    fill:   "rgba(13,17,23,0.90)"
-    stroke: "#818cf8"
-    color:  "#c7d2fe"
+    fill: 'rgba(13,17,23,0.90)'
+    stroke: '#818cf8'
+    color: '#c7d2fe'
   ai:
-    fill:   "rgba(7,26,20,0.90)"
-    stroke: "#34d399"
-    color:  "#a7f3d0"
+    fill: 'rgba(7,26,20,0.90)'
+    stroke: '#34d399'
+    color: '#a7f3d0'
 
 # ── nodes ─────────────────────────────────────────────────────────────────────
 nodes:
   D:
-    label: "DynamoDB"
+    label: 'DynamoDB'
     theme: aws
     col: 0
     row: 0
 
   L:
-    label: "Lambda · SQS · SNS\nAPI Gateway · EventBridge\nRDS"
+    label: "Lambda · SQS · SNS\nAPI Gateway · RDS\nEventBridge"
     theme: aws
     col: 0
     row: 1
@@ -70,13 +70,13 @@ nodes:
     lines: 2
 
   P:
-    label: "PostgreSQL · MySQL"
+    label: 'PostgreSQL · MySQL'
     theme: db
     col: 0
     row: 3
 
   M:
-    label: "MongoDB"
+    label: 'MongoDB'
     theme: db
     col: 0
     row: 4
@@ -89,31 +89,31 @@ nodes:
     lines: 2
 
   C:
-    label: "TypeScript / JS"
+    label: 'TypeScript / JS'
     theme: code
     col: 0
     row: 6
 
   A:
-    label: "Adapters"
+    label: 'Adapters'
     theme: iw
     col: 2
     row: 3
 
   G:
-    label: "Graph Engine"
+    label: 'Graph Engine'
     theme: iw
     col: 3
     row: 3
 
   AN:
-    label: "29 Analyzers"
+    label: '29 Analyzers'
     theme: iw
     col: 4
     row: 3
 
   CA:
-    label: "Cache"
+    label: 'Cache'
     theme: iw
     col: 5
     row: 3
@@ -126,19 +126,19 @@ nodes:
     lines: 2
 
   CC:
-    label: "Claude Code"
+    label: 'Claude Code'
     theme: ai
     col: 9
     row: 2
 
   CU:
-    label: "Cursor"
+    label: 'Cursor'
     theme: ai
     col: 9
     row: 3
 
   MC:
-    label: "Any MCP Client"
+    label: 'Any MCP Client'
     theme: ai
     col: 9
     row: 4
@@ -146,36 +146,36 @@ nodes:
 # ── groups ────────────────────────────────────────────────────────────────────
 groups:
   IN:
-    label: "Your Infrastructure & Code"
+    label: 'Your Infrastructure & Code'
     nodes: [D, L, S, P, M, T, C]
-    stroke: "rgba(255,255,255,0.10)"
-    labelColor: "#94a3b8"
+    stroke: 'rgba(255,255,255,0.10)'
+    labelColor: '#94a3b8'
 
   SV:
-    label: "infrawise serve"
+    label: 'infrawise serve'
     nodes: [MCP]
-    stroke: "#1e2a3a"
-    labelColor: "#64748b"
+    stroke: '#1e2a3a'
+    labelColor: '#64748b'
 
   AI:
-    label: "AI Coding Assistants"
+    label: 'AI Coding Assistants'
     nodes: [CC, CU, MC]
-    stroke: "#1e2a3a"
-    labelColor: "#64748b"
+    stroke: '#1e2a3a'
+    labelColor: '#64748b'
 
 # ── edges ─────────────────────────────────────────────────────────────────────
 edges:
-  - { from: D,   to: A   }
-  - { from: L,   to: A   }
-  - { from: S,   to: A   }
-  - { from: P,   to: A   }
-  - { from: M,   to: A   }
-  - { from: T,   to: A   }
-  - { from: C,   to: A   }
-  - { from: A,   to: G   }
-  - { from: G,   to: AN  }
-  - { from: AN,  to: CA  }
-  - { from: CA,  to: MCP }
-  - { from: MCP, to: CC  }
-  - { from: MCP, to: CU  }
-  - { from: MCP, to: MC  }
+  - { from: D, to: A }
+  - { from: L, to: A }
+  - { from: S, to: A }
+  - { from: P, to: A }
+  - { from: M, to: A }
+  - { from: T, to: A }
+  - { from: C, to: A }
+  - { from: A, to: G }
+  - { from: G, to: AN }
+  - { from: AN, to: CA }
+  - { from: CA, to: MCP }
+  - { from: MCP, to: CC }
+  - { from: MCP, to: CU }
+  - { from: MCP, to: MC }
