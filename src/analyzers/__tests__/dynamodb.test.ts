@@ -150,4 +150,27 @@ describe('HotPartitionAnalyzer', () => {
     const findings = await analyzer.analyze(graph);
     expect(findings).toHaveLength(0);
   });
+
+  it('uses per-table thresholds when configured', async () => {
+    const analyzer = new HotPartitionAnalyzer(2, { Orders: 4 });
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'fn:a', type: 'function', name: 'a', file: 'a.ts' },
+        { id: 'fn:b', type: 'function', name: 'b', file: 'b.ts' },
+        { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+        { id: 'table:dynamo:Users', type: 'table', name: 'Users', databaseType: 'dynamodb' },
+      ],
+      edges: [
+        { from: 'fn:a', to: 'table:dynamo:Orders', type: 'query' },
+        { from: 'fn:b', to: 'table:dynamo:Orders', type: 'query' },
+        { from: 'fn:a', to: 'table:dynamo:Users', type: 'query' },
+        { from: 'fn:b', to: 'table:dynamo:Users', type: 'query' },
+      ],
+    };
+
+    const findings = await analyzer.analyze(graph);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].metadata).toMatchObject({ tableName: 'Users', threshold: 2 });
+  });
 });
