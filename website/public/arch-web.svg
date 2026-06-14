@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1632 576" role="img" aria-label="Infrawise architecture diagram">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1632 594" role="img" aria-label="Infrawise architecture diagram">
   <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 27 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
   
 <defs>
@@ -14,67 +14,67 @@
     <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>
 </defs>
-  <rect width="1632" height="576" fill="transparent" />
+  <rect width="1632" height="594" fill="transparent" />
   
   <g class="arch-group" data-group="IN">
-    <rect x="0" y="0" width="220" height="556" rx="10" ry="10"
+    <rect x="0" y="0" width="220" height="574" rx="10" ry="10"
       fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="1" stroke-dasharray="4,3" />
     <text x="14" y="18" fill="#94a3b8" font-size="11" font-weight="600"
       letter-spacing="0.08em" font-family="system-ui,sans-serif">YOUR INFRASTRUCTURE &amp; CODE</text>
   </g>
   <g class="arch-group" data-group="SV">
-    <rect x="1160" y="222" width="220" height="130" rx="10" ry="10"
+    <rect x="1160" y="240" width="220" height="130" rx="10" ry="10"
       fill="none" stroke="#1e2a3a" stroke-width="1" stroke-dasharray="4,3" />
-    <text x="1174" y="240" fill="#64748b" font-size="11" font-weight="600"
+    <text x="1174" y="258" fill="#64748b" font-size="11" font-weight="600"
       letter-spacing="0.08em" font-family="system-ui,sans-serif">INFRAWISE SERVE</text>
   </g>
   <g class="arch-group" data-group="AI">
-    <rect x="1392" y="142" width="220" height="272" rx="10" ry="10"
+    <rect x="1392" y="160" width="220" height="272" rx="10" ry="10"
       fill="none" stroke="#1e2a3a" stroke-width="1" stroke-dasharray="4,3" />
-    <text x="1406" y="160" fill="#64748b" font-size="11" font-weight="600"
+    <text x="1406" y="178" fill="#64748b" font-size="11" font-weight="600"
       letter-spacing="0.08em" font-family="system-ui,sans-serif">AI CODING ASSISTANTS</text>
   </g>
   <g class="arch-edges">
-  <path d="M 200 70 C 228.6 70 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 70 C 228.6 70 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>D → A</title>
   </path>
-  <path d="M 200 141 C 228.6 141 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 150 C 228.6 150 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>L → A</title>
   </path>
-  <path d="M 200 221 C 228.6 221 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 239 C 228.6 239 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>S → A</title>
   </path>
-  <path d="M 200 292 C 228.6 292 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 310 C 228.6 310 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>P → A</title>
   </path>
-  <path d="M 200 372 C 228.6 372 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 390 C 228.6 390 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>M → A</title>
   </path>
-  <path d="M 200 443 C 228.6 443 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 461 C 228.6 461 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>T → A</title>
   </path>
-  <path d="M 200 514 C 228.6 514 223.4 292 252 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 200 532 C 228.6 532 223.4 310 252 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>C → A</title>
   </path>
-  <path d="M 432 292 C 460.6 292 455.4 292 484 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 432 310 C 460.6 310 455.4 310 484 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>A → G</title>
   </path>
-  <path d="M 664 292 C 692.6 292 687.4 292 716 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 664 310 C 692.6 310 687.4 310 716 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>G → AN</title>
   </path>
-  <path d="M 896 292 C 924.6 292 919.4 292 948 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 896 310 C 924.6 310 919.4 310 948 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>AN → CA</title>
   </path>
-  <path d="M 1128 292 C 1156.6 292 1151.4 301 1180 301" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 1128 310 C 1156.6 310 1151.4 319 1180 319" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>CA → MCP</title>
   </path>
-  <path d="M 1360 301 C 1388.6 301 1383.4 212 1412 212" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 1360 319 C 1388.6 319 1383.4 230 1412 230" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>MCP → CC</title>
   </path>
-  <path d="M 1360 301 C 1388.6 301 1383.4 292 1412 292" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 1360 319 C 1388.6 319 1383.4 310 1412 310" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>MCP → CU</title>
   </path>
-  <path d="M 1360 301 C 1388.6 301 1383.4 372 1412 372" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
+  <path d="M 1360 319 C 1388.6 319 1383.4 390 1412 390" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" filter="url(#arch-glow)" marker-end="url(#arch-arrow)">
     <title>MCP → MC</title>
   </path></g>
   
@@ -84,77 +84,78 @@
     <text x="110" y="72" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">DYNAMODB</text>
   </g>
   <g class="arch-node" data-id="L">
-    <rect x="20" y="110" width="180" height="62" rx="6" ry="6"
+    <rect x="20" y="110" width="180" height="80" rx="6" ry="6"
       fill="rgba(28,17,8,0.90)" stroke="#f59e0b" stroke-width="1.5" />
     <text x="110" y="134" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">LAMBDA · SQS · SNS</text>
-    <text x="110" y="152" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">EVENTBRIDGE · API GATEWAY · RDS</text>
+    <text x="110" y="152" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">API GATEWAY · EVENTBRIDGE</text>
+    <text x="110" y="170" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">RDS</text>
   </g>
   <g class="arch-node" data-id="S">
-    <rect x="20" y="190" width="180" height="62" rx="6" ry="6"
+    <rect x="20" y="208" width="180" height="62" rx="6" ry="6"
       fill="rgba(28,17,8,0.90)" stroke="#f59e0b" stroke-width="1.5" />
-    <text x="110" y="214" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">SECRETS MANAGER · SSM</text>
-    <text x="110" y="232" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLOUDWATCH</text>
+    <text x="110" y="232" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">SECRETS MANAGER · SSM</text>
+    <text x="110" y="250" text-anchor="middle" dominant-baseline="auto" fill="#fde68a" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLOUDWATCH</text>
   </g>
   <g class="arch-node" data-id="P">
-    <rect x="20" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="20" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="110" y="294" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">POSTGRESQL · MYSQL</text>
+    <text x="110" y="312" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">POSTGRESQL · MYSQL</text>
   </g>
   <g class="arch-node" data-id="M">
-    <rect x="20" y="350" width="180" height="44" rx="6" ry="6"
+    <rect x="20" y="368" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="110" y="374" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">MONGODB</text>
+    <text x="110" y="392" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">MONGODB</text>
   </g>
   <g class="arch-node" data-id="T">
-    <rect x="20" y="412" width="180" height="62" rx="6" ry="6"
+    <rect x="20" y="430" width="180" height="62" rx="6" ry="6"
       fill="rgba(21,13,38,0.90)" stroke="#c4b5fd" stroke-width="1.5" />
-    <text x="110" y="436" text-anchor="middle" dominant-baseline="auto" fill="#ede9fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">TERRAFORM · CDK</text>
-    <text x="110" y="454" text-anchor="middle" dominant-baseline="auto" fill="#ede9fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLOUDFORMATION</text>
+    <text x="110" y="454" text-anchor="middle" dominant-baseline="auto" fill="#ede9fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">TERRAFORM · CDK</text>
+    <text x="110" y="472" text-anchor="middle" dominant-baseline="auto" fill="#ede9fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLOUDFORMATION</text>
   </g>
   <g class="arch-node" data-id="C">
-    <rect x="20" y="492" width="180" height="44" rx="6" ry="6"
+    <rect x="20" y="510" width="180" height="44" rx="6" ry="6"
       fill="rgba(11,21,37,0.90)" stroke="#60a5fa" stroke-width="1.5" />
-    <text x="110" y="516" text-anchor="middle" dominant-baseline="auto" fill="#bfdbfe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">TYPESCRIPT / JS</text>
+    <text x="110" y="534" text-anchor="middle" dominant-baseline="auto" fill="#bfdbfe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">TYPESCRIPT / JS</text>
   </g>
   <g class="arch-node" data-id="A">
-    <rect x="252" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="252" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="342" y="294" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">ADAPTERS</text>
+    <text x="342" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">ADAPTERS</text>
   </g>
   <g class="arch-node" data-id="G">
-    <rect x="484" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="484" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="574" y="294" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">GRAPH ENGINE</text>
+    <text x="574" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">GRAPH ENGINE</text>
   </g>
   <g class="arch-node" data-id="AN">
-    <rect x="716" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="716" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="806" y="294" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">29 ANALYZERS</text>
+    <text x="806" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">29 ANALYZERS</text>
   </g>
   <g class="arch-node" data-id="CA">
-    <rect x="948" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="948" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="1038" y="294" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CACHE</text>
+    <text x="1038" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CACHE</text>
   </g>
   <g class="arch-node" data-id="MCP">
-    <rect x="1180" y="270" width="180" height="62" rx="6" ry="6"
+    <rect x="1180" y="288" width="180" height="62" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="1270" y="294" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">MCP SERVER</text>
-    <text x="1270" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">LOCALHOST:3000/MCP</text>
+    <text x="1270" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">MCP SERVER</text>
+    <text x="1270" y="330" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">LOCALHOST:3000/MCP</text>
   </g>
   <g class="arch-node" data-id="CC">
-    <rect x="1412" y="190" width="180" height="44" rx="6" ry="6"
+    <rect x="1412" y="208" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="1502" y="214" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLAUDE CODE</text>
+    <text x="1502" y="232" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CLAUDE CODE</text>
   </g>
   <g class="arch-node" data-id="CU">
-    <rect x="1412" y="270" width="180" height="44" rx="6" ry="6"
+    <rect x="1412" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="1502" y="294" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CURSOR</text>
+    <text x="1502" y="312" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">CURSOR</text>
   </g>
   <g class="arch-node" data-id="MC">
-    <rect x="1412" y="350" width="180" height="44" rx="6" ry="6"
+    <rect x="1412" y="368" width="180" height="44" rx="6" ry="6"
       fill="rgba(7,26,20,0.90)" stroke="#34d399" stroke-width="1.5" />
-    <text x="1502" y="374" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">ANY MCP CLIENT</text>
+    <text x="1502" y="392" text-anchor="middle" dominant-baseline="auto" fill="#a7f3d0" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">ANY MCP CLIENT</text>
   </g>
 </svg>
