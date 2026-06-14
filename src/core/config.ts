@@ -69,6 +69,11 @@ export const InfrawiseConfigSchema = z.object({
   analysis: z
     .object({
       sampleSize: z.number().int().positive().optional().default(100),
+      hotPartitionThreshold: z.number().int().positive().optional().default(5),
+      hotPartitionThresholds: z
+        .record(z.string(), z.number().int().positive())
+        .optional()
+        .default({}),
     })
     .optional(),
 });

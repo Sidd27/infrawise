@@ -281,6 +281,9 @@ cloudwatchLogs:
 
 analysis:
   sampleSize: 100
+  hotPartitionThreshold: 5
+  hotPartitionThresholds:
+    high-traffic-table: 12
 ```
 
 ### AWS setup

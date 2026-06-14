@@ -421,11 +421,17 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
   {
     const s = mkSpinner('Running analyzers...');
+    const hotPartitionThreshold = config.analysis?.hotPartitionThreshold;
+    const hotPartitionThresholds = config.analysis?.hotPartitionThresholds;
     const pipelineAnalyzer = new PipelineAnalyzer();
     pipelineAnalyzer.setIaCLambdas(iacLambdas);
     const analyzers = [
       ...(config.dynamodb?.enabled === true
-        ? [new FullTableScanAnalyzer(), new MissingGSIAnalyzer(), new HotPartitionAnalyzer()]
+        ? [
+            new FullTableScanAnalyzer(),
+            new MissingGSIAnalyzer(),
+            new HotPartitionAnalyzer(hotPartitionThreshold, hotPartitionThresholds),
+          ]
         : []),
       ...(config.postgres?.enabled
         ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]
@@ -574,11 +580,17 @@ export async function runCodeRefresh(
     servicesMeta,
   );
 
+  const hotPartitionThreshold = config.analysis?.hotPartitionThreshold;
+  const hotPartitionThresholds = config.analysis?.hotPartitionThresholds;
   const pipelineAnalyzer = new PipelineAnalyzer();
   pipelineAnalyzer.setIaCLambdas(iacLambdas);
   const analyzers = [
     ...(config.dynamodb?.enabled === true
-      ? [new FullTableScanAnalyzer(), new MissingGSIAnalyzer(), new HotPartitionAnalyzer()]
+      ? [
+          new FullTableScanAnalyzer(),
+          new MissingGSIAnalyzer(),
+          new HotPartitionAnalyzer(hotPartitionThreshold, hotPartitionThresholds),
+        ]
       : []),
     ...(config.postgres?.enabled
       ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]

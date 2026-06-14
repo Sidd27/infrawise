@@ -115,9 +115,11 @@ export class HotPartitionAnalyzer implements Analyzer {
   name = 'HotPartitionAnalyzer';
 
   private readonly hotThreshold: number;
+  private readonly tableThresholds: Record<string, number>;
 
-  constructor(hotThreshold = 5) {
+  constructor(hotThreshold = 5, tableThresholds: Record<string, number> = {}) {
     this.hotThreshold = hotThreshold;
+    this.tableThresholds = tableThresholds;
   }
 
   async analyze(graph: SystemGraph): Promise<Finding[]> {
@@ -140,13 +142,14 @@ export class HotPartitionAnalyzer implements Analyzer {
     }
 
     for (const [tableId, accessors] of tableAccessCount) {
-      if (accessors.size >= this.hotThreshold) {
-        const tableNode = graph.nodes.find((n) => n.id === tableId) as Extract<
-          GraphNode,
-          { type: 'table' }
-        >;
-        if (!tableNode) continue;
+      const tableNode = graph.nodes.find((n) => n.id === tableId) as Extract<
+        GraphNode,
+        { type: 'table' }
+      >;
+      if (!tableNode) continue;
 
+      const threshold = this.tableThresholds[tableNode.name] ?? this.hotThreshold;
+      if (accessors.size >= threshold) {
         // Also check edge frequency for repeated access patterns
         let maxFreq = 0;
         for (const [key, freq] of edgeFrequency) {
@@ -162,6 +165,7 @@ export class HotPartitionAnalyzer implements Analyzer {
           metadata: {
             tableName: tableNode.name,
             accessorCount: accessors.size,
+            threshold,
             maxEdgeFrequency: maxFreq,
           },
         });

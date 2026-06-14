@@ -396,6 +396,8 @@ export interface InfrawiseConfig {
   };
   analysis?: {
     sampleSize?: number;
+    hotPartitionThreshold?: number;
+    hotPartitionThresholds?: Record<string, number>;
   };
 }
 
