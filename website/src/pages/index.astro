@@ -21,17 +21,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Infrawise — AI-aware infrastructure layer</title>
-  <meta name="description" content="Infrawise connects your AI coding assistant to your real infrastructure. 15 MCP tools. One command." />
+  <meta name="description" content="Infrawise connects your AI coding assistant to your real infrastructure. 16 MCP tools. One command." />
   <link rel="canonical" href="https://sidd27.github.io/infrawise/" />
   <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
   <meta property="og:type"        content="website" />
   <meta property="og:url"         content="https://sidd27.github.io/infrawise/" />
   <meta property="og:site_name"   content="Infrawise" />
   <meta property="og:title"       content="Infrawise — AI-aware infrastructure layer" />
-  <meta property="og:description" content="Infrawise connects your AI coding assistant to your real infrastructure. 15 MCP tools. One command." />
+  <meta property="og:description" content="Infrawise connects your AI coding assistant to your real infrastructure. 16 MCP tools. One command." />
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:title"       content="Infrawise — AI-aware infrastructure layer" />
-  <meta name="twitter:description" content="Infrawise connects your AI coding assistant to your real infrastructure. 15 MCP tools. One command." />
+  <meta name="twitter:description" content="Infrawise connects your AI coding assistant to your real infrastructure. 16 MCP tools. One command." />
   <script type="application/ld+json">{JSON.stringify({
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -42,7 +42,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
     "downloadUrl": "https://www.npmjs.com/package/infrawise",
     "softwareVersion": "0.10.2",
     "releaseNotes": "https://github.com/Sidd27/infrawise/releases",
-    "description": "Infrawise is an open-source MCP server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 27 rule-based analyzers, exposes 15 MCP tools, and never stores or transmits your infrastructure data.",
+    "description": "Infrawise is an open-source MCP server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 29 rule-based analyzers, exposes 16 MCP tools, and never stores or transmits your infrastructure data.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "license": "https://github.com/Sidd27/infrawise/blob/main/LICENSE",
     "codeRepository": "https://github.com/Sidd27/infrawise",
@@ -56,7 +56,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
       {
         "@type": "Question",
         "name": "What is Infrawise?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure, databases, and IaC files. It runs 27 rule-based analyzers and exposes 15 MCP tools your AI can call while writing code — all locally, with no data leaving your machine." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure, databases, and IaC files. It runs 29 rule-based analyzers and exposes 16 MCP tools your AI can call while writing code — all locally, with no data leaving your machine." }
       },
       {
         "@type": "Question",
@@ -71,7 +71,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
       {
         "@type": "Question",
         "name": "Does Infrawise work with Claude Code?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Running `infrawise start --claude` writes `.mcp.json` to your project directory. Claude Code reads this file automatically on next launch and registers all 15 Infrawise tools — no extension or plugin needed." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Running `infrawise start --claude` writes `.mcp.json` to your project directory. Claude Code reads this file automatically on next launch and registers all 16 Infrawise tools — no extension or plugin needed." }
       },
       {
         "@type": "Question",
@@ -81,7 +81,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
       {
         "@type": "Question",
         "name": "What AWS services does Infrawise analyze?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise analyzes DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM Parameter Store, S3, CloudWatch Logs, EventBridge, and RDS. It also reads PostgreSQL, MySQL, and MongoDB databases, and IaC files from Terraform, CloudFormation, and CDK." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Infrawise analyzes DynamoDB, Lambda, SQS (including FIFO queues and visibility timeout checks), SNS, Secrets Manager, SSM Parameter Store, S3, CloudWatch Logs, EventBridge, API Gateway, and RDS. It also reads PostgreSQL, MySQL, and MongoDB databases, and IaC files from Terraform, CloudFormation, and CDK." }
       },
       {
         "@type": "Question",

@@ -23,6 +23,7 @@ import {
   getLambdaNodes,
   getEventBridgeRuleNodes,
   getBucketNodes,
+  getAPINodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -338,7 +339,7 @@ export function createMcpServer(): McpServer {
     'get_queue_details',
     {
       description:
-        'Returns all SQS queues with DLQ presence, encryption status, approximate message count, and retention days. Call this when reviewing messaging architecture, investigating a message backlog, or checking DLQ coverage before adding a new consumer. Use get_infra_overview for a quick queue count only.',
+        'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only.',
       inputSchema: z.object({}),
     },
     logged('get_queue_details', async () => {
@@ -353,6 +354,8 @@ export function createMcpServer(): McpServer {
           provider: q.provider,
           hasDLQ: q.hasDLQ,
           encrypted: q.encrypted,
+          isFifo: q.isFifo ?? false,
+          visibilityTimeoutSec: q.visibilityTimeoutSec,
           approximateMessages: q.approximateMessages,
           retentionDays: q.retentionDays,
           findings: queueFindings
@@ -521,6 +524,30 @@ export function createMcpServer(): McpServer {
           findings: bucketFindings
             .filter((f) => (f.metadata as Record<string, unknown>).bucketName === b.name)
             .map((f) => ({ severity: f.severity, issue: f.issue })),
+        })),
+      });
+    }),
+  );
+
+  mcp.registerTool(
+    'get_api_routes',
+    {
+      description:
+        'Returns all API Gateway APIs (REST, HTTP, WebSocket) with their routes, HTTP methods, paths, and the Lambda function each route invokes. Call this before writing any API handler to understand which Lambda handles a route, or when reviewing API surface area and Lambda integration coverage.',
+      inputSchema: z.object({}),
+    },
+    logged('get_api_routes', async () => {
+      const apis = getAPINodes(currentGraph);
+      return toText({
+        total: apis.length,
+        apis: apis.map((api) => ({
+          name: api.name,
+          type: api.apiType,
+          routes: (api.routes ?? []).map((r) => ({
+            method: r.method,
+            path: r.path,
+            lambda: r.lambdaName ?? null,
+          })),
         })),
       });
     }),

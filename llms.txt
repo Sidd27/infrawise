@@ -1,6 +1,6 @@
 # Infrawise
 
-> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, RDS), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
+> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, API Gateway, RDS), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
 
 ## Problem it solves
 
@@ -10,7 +10,7 @@ When an AI coding assistant writes a Lambda handler, it doesn't know:
 - Whether a GSI or index exists for a query pattern
 - Which secrets are missing rotation or which DLQs are unconfigured
 
-Infrawise answers all of these via 15 MCP tools served over Streamable HTTP.
+Infrawise answers all of these via 16 MCP tools served over Streamable HTTP.
 
 ## Docs
 
@@ -32,7 +32,7 @@ For HTTP transport instead of stdio:
 infrawise dev     # start MCP server at http://localhost:3000/mcp
 ```
 
-## MCP tools (15 total)
+## MCP tools (16 total)
 
 - `get_infra_overview` — full snapshot of all infrastructure, start here
 - `get_graph_summary` — complete graph: all nodes, edges, findings
@@ -41,7 +41,7 @@ infrawise dev     # start MCP server at http://localhost:3000/mcp
 - `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
 - `suggest_mongo_index` — exact db.collection.createIndex command
 - `mysql_index_suggestions` — exact ALTER TABLE ADD INDEX SQL
-- `get_queue_details` — SQS queues with DLQ and encryption status
+- `get_queue_details` — SQS queues with DLQ, encryption, FIFO type, and visibility timeout
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
@@ -49,6 +49,7 @@ infrawise dev     # start MCP server at http://localhost:3000/mcp
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — CloudWatch error patterns (never raw log messages)
+- `get_api_routes` — API Gateway APIs (REST, HTTP, WebSocket) with routes, methods, and Lambda integrations
 
 ## Works with
 

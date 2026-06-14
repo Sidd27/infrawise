@@ -59,6 +59,7 @@ export const InfrawiseConfigSchema = z.object({
   rds: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   s3: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   kafka: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  apiGateway: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cloudwatchLogs: z
     .object({
       enabled: z.boolean().optional().default(false),

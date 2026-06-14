@@ -16,6 +16,7 @@ import {
   extractLambdaMetadata,
   extractEventBridgeMetadata,
   extractRDSMetadata,
+  extractAPIGatewayMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
@@ -38,6 +39,7 @@ import {
   MissingDLQAnalyzer,
   UnencryptedQueueAnalyzer,
   LargeQueueBacklogAnalyzer,
+  VisibilityTimeoutMismatchAnalyzer,
   MissingSecretRotationAnalyzer,
   MissingLogRetentionAnalyzer,
   LambdaDefaultMemoryAnalyzer,
@@ -334,6 +336,24 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     }
   }
 
+  // ── API Gateway ───────────────────────────────────────────────────────────────
+  if (config.apiGateway?.enabled === true) {
+    const s = mkSpinner('Extracting API Gateway routes...');
+    try {
+      const result = await extractAPIGatewayMetadata(awsCfg);
+      servicesMeta.apiGateway = result;
+      const routeCount = result.reduce((sum, api) => sum + api.routes.length, 0);
+      s.succeed(
+        chalk.green('API Gateway') + chalk.dim(`  ${result.length} API(s), ${routeCount} route(s)`),
+      );
+    } catch (err) {
+      s.warn(
+        chalk.yellow('API Gateway skipped') +
+          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }
+  }
+
   // ── CloudWatch Logs ──────────────────────────────────────────────────────────
   if (config.cloudwatchLogs?.enabled) {
     const s = mkSpinner('Sampling CloudWatch Logs (errors only, max 50 groups)...');
@@ -447,6 +467,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
             new MissingDLQAnalyzer(),
             new UnencryptedQueueAnalyzer(),
             new LargeQueueBacklogAnalyzer(),
+            new VisibilityTimeoutMismatchAnalyzer(),
           ]
         : []),
       ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
@@ -602,7 +623,12 @@ export async function runCodeRefresh(
       ? [new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer()]
       : []),
     ...(config.sqs?.enabled === true
-      ? [new MissingDLQAnalyzer(), new UnencryptedQueueAnalyzer(), new LargeQueueBacklogAnalyzer()]
+      ? [
+          new MissingDLQAnalyzer(),
+          new UnencryptedQueueAnalyzer(),
+          new LargeQueueBacklogAnalyzer(),
+          new VisibilityTimeoutMismatchAnalyzer(),
+        ]
       : []),
     ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
     ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),

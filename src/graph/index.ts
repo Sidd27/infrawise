@@ -100,9 +100,28 @@ export function buildGraph(
       provider: 'aws',
       hasDLQ: q.hasDLQ,
       encrypted: q.encrypted,
+      isFifo: q.isFifo,
+      visibilityTimeoutSec: q.visibilityTimeoutSec,
       approximateMessages: q.approximateMessages,
       retentionDays: q.retentionDays,
     });
+  }
+
+  for (const api of servicesMeta.apiGateway ?? []) {
+    addNode({
+      id: `api:aws:${api.id}`,
+      type: 'api',
+      name: api.name,
+      provider: 'aws',
+      apiType: api.type,
+      routes: api.routes,
+    });
+    for (const route of api.routes) {
+      if (route.lambdaName) {
+        const lambdaId = `lambda:aws:${route.lambdaName}`;
+        edges.push({ from: `api:aws:${api.id}`, to: lambdaId, type: 'triggers' });
+      }
+    }
   }
 
   for (const t of servicesMeta.sns ?? []) {
@@ -476,6 +495,10 @@ export function getEdgeFrequency(graph: SystemGraph): Map<string, number> {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   return freq;
+}
+
+export function getAPINodes(graph: SystemGraph): Extract<GraphNode, { type: 'api' }>[] {
+  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'api' }> => n.type === 'api');
 }
 
 export type { SystemGraph, GraphNode, GraphEdge };

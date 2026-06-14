@@ -1,9 +1,9 @@
 ---
 title: MCP tools reference
-description: All 15 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
+description: All 16 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
 ---
 
-Infrawise exposes **15 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
+Infrawise exposes **16 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
 
 :::tip
 Start every session with `get_infra_overview`. It costs one tool call and gives you everything you need to know what infrastructure exists before writing any code.
@@ -159,11 +159,13 @@ Per queue:
 - Name and provider
 - DLQ status — whether a dead-letter queue is configured
 - Encryption status
+- `isFifo` — whether the queue is a FIFO queue. When `true`, all `SendMessage` calls must include a `MessageGroupId` or the call fails at runtime.
+- `visibilityTimeoutSec` — how long a message is hidden after a consumer receives it. Should be at least 6× the consumer Lambda's timeout to prevent duplicate processing.
 - Approximate message count
 - Retention period in days
-- Any associated findings
+- Any associated findings (includes `VisibilityTimeoutMismatch` when visibility timeout < Lambda timeout)
 
-**When to call:** When reviewing messaging architecture, debugging a backlog, checking DLQ coverage before deploying a consumer, or verifying retention settings meet compliance requirements.
+**When to call:** When reviewing messaging architecture, debugging a backlog, checking DLQ coverage before deploying a consumer, verifying retention settings, or confirming FIFO queue requirements before writing a producer.
 
 ---
 
@@ -297,3 +299,19 @@ Per log group:
 - Top error patterns with frequency — the recurring message shapes, not raw log lines
 
 **When to call:** When investigating a production error, checking which log groups have no retention policy configured, or getting a baseline of error frequency before and after a deployment.
+
+---
+
+## get_api_routes
+
+Returns all API Gateway APIs (REST, HTTP, and WebSocket) with their routes, HTTP methods, and Lambda integrations.
+
+No inputs required.
+
+**Returns**
+
+Per API:
+- Name and type (`REST`, `HTTP`, or `WEBSOCKET`)
+- Routes — each with HTTP method, path, and the Lambda function name it invokes (`null` when no Lambda integration is configured)
+
+**When to call:** Before writing or reviewing any API handler — call this to confirm which Lambda backs a route and what method/path combination it expects. Also use when auditing API surface area for routes with no Lambda integration.

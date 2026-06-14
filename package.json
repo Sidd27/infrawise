@@ -2,7 +2,7 @@
   "name": "infrawise",
   "version": "0.10.3",
   "mcpName": "io.github.Sidd27/infrawise",
-  "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, S3, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
+  "description": "CLI-first infrastructure intelligence platform — analyzes DynamoDB, PostgreSQL, MySQL, MongoDB, SQS, SNS, SSM, Secrets Manager, Lambda, S3, API Gateway, CloudWatch Logs and exposes findings as an MCP server for Claude Code",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -32,7 +32,9 @@
     "cli",
     "terraform",
     "cloudformation",
-    "cdk"
+    "cdk",
+    "api-gateway",
+    "sqs-fifo"
   ],
   "agentskills": {
     "infrawise": "./AGENTS.md"
@@ -71,6 +73,8 @@
     "pre-commit": "pnpm format && git add src/ && pnpm lint && pnpm typecheck && pnpm test"
   },
   "dependencies": {
+    "@aws-sdk/client-api-gateway": "^3.1068.0",
+    "@aws-sdk/client-apigatewayv2": "^3.1068.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.1048.0",
     "@aws-sdk/client-dynamodb": "^3.1048.0",
     "@aws-sdk/client-eventbridge": "^3.1051.0",

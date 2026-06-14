@@ -72,6 +72,45 @@ export class LargeQueueBacklogAnalyzer implements Analyzer {
   }
 }
 
+export class VisibilityTimeoutMismatchAnalyzer implements Analyzer {
+  name = 'VisibilityTimeoutMismatchAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    const lambdaTimeouts = new Map<string, number>();
+    for (const node of graph.nodes) {
+      if (node.type === 'lambda' && node.timeoutSec) {
+        lambdaTimeouts.set(node.name, node.timeoutSec);
+      }
+    }
+
+    for (const node of graph.nodes) {
+      if (node.type !== 'queue' || node.visibilityTimeoutSec === undefined) continue;
+      const triggeringEdge = graph.edges.find(
+        (e) => e.type === 'triggers' && e.from === `queue:aws:${node.name}`,
+      );
+      if (!triggeringEdge) continue;
+      const lambdaName = triggeringEdge.to.replace('lambda:aws:', '');
+      const lambdaTimeout = lambdaTimeouts.get(lambdaName);
+      if (lambdaTimeout && node.visibilityTimeoutSec < lambdaTimeout) {
+        findings.push({
+          severity: 'high',
+          issue: `Queue "${node.name}" visibility timeout (${node.visibilityTimeoutSec}s) is less than Lambda "${lambdaName}" timeout (${lambdaTimeout}s)`,
+          description: `If the Lambda takes longer than the visibility timeout, SQS will re-deliver the message to another consumer while the original invocation is still running, causing duplicate processing.`,
+          recommendation: `Set the visibility timeout for "${node.name}" to at least ${lambdaTimeout * 6}s (6× the Lambda timeout of ${lambdaTimeout}s), per AWS best practice.`,
+          metadata: {
+            queueName: node.name,
+            visibilityTimeoutSec: node.visibilityTimeoutSec,
+            lambdaName,
+            lambdaTimeoutSec: lambdaTimeout,
+          },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
 // ─── Secrets Manager ─────────────────────────────────────────────────────────
 
 export class MissingSecretRotationAnalyzer implements Analyzer {

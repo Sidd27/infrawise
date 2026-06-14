@@ -11,6 +11,7 @@ export {
   MissingDLQAnalyzer,
   UnencryptedQueueAnalyzer,
   LargeQueueBacklogAnalyzer,
+  VisibilityTimeoutMismatchAnalyzer,
   MissingSecretRotationAnalyzer,
   MissingLogRetentionAnalyzer,
   LambdaDefaultMemoryAnalyzer,

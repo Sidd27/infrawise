@@ -3,7 +3,7 @@ title: Installation
 description: Install Infrawise — the open-source MCP server that maps AWS infrastructure for AI coding assistants — and connect it to Claude Code or Cursor in under two minutes.
 ---
 
-Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 27 rule-based analyzers and exposes 15 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
+Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 29 rule-based analyzers and exposes 16 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ infrawise --version
 infrawise start --claude
 ```
 
-Infrawise scans your AWS infrastructure, runs the 27 analyzers, and writes `.mcp.json` to the current directory. Claude Code reads `.mcp.json` automatically on next launch — no plugin, no extension, no manual config editing required. All 15 MCP tools are immediately available.
+Infrawise scans your AWS infrastructure, runs the 29 analyzers, and writes `.mcp.json` to the current directory. Claude Code reads `.mcp.json` automatically on next launch — no plugin, no extension, no manual config editing required. All 16 MCP tools are immediately available.
 
 ## Connect to Cursor
 
@@ -37,7 +37,7 @@ Infrawise scans your AWS infrastructure, runs the 27 analyzers, and writes `.mcp
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 15 Infrawise MCP tools appear in Cursor's MCP panel.
+Writes `.cursor/mcp.json` and opens Cursor. All 16 Infrawise MCP tools appear in Cursor's MCP panel.
 
 ## HTTP transport mode
 
@@ -87,7 +87,7 @@ Not directly. Infrawise targets editors with native MCP support: Claude Code and
 
 ### What happens when I run `infrawise start`?
 
-`infrawise start` does three things in sequence: reads `infrawise.yaml` in the current directory, scans the configured AWS services and databases using read-only API calls, runs the 27 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
+`infrawise start` does three things in sequence: reads `infrawise.yaml` in the current directory, scans the configured AWS services and databases using read-only API calls, runs the 29 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
 
 ### Why do some security scanners flag Infrawise?
 

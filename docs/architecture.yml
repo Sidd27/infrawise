@@ -56,7 +56,7 @@ nodes:
     row: 0
 
   L:
-    label: "Lambda · SQS · SNS\nEventBridge · RDS"
+    label: "Lambda · SQS · SNS\nEventBridge · API Gateway · RDS"
     theme: aws
     col: 0
     row: 1
@@ -107,7 +107,7 @@ nodes:
     row: 3
 
   AN:
-    label: "27 Analyzers"
+    label: "29 Analyzers"
     theme: iw
     col: 4
     row: 3

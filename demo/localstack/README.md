@@ -2,9 +2,9 @@
 
 Tests infrawise against AWS services emulated locally via LocalStack. Everything runs in Docker at zero cost — no real AWS account needed.
 
-**Services covered:** DynamoDB · SQS · SNS · SSM · Secrets Manager · Lambda · CloudWatch Logs
+**Services covered:** DynamoDB · SQS (standard + FIFO) · SNS · SSM · Secrets Manager · Lambda · EventBridge · S3 · API Gateway · CloudWatch Logs
 
-> All services used here are available in LocalStack community edition (free). RDS requires LocalStack Pro and is not included.
+> All services used here are available in LocalStack community edition (free). API Gateway v2 (HTTP/WebSocket APIs) and RDS require LocalStack Pro and are not included — the demo uses REST APIs (v1).
 
 ---
 
@@ -53,6 +53,8 @@ claude    # infrawise connects automatically via .mcp.json
 |---|---|
 | `orders-queue` | No DLQ + not encrypted |
 | `payment-events` | No DLQ |
+| `orders-fifo.fifo` | FIFO queue — exercises `isFifo` extraction and IaC drift |
+| `report-trigger-queue` | Visibility timeout 10s with `generateReport` Lambda at 300s — fires `VisibilityTimeoutMismatchAnalyzer` |
 | `temp-processing-queue` | Deployed but not in Terraform (IaC drift) |
 | `notifications-queue` | Has DLQ + encrypted — control |
 
@@ -76,6 +78,11 @@ claude    # infrawise connects automatically via .mcp.json
 | `/aws/lambda/generateReport` | No retention policy |
 | `/app/audit-logs` | 400-day retention (too long) |
 | `/app/api` | 90-day retention — control |
+
+### API Gateway
+| API | Routes |
+|---|---|
+| `demo-api` (REST) | `GET /orders` → `processOrders`, `POST /orders` → `processOrders`, `GET /reports` → `generateReport`, `POST /notifications` → `sendNotification` |
 
 ### IaC drift (`terraform/main.tf`)
 | Resource | Drift |

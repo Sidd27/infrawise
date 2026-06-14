@@ -81,7 +81,7 @@ source .env                 # sets AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 23+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access).
+Expected: 35+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted).
 
 To start the MCP server against LocalStack:
 
@@ -122,7 +122,7 @@ src/
   core/       config, logger, cache
   graph/      graph engine
   adapters/
-    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS, s3)
+    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS/APIGateway, s3)
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
@@ -139,7 +139,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 15 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise dev` starts the server at `POST http://localhost:3000/mcp`.
+Infrawise exposes 16 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise dev` starts the server at `POST http://localhost:3000/mcp`.
 
 ### `get_infra_overview`
 
@@ -245,9 +245,9 @@ All SQS queues with operational metadata.
 
 No inputs required.
 
-Returns: per-queue — name, provider, DLQ status, encryption, approximate message count, retention days, findings.
+Returns: per-queue — name, provider, DLQ status, encryption, isFifo (bool), visibilityTimeoutSec, approximate message count, retention days, findings.
 
-**When to call:** When reviewing messaging architecture, debugging backlogs, or checking DLQ coverage.
+**When to call:** When reviewing messaging architecture, debugging backlogs, checking DLQ coverage, or verifying that the queue's visibility timeout is at least 6× the consumer Lambda's timeout (mismatches cause duplicate processing). When `isFifo` is true, all `SendMessage` calls must include a `MessageGroupId` — omitting it causes a runtime error.
 
 ---
 
@@ -323,6 +323,18 @@ Returns: per-bucket — name, provider, versioned (bool), encrypted (bool), publ
 
 ---
 
+### `get_api_routes`
+
+All API Gateway APIs (REST, HTTP, WebSocket) with their routes and Lambda integrations.
+
+No inputs required.
+
+Returns: per-API — name, type (REST/HTTP/WEBSOCKET), routes (method, path, lambda name). Lambda name is null when the route has no Lambda integration.
+
+**When to call:** Before writing any API handler to confirm which Lambda backs a route, or when reviewing API surface area. Also use to check for routes with no Lambda integration (null lambda) that may need wiring.
+
+---
+
 ### `get_log_errors`
 
 Recent error patterns from CloudWatch log groups. **Raw log messages are never included.**
@@ -355,11 +367,12 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 
 **Infrastructure health check:**
 1. `get_infra_overview` → high-severity findings
-2. `get_queue_details` → missing DLQs
+2. `get_queue_details` → missing DLQs, visibility timeout mismatches
 3. `get_secrets_overview` → rotation disabled
 4. `get_lambda_overview` → default memory / high timeout
 5. `get_s3_overview` → public access verify, missing versioning/encryption
-6. `get_log_errors` → error patterns
+6. `get_api_routes` → route-to-Lambda coverage
+7. `get_log_errors` → error patterns
 
 ## What infrawise never does
 

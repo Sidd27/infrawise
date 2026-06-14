@@ -70,6 +70,19 @@ $AWS sqs create-queue \
 # temp-processing-queue — deployed but NOT in Terraform (IaC drift)
 $AWS sqs create-queue --queue-name temp-processing-queue --no-cli-pager 2>/dev/null || true
 
+# orders-fifo.fifo — FIFO queue (exercises isFifo extraction)
+$AWS sqs create-queue \
+  --queue-name orders-fifo.fifo \
+  --attributes '{"FifoQueue":"true","ContentBasedDeduplication":"true"}' \
+  --no-cli-pager 2>/dev/null || true
+
+# report-trigger-queue — visibility timeout 10s, will trigger generateReport (300s timeout)
+# This fires VisibilityTimeoutMismatchAnalyzer: 10s < 300s
+$AWS sqs create-queue \
+  --queue-name report-trigger-queue \
+  --attributes '{"VisibilityTimeout":"10"}' \
+  --no-cli-pager 2>/dev/null || true
+
 # ── SNS ─────────────────────────────────────────────────────────────────────
 
 echo "  → SNS topics"
@@ -229,6 +242,20 @@ if [ -n "$ORDERS_QUEUE_ARN" ]; then
     --no-cli-pager 2>/dev/null || true
 fi
 
+# report-trigger-queue triggers generateReport — visibility timeout (10s) < Lambda timeout (300s)
+# This fires VisibilityTimeoutMismatchAnalyzer
+REPORT_TRIGGER_QUEUE_ARN=$($AWS sqs get-queue-attributes \
+  --queue-url "$ENDPOINT/000000000000/report-trigger-queue" \
+  --attribute-names QueueArn \
+  --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
+if [ -n "$REPORT_TRIGGER_QUEUE_ARN" ]; then
+  $AWS lambda create-event-source-mapping \
+    --function-name generateReport \
+    --event-source-arn "$REPORT_TRIGGER_QUEUE_ARN" \
+    --batch-size 5 \
+    --no-cli-pager 2>/dev/null || true
+fi
+
 # ── EventBridge Rules ────────────────────────────────────────────────────────
 
 echo "  → EventBridge rules"
@@ -269,6 +296,65 @@ if [ -n "$SEND_NOTIFICATION_ARN" ]; then
     --no-cli-pager 2>/dev/null || true
 fi
 
+# ── API Gateway ──────────────────────────────────────────────────────────────
+
+echo "  → API Gateway"
+
+PROCESS_ORDERS_FUNC_ARN=$($AWS lambda get-function-configuration \
+  --function-name processOrders \
+  --query 'FunctionArn' --output text 2>/dev/null || echo "arn:aws:lambda:us-east-1:000000000000:function:processOrders")
+
+GENERATE_REPORT_FUNC_ARN=$($AWS lambda get-function-configuration \
+  --function-name generateReport \
+  --query 'FunctionArn' --output text 2>/dev/null || echo "arn:aws:lambda:us-east-1:000000000000:function:generateReport")
+
+SEND_NOTIFICATION_FUNC_ARN=$($AWS lambda get-function-configuration \
+  --function-name sendNotification \
+  --query 'FunctionArn' --output text 2>/dev/null || echo "arn:aws:lambda:us-east-1:000000000000:function:sendNotification")
+
+# HTTP API (v2) — demo-api
+# REST API (v1) — demo-api
+DEMO_API_ID=$($AWS apigateway create-rest-api \
+  --name "demo-api" \
+  --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+
+if [ -n "$DEMO_API_ID" ]; then
+  ROOT_ID=$($AWS apigateway get-resources \
+    --rest-api-id "$DEMO_API_ID" \
+    --query 'items[?path==`/`].id' --output text --no-cli-pager 2>/dev/null || echo "")
+
+  # Helper to create a resource + method + Lambda integration
+  create_route() {
+    local method="$1" path_part="$2" lambda_arn="$3"
+    RESOURCE_ID=$($AWS apigateway create-resource \
+      --rest-api-id "$DEMO_API_ID" \
+      --parent-id "$ROOT_ID" \
+      --path-part "$path_part" \
+      --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+    if [ -n "$RESOURCE_ID" ]; then
+      $AWS apigateway put-method \
+        --rest-api-id "$DEMO_API_ID" \
+        --resource-id "$RESOURCE_ID" \
+        --http-method "$method" \
+        --authorization-type NONE \
+        --no-cli-pager 2>/dev/null || true
+      $AWS apigateway put-integration \
+        --rest-api-id "$DEMO_API_ID" \
+        --resource-id "$RESOURCE_ID" \
+        --http-method "$method" \
+        --type AWS_PROXY \
+        --integration-http-method POST \
+        --uri "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/$lambda_arn/invocations" \
+        --no-cli-pager 2>/dev/null || true
+    fi
+  }
+
+  create_route GET orders "$PROCESS_ORDERS_FUNC_ARN"
+  create_route POST orders "$PROCESS_ORDERS_FUNC_ARN"
+  create_route GET reports "$GENERATE_REPORT_FUNC_ARN"
+  create_route POST notifications "$SEND_NOTIFICATION_FUNC_ARN"
+fi
+
 # ── CloudWatch Log Groups ────────────────────────────────────────────────────
 
 echo "  → CloudWatch log groups"
@@ -285,8 +371,9 @@ $AWS logs put-retention-policy --log-group-name "/app/api" --retention-in-days 9
 echo ""
 echo "✅ AWS seed complete"
 echo "   DynamoDB    : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
-echo "   SQS         : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), temp-processing-queue (IaC drift)"
+echo "   SQS         : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), orders-fifo.fifo (FIFO), report-trigger-queue (visibility 10s mismatch), temp-processing-queue (IaC drift)"
 echo "   Secrets     : db-password + stripe-api-key (no rotation)"
-echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB+300s, EventBridge schedule)"
+echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB+300s, EventBridge+SQS trigger), sendNotification (control)"
 echo "   EventBridge : generate-report-schedule (rate), order-created-event (pattern)"
+echo "   API Gateway : demo-api (HTTP) — GET/POST /orders → processOrders, GET /reports → generateReport, POST /notifications → sendNotification"
 echo "   Logs        : processOrders + generateReport (no retention), audit-logs (400 days)"

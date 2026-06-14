@@ -35,6 +35,8 @@ rds:
   enabled: false
 s3:
   enabled: true
+apiGateway:
+  enabled: true
 cloudwatchLogs:
   enabled: true
   logGroupPrefixes: []

@@ -15,6 +15,8 @@ export type GraphNode =
       provider: string;
       hasDLQ: boolean;
       encrypted: boolean;
+      isFifo?: boolean;
+      visibilityTimeoutSec?: number;
       approximateMessages?: number;
       retentionDays?: number;
     }
@@ -84,7 +86,15 @@ export type GraphNode =
       scheduleExpression?: string;
       eventPattern?: string;
     }
-  | { id: string; type: 'api'; name: string; provider: string; stageName?: string }
+  | {
+      id: string;
+      type: 'api';
+      name: string;
+      provider: string;
+      apiType?: 'REST' | 'HTTP' | 'WEBSOCKET';
+      stageName?: string;
+      routes?: APIGatewayRouteMetadata[];
+    }
   | {
       id: string;
       type: 'database_instance';
@@ -165,10 +175,26 @@ export interface SQSQueueMetadata {
   hasDLQ: boolean;
   dlqArn?: string;
   encrypted: boolean;
+  isFifo: boolean;
   visibilityTimeoutSec: number;
   retentionDays: number;
   approximateMessages: number;
   approximateInflight: number;
+}
+
+export interface APIGatewayRouteMetadata {
+  method: string;
+  path: string;
+  lambdaArn?: string;
+  lambdaName?: string;
+}
+
+export interface APIGatewayMetadata {
+  name: string;
+  id: string;
+  type: 'REST' | 'HTTP' | 'WEBSOCKET';
+  stageName?: string;
+  routes: APIGatewayRouteMetadata[];
 }
 
 export interface SNSFilterPolicy {
@@ -294,6 +320,7 @@ export interface ServicesMeta {
   logs?: LogGroupSummary[];
   rds?: RDSInstanceMetadata[];
   s3?: S3BucketMetadata[];
+  apiGateway?: APIGatewayMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -387,6 +414,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   kafka?: {
+    enabled?: boolean;
+  };
+  apiGateway?: {
     enabled?: boolean;
   };
   cloudwatchLogs?: {

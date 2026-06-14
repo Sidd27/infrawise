@@ -1,5 +1,16 @@
 import { SQSClient, ListQueuesCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import {
+  APIGatewayClient,
+  GetRestApisCommand,
+  GetResourcesCommand,
+} from '@aws-sdk/client-api-gateway';
+import {
+  ApiGatewayV2Client,
+  GetApisCommand,
+  GetRoutesCommand,
+  GetIntegrationsCommand,
+} from '@aws-sdk/client-apigatewayv2';
+import {
   SNSClient,
   ListTopicsCommand,
   GetTopicAttributesCommand,
@@ -30,6 +41,8 @@ import type {
   LambdaTrigger,
   EventBridgeRuleMetadata,
   RDSInstanceMetadata,
+  APIGatewayMetadata,
+  APIGatewayRouteMetadata,
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
@@ -105,6 +118,7 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
           : undefined;
         const encrypted = !!(a['KmsMasterKeyId'] || a['SqsManagedSseEnabled'] === 'true');
         const retentionSeconds = parseInt(a['MessageRetentionPeriod'] ?? '345600', 10);
+        const isFifo = name.endsWith('.fifo') || a['FifoQueue'] === 'true';
 
         queues.push({
           name,
@@ -113,6 +127,7 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
           hasDLQ: !!dlqArn,
           dlqArn,
           encrypted,
+          isFifo,
           visibilityTimeoutSec: parseInt(a['VisibilityTimeout'] ?? '30', 10),
           retentionDays: Math.round(retentionSeconds / 86400),
           approximateMessages: parseInt(a['ApproximateNumberOfMessages'] ?? '0', 10),
@@ -459,4 +474,123 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
 
 export async function validateRDSAccess(cfg: AWSConfig = {}): Promise<void> {
   await new RDSClient(clientConfig(cfg)).send(new DescribeDBInstancesCommand({ MaxRecords: 20 }));
+}
+
+// ─── API Gateway ──────────────────────────────────────────────────────────────
+
+function lambdaNameFromArn(arn?: string): string | undefined {
+  if (!arn) return undefined;
+  const parts = arn.split(':');
+  return parts[parts.length - 1] || undefined;
+}
+
+export async function extractAPIGatewayMetadata(
+  cfg: AWSConfig = {},
+): Promise<APIGatewayMetadata[]> {
+  const results: APIGatewayMetadata[] = [];
+  const ccfg = clientConfig(cfg);
+
+  // REST APIs (v1)
+  try {
+    const restClient = new APIGatewayClient(ccfg);
+    let position: string | undefined;
+    const restApis: Array<{ id: string; name: string }> = [];
+    do {
+      const res = await restClient.send(new GetRestApisCommand({ position, limit: 500 }));
+      for (const api of res.items ?? []) {
+        if (api.id && api.name) restApis.push({ id: api.id, name: api.name });
+      }
+      position = res.position;
+    } while (position);
+
+    for (const api of restApis) {
+      const routes: APIGatewayRouteMetadata[] = [];
+      try {
+        const resourcesRes = await restClient.send(
+          new GetResourcesCommand({ restApiId: api.id, embed: ['methods'], limit: 500 }),
+        );
+        for (const resource of resourcesRes.items ?? []) {
+          const resourcePath = resource.path ?? '/';
+          for (const [method, methodItem] of Object.entries(resource.resourceMethods ?? {})) {
+            if (method === 'OPTIONS') continue;
+            const integration = (methodItem as Record<string, Record<string, unknown> | undefined>)
+              ?.methodIntegration;
+            const lambdaArn = typeof integration?.uri === 'string' ? integration.uri : undefined;
+            const lambdaName = lambdaArn
+              ? lambdaNameFromArn(lambdaArn.split('/functions/')[1]?.split('/')[0])
+              : undefined;
+            routes.push({ method, path: resourcePath, lambdaArn, lambdaName });
+          }
+        }
+      } catch (err) {
+        logger.warn(
+          `API Gateway REST resources failed for ${api.name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      results.push({ name: api.name, id: api.id, type: 'REST', routes });
+    }
+  } catch (err) {
+    logger.warn(
+      `API Gateway REST list failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // HTTP + WebSocket APIs (v2)
+  try {
+    const v2Client = new ApiGatewayV2Client(ccfg);
+    let nextToken: string | undefined;
+    const v2Apis: Array<{ id: string; name: string; protocolType: string }> = [];
+    do {
+      const res = await v2Client.send(
+        new GetApisCommand({ NextToken: nextToken, MaxResults: '500' }),
+      );
+      for (const api of res.Items ?? []) {
+        if (api.ApiId && api.Name) {
+          v2Apis.push({ id: api.ApiId, name: api.Name, protocolType: api.ProtocolType ?? 'HTTP' });
+        }
+      }
+      nextToken = res.NextToken;
+    } while (nextToken);
+
+    for (const api of v2Apis) {
+      const apiType = api.protocolType === 'WEBSOCKET' ? 'WEBSOCKET' : 'HTTP';
+      const routes: APIGatewayRouteMetadata[] = [];
+
+      try {
+        const [routesRes, integrationsRes] = await Promise.all([
+          v2Client.send(new GetRoutesCommand({ ApiId: api.id, MaxResults: '500' })),
+          v2Client.send(new GetIntegrationsCommand({ ApiId: api.id, MaxResults: '500' })),
+        ]);
+
+        const integrationMap = new Map<string, string>();
+        for (const integ of integrationsRes.Items ?? []) {
+          if (integ.IntegrationId && integ.IntegrationUri) {
+            integrationMap.set(integ.IntegrationId, integ.IntegrationUri);
+          }
+        }
+
+        for (const route of routesRes.Items ?? []) {
+          const routeKey = route.RouteKey ?? '';
+          const [method, ...pathParts] = routeKey.split(' ');
+          const routePath = pathParts.join(' ') || '/';
+          const integrationId = route.Target?.replace('integrations/', '');
+          const lambdaArn = integrationId ? integrationMap.get(integrationId) : undefined;
+          const lambdaName = lambdaArn
+            ? lambdaNameFromArn(lambdaArn.split('/functions/')[1]?.split('/')[0])
+            : undefined;
+          routes.push({ method: method ?? routeKey, path: routePath, lambdaArn, lambdaName });
+        }
+      } catch (err) {
+        logger.warn(
+          `API Gateway v2 routes failed for ${api.name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      results.push({ name: api.name, id: api.id, type: apiType, routes });
+    }
+  } catch (err) {
+    logger.debug(`API Gateway v2 list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return results;
 }

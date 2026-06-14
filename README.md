@@ -156,7 +156,8 @@ Add to your editor's MCP config:
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
 | `mysql_index_suggestions`    | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table                                                      |
-| `get_queue_details`          | SQS queues — DLQ status, encryption, message counts                                                         |
+| `get_queue_details`          | SQS queues — DLQ status, encryption, FIFO type, visibility timeout, message counts                          |
+| `get_api_routes`             | API Gateway APIs (REST, HTTP, WebSocket) — routes, HTTP methods, paths, and Lambda integrations             |
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
@@ -274,6 +275,9 @@ s3:
 kafka:
   enabled: false
 
+apiGateway:
+  enabled: false
+
 cloudwatchLogs:
   enabled: false
   logGroupPrefixes: []
@@ -337,13 +341,14 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | DynamoDB schema                  | Tables, GSIs, partition keys                                                                                       |
 | PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
 | MongoDB schema                   | Collections, indexes                                                                                               |
-| SQS                              | Missing DLQs, unencrypted queues, large backlogs                                                                   |
+| SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout vs Lambda timeout mismatch    |
 | SNS                              | Subscription filter policies — required message attributes per subscription                                        |
 | Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
 | Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), missing DLQ on trigger source |
 | S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
 | EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
+| API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
 | RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ                                    |
 | CloudWatch Logs                  | Log groups with no retention policy                                                                                |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state                                                                                        |
@@ -415,10 +420,10 @@ src/
   core/         Config (Zod + YAML), logger (Pino), local cache
   graph/        Graph engine — nodes, edges, builder
   adapters/
-    aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS, CloudWatch
+    aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS/APIGateway, CloudWatch
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
-  analyzers/    28 rule-based analyzers
+  analyzers/    29 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)
