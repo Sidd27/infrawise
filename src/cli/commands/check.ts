@@ -38,8 +38,7 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   }
 
   console.log(
-    chalk.bold('  Blocking findings') +
-      chalk.dim(`  ${violations.length} at or above ${failOn}`),
+    chalk.bold('  Blocking findings') + chalk.dim(`  ${violations.length} at or above ${failOn}`),
   );
   violations.forEach((f, i) => printFinding(f, i));
 
