@@ -1,4 +1,4 @@
-import { Kafka } from 'kafkajs';
+import { Kafka, type EachMessagePayload } from 'kafkajs';
 
 const kafka = new Kafka({ brokers: [process.env.KAFKA_BROKER ?? 'localhost:9092'] });
 const producer = kafka.producer();
@@ -24,7 +24,7 @@ export async function publishPaymentProcessed(orderId: string, amount: number) {
 export async function startFulfillmentConsumer() {
   await consumer.subscribe({ topic: 'order-events' });
   await consumer.run({
-    eachMessage: async ({ message }) => {
+    eachMessage: async ({ message }: EachMessagePayload) => {
       const event = JSON.parse(message.value?.toString() ?? '{}');
       console.log('Fulfilling order:', event.orderId);
     },

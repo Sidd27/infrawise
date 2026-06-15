@@ -1,0 +1,10 @@
+{
+  "name": "infrawise-demo-localstack",
+  "version": "0.0.0",
+  "private": true,
+  "description": "infrawise LocalStack demo — emulated AWS services via Docker (seed in seed/aws-seed.sh)",
+  "scripts": {
+    "start": "./start.sh",
+    "stop": "docker compose down"
+  }
+}

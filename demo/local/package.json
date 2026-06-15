@@ -1,0 +1,24 @@
+{
+  "name": "infrawise-demo-local",
+  "version": "0.0.0",
+  "private": true,
+  "description": "infrawise local-databases demo — sample app (app/) exercised by the scanner",
+  "type": "module",
+  "scripts": {
+    "start": "./start.sh",
+    "stop": "docker compose down",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1048.0",
+    "kafkajs": "^2.2.4",
+    "mongodb": "^7.2.0",
+    "mysql2": "^3.9.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^6.0.3"
+  }
+}
