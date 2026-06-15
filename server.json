@@ -21,7 +21,8 @@
         "args": [
           "-y",
           "infrawise",
-          "stdio"
+          "serve",
+          "--stdio"
         ]
       }
     }
