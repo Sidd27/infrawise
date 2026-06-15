@@ -44,7 +44,7 @@ Writes `.cursor/mcp.json` and opens Cursor. All 16 Infrawise MCP tools appear in
 If you prefer HTTP over stdio, or need multiple tools to share one running server instance:
 
 ```bash
-infrawise dev --config infrawise.yaml
+infrawise serve --config infrawise.yaml
 ```
 
 The server starts at `POST http://localhost:3000/mcp` and stays running in the foreground. Useful for debugging tool calls or integrating with custom MCP clients.
@@ -83,7 +83,7 @@ No. Infrawise runs entirely on your local machine. Infrastructure data is held i
 
 ### Can I use Infrawise with VS Code?
 
-Not directly. Infrawise targets editors with native MCP support: Claude Code and Cursor. For HTTP transport use cases, `infrawise dev` starts a server at `POST http://localhost:3000/mcp` that any MCP-compatible client can connect to.
+Not directly. Infrawise targets editors with native MCP support: Claude Code and Cursor. For HTTP transport use cases, `infrawise serve` starts a server at `POST http://localhost:3000/mcp` that any MCP-compatible client can connect to.
 
 ### What happens when I run `infrawise start`?
 

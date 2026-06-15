@@ -23,7 +23,7 @@ function writeMcpJson(configAbsPath: string): void {
     mcpServers: {
       infrawise: {
         command: 'infrawise',
-        args: ['stdio', '--config', configAbsPath],
+        args: ['serve', '--stdio', '--config', configAbsPath],
       },
     },
   };
@@ -38,7 +38,7 @@ function writeCursorMcp(configAbsPath: string): void {
     mcpServers: {
       infrawise: {
         command: 'infrawise',
-        args: ['stdio', '--config', configAbsPath],
+        args: ['serve', '--stdio', '--config', configAbsPath],
       },
     },
   };

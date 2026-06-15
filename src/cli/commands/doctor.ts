@@ -62,7 +62,7 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
         name: 'Config file',
         status: exists ? 'pass' : 'fail',
         message: exists ? configPath : `Not found at ${configPath}`,
-        detail: exists ? undefined : 'Run: infrawise init',
+        detail: exists ? undefined : 'Run: infrawise start',
       };
     }),
   );

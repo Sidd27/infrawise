@@ -20,9 +20,10 @@
 **How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 16 MCP tools (server mode) that AI assistants call to get precise context before writing code.
 
 **Strategic bets:**
-- MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). Also need a standalone `infrawise check` CLI command for CI/CD pipelines — blocks deploys on high-severity guard findings, reaches teams not yet using AI editors.
+- MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). `infrawise check` is the standalone CI/CD gate — runs a fresh analysis and exits non-zero when findings reach `--fail-on` severity (default high), reaching teams not yet using AI editors.
 - TypeScript/Node is the current runtime; language is a limitation to overcome, not a design choice. The cloud extraction layer is already language-agnostic. AST scanning can expand to Python, Go, etc. over time.
 - Zero-config fast path is the unlock for adoption. The "aha moment" must happen in under 2 minutes from install — `npx infrawise start` auto-discovers AWS credentials and infra, no infrawise.yaml required. `start` is the entry point; do not add new setup commands (`init`, `doctor`, etc.) that front-load friction.
+- The command surface is deliberately five verbs, one per user need: `start` (onboard), `analyze` (full report), `check` (CI gate), `serve` (MCP server — `--stdio` for editors, HTTP by default), `doctor` (diagnostic escape hatch). `stdio` is a hidden backcompat alias for `serve --stdio` (older `.mcp.json` files invoke it). The interactive wizard lives in `src/cli/interactive-setup.ts` (`runInit`), reachable only via `start --interactive`; it is not its own command. Do not re-add `init`, `auth`, or `dev` as commands — their jobs are subsumed by `start`/`serve`.
 
 **Who uses it:** Solo project. One developer (Sidd) is the only contributor. No team conventions apply.
 
@@ -113,9 +114,9 @@ Expected: 35+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DL
 To start the MCP server against LocalStack:
 
 ```bash
-infrawise dev --config infrawise.yaml    # HTTP transport, keeps server running in foreground
+infrawise serve --config infrawise.yaml    # HTTP transport, keeps server running in foreground
 # or for stdio-based editors:
-infrawise start --config infrawise.yaml  # writes .mcp.json, then open your editor
+infrawise start --config infrawise.yaml    # writes .mcp.json, then open your editor
 ```
 
 Stop when done:
@@ -166,7 +167,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 16 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise dev` starts the server at `POST http://localhost:3000/mcp`.
+Infrawise exposes 16 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
 ### `get_infra_overview`
 

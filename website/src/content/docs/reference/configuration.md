@@ -5,7 +5,7 @@ description: Complete reference for infrawise.yaml — the config file that tell
 
 `infrawise.yaml` is the single config file that tells Infrawise what to scan: which AWS region and profile to use, which databases to connect to, where your IaC files live, and what severity threshold to apply. Infrawise reads this file at startup every time a command runs.
 
-Run `infrawise init` in your project directory to generate a starter file interactively, or create it manually using the schema below.
+`infrawise start` generates this file automatically on its first run. Use `infrawise start --interactive` for a guided wizard, or create it manually using the schema below.
 
 ## Minimal configuration (AWS only)
 

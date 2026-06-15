@@ -1,13 +1,13 @@
 ---
 title: CLI reference
-description: Complete reference for all Infrawise CLI commands — infrawise start, init, auth, analyze, dev, stdio, doctor, and --version — with all flags and usage examples.
+description: Complete reference for all Infrawise CLI commands — infrawise start, analyze, check, serve, doctor, and --version — with all flags and usage examples.
 ---
 
-Infrawise ships 8 commands. The typical workflow is: `infrawise init` to generate your config file, then `infrawise start --claude` or `infrawise start --cursor` to connect to your editor. Use `infrawise analyze` to re-scan on demand, `infrawise dev` for a persistent HTTP server, and `infrawise doctor` to diagnose connectivity problems.
+Infrawise ships five commands, one per job: `infrawise start` to onboard (probe, generate config, analyze, connect your editor), `infrawise analyze` for an on-demand report, `infrawise check` as a CI/CD gate, `infrawise serve` to run the MCP server directly, and `infrawise doctor` to diagnose connectivity problems.
 
 ## `infrawise start`
 
-Analyze infrastructure, write the MCP config file for your editor, then exit. This is the primary command for connecting Infrawise to Claude Code or Cursor.
+Probe the environment, generate `infrawise.yaml` if missing, analyze, write the MCP config file for your editor, then exit. This is the primary command — no config file is required on the first run.
 
 ```bash
 infrawise start [options]
@@ -15,40 +15,17 @@ infrawise start [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config <path>` | `infrawise.yaml` | Path to config file |
-| `--claude` | — | Write `.mcp.json` with Claude Code stdio config and open Claude Code |
-| `--cursor` | — | Write `.cursor/mcp.json` with Cursor stdio config and open Cursor |
-| `--severity <level>` | `medium` | Minimum severity to include: `low`, `medium`, `high` |
+| `-c, --config <path>` | `infrawise.yaml` | Path to config file |
+| `--claude` | — | Write `.mcp.json` and open Claude Code |
+| `--cursor` | — | Write `.cursor/mcp.json` and open Cursor |
+| `--interactive` | — | Run the guided setup wizard instead of auto-discovery |
+| `--rediscover` | — | Delete `infrawise.yaml` and the `.infrawise/` directory, then re-probe and re-analyze from scratch |
 
-Running `infrawise start` without `--claude` or `--cursor` writes `.mcp.json` only (no editor is opened). Re-run any time your infrastructure changes to refresh the graph.
-
-## `infrawise init`
-
-Generate `infrawise.yaml` interactively. Prompts for AWS region, optional profile, and any database connections.
-
-```bash
-infrawise init [options]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--force` | — | Overwrite an existing `infrawise.yaml` without prompting |
-
-Run this once per project directory before any other command. The generated file is a starting point — edit it directly to add databases or IaC paths. See the [configuration reference](/infrawise/reference/configuration/) for all available keys.
-
-## `infrawise auth`
-
-Select or switch the active AWS profile. Opens an interactive prompt listing the profiles in `~/.aws/config`.
-
-```bash
-infrawise auth
-```
-
-The selected profile is stored in `infrawise.yaml` under `services.aws.profile`. You can also set the profile directly in `infrawise.yaml` without running this command.
+Running `infrawise start` without `--claude` or `--cursor` writes `.mcp.json` only (no editor is opened). Re-run any time your infrastructure changes to refresh the graph, or use `--rediscover` for a clean slate.
 
 ## `infrawise analyze`
 
-Force a full re-scan and print findings to stdout. Does not start the MCP server. Use this for CI checks, scripted audits, or to inspect findings without opening an editor.
+Force a full re-scan and print findings to stdout. Does not start the MCP server. Use this for scripted audits or to inspect findings without opening an editor.
 
 ```bash
 infrawise analyze [options]
@@ -56,51 +33,63 @@ infrawise analyze [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config <path>` | `infrawise.yaml` | Path to config file |
-| `--severity <level>` | `low` | Minimum severity to include |
-| `--json` | — | Output findings as JSON instead of formatted text |
+| `-c, --config <path>` | `infrawise.yaml` | Path to config file |
+| `-r, --repo <path>` | current dir | Repository to scan for service usage |
+| `--no-cache` | — | Skip reading/writing the cache |
+| `-o, --output <path>` | — | Save findings as a markdown report, e.g. `report.md` |
+| `--severity <level>` | — | Only show findings at or above: `high`, `medium`, `low` |
 
-## `infrawise dev`
+## `infrawise check`
 
-Start the MCP server in HTTP transport mode. Keeps running in the foreground. Use this when you prefer HTTP over stdio, need a persistent server shared across multiple tools, or are building a custom MCP client.
+CI/CD gate. Runs a fresh analysis and exits with a non-zero code when findings reach the threshold severity, so it can block a deploy without an AI editor in the loop.
 
 ```bash
-infrawise dev [options]
+infrawise check [options]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config <path>` | `infrawise.yaml` | Path to config file |
-| `--port <n>` | `3000` | HTTP port |
-| `--severity <level>` | `medium` | Minimum severity |
-
-MCP endpoint: `POST http://localhost:<port>/mcp`
-
-## `infrawise stdio`
-
-Start the MCP server in stdio transport mode. This is the transport mode used by editors when they launch Infrawise from `.mcp.json` or `.cursor/mcp.json`. You rarely need to run this directly — your editor manages it.
+| `-c, --config <path>` | `infrawise.yaml` | Path to config file |
+| `-r, --repo <path>` | current dir | Repository to scan for service usage |
+| `--fail-on <level>` | `high` | Severity that fails the build: `high`, `medium`, `low` |
 
 ```bash
-infrawise stdio [options]
+# Block a deploy if any high-severity finding exists (exit 1)
+infrawise check
+
+# Stricter gate — fail on medium and above
+infrawise check --fail-on medium
+```
+
+## `infrawise serve`
+
+Start the MCP server directly. Defaults to HTTP transport; pass `--stdio` for the transport editors use. Keeps running in the foreground.
+
+```bash
+infrawise serve [options]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--config <path>` | `infrawise.yaml` | Path to config file |
+| `-c, --config <path>` | `infrawise.yaml` | Path to config file |
+| `--stdio` | — | Use stdio transport (for editors via `.mcp.json`) instead of HTTP |
+| `-p, --port <n>` | `3000` | HTTP port (HTTP only) |
+
+MCP endpoint (HTTP): `POST http://localhost:<port>/mcp`
 
 :::note
-`infrawise start --claude` and `infrawise start --cursor` write a config that tells your editor to launch `infrawise stdio` automatically. You only need to run `infrawise stdio` directly when testing stdio transport behavior manually.
+`infrawise start --claude` and `infrawise start --cursor` write a `.mcp.json` that launches `infrawise serve --stdio` automatically. You rarely need to run `serve` directly. (Configs generated before this rename invoke a hidden `infrawise stdio` alias, which still works.)
 :::
 
 ## `infrawise doctor`
 
-Validate AWS credential resolution, test connectivity to each configured service, and verify the config file. Prints a pass/fail report for each service and surfaces any permission errors with the specific missing IAM action.
+Diagnostic escape hatch. Validates AWS credential resolution, tests connectivity to each configured service, and verifies the config file. Prints a pass/fail report per service and surfaces permission errors with the specific missing IAM action.
 
 ```bash
 infrawise doctor
 ```
 
-Run this first when troubleshooting. No flags required — it reads `infrawise.yaml` from the current directory.
+Run this when extraction comes up empty. No flags required beyond `--config` — it reads `infrawise.yaml` from the current directory.
 
 ## `infrawise --version`
 
@@ -114,10 +103,14 @@ infrawise --version
 
 ## FAQ
 
-### What is the difference between `infrawise start` and `infrawise dev`?
+### What is the difference between `infrawise start` and `infrawise serve`?
 
-`infrawise start` runs a one-time scan, writes the MCP config file for your editor, then exits. Your editor picks up the config and manages the Infrawise process from there. `infrawise dev` starts a persistent HTTP server at `POST http://localhost:3000/mcp` that stays running until you stop it — useful when you want the server to stay live for direct HTTP calls or when using a non-stdio MCP client.
+`infrawise start` runs a one-time scan, writes the MCP config file for your editor, then exits. Your editor picks up the config and manages the Infrawise process from there. `infrawise serve` starts the MCP server in the foreground — HTTP by default, or `--stdio` — and stays running until you stop it. Use `serve` for direct HTTP calls or non-stdio MCP clients.
+
+### How do I gate CI/CD on findings?
+
+Use `infrawise check`. It runs a fresh analysis and exits `1` when any finding reaches `--fail-on` severity (default `high`), so it fails the pipeline step. Example: `infrawise check --fail-on high`.
 
 ### When should I run `infrawise analyze` again?
 
-Run `infrawise analyze` (or `infrawise start`) any time you add, remove, or significantly change AWS resources — new Lambda functions, new DynamoDB tables, new SQS queues, etc. The MCP tools your AI calls serve results from the in-memory graph built at startup; they do not re-scan on every call. For always-fresh data during active infrastructure work, use `infrawise dev` and restart it after changes.
+Run `infrawise analyze` (or `infrawise start`) any time you add, remove, or significantly change AWS resources — new Lambda functions, new DynamoDB tables, new SQS queues, etc. The MCP tools your AI calls serve results from the in-memory graph built at startup; they do not re-scan on every call. For always-fresh data during active infrastructure work, use `infrawise serve` and restart it after changes.

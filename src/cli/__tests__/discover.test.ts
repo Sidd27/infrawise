@@ -23,7 +23,7 @@ vi.mock('../utils.js', () => ({
   printHeader: vi.fn(),
 }));
 
-vi.mock('../commands/init.js', () => ({ runInit: vi.fn() }));
+vi.mock('../interactive-setup.js', () => ({ runInit: vi.fn() }));
 
 describe('runDiscover', () => {
   let tmpDir: string;
@@ -111,7 +111,7 @@ describe('runDiscover', () => {
   });
 
   it('calls runInit when interactive flag is set', async () => {
-    const { runInit } = await import('../commands/init.js');
+    const { runInit } = await import('../interactive-setup.js');
     const { runDiscover } = await import('../commands/discover.js');
     await runDiscover({ interactive: true });
     expect(runInit).toHaveBeenCalledOnce();

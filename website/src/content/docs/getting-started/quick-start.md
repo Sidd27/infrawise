@@ -23,10 +23,10 @@ For the minimum required IAM permissions, see [AWS setup](/infrawise/getting-sta
 
 ## Step 2: Create `infrawise.yaml`
 
-Run `infrawise init` in your project directory to generate the config file interactively:
+`infrawise start` auto-generates `infrawise.yaml` on its first run by probing your environment — you usually do not create it by hand. To answer the questions yourself instead, use the guided wizard:
 
 ```bash
-infrawise init
+infrawise start --interactive
 ```
 
 Or create `infrawise.yaml` manually:
@@ -93,4 +93,4 @@ Typically 5 to 15 seconds for a mid-sized AWS environment. Time scales with the 
 
 ### Do I need to run `infrawise start` every time?
 
-Only when your infrastructure changes. `infrawise start` writes a static `.mcp.json` that points your editor to the Infrawise stdio server — the editor manages the server process from there. If you add new AWS resources, run `infrawise start` again (or `infrawise analyze`) to refresh the graph. For a long-running server that stays in sync, use `infrawise dev` instead.
+Only when your infrastructure changes. `infrawise start` writes a static `.mcp.json` that points your editor to the Infrawise stdio server — the editor manages the server process from there. If you add new AWS resources, run `infrawise start` again (or `infrawise analyze`) to refresh the graph. For a long-running server that stays in sync, use `infrawise serve` instead.

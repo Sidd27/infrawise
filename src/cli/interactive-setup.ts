@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { generateDefaultConfig } from '../../core/index.js';
-import { readAWSProfiles, detectAWSRegion, log, printHeader } from '../utils.js';
+import { generateDefaultConfig } from '../core/index.js';
+import { readAWSProfiles, detectAWSRegion, log, printHeader } from './utils.js';
 
 export async function runInit(options: { force?: boolean; quiet?: boolean } = {}): Promise<void> {
   const cwd = process.cwd();
@@ -314,7 +314,7 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
     console.log('');
     console.log(chalk.bold('  Next steps:'));
     log.info(`Run ${chalk.cyan('infrawise start')} to analyze and connect your editor`);
-    log.info(`Run ${chalk.cyan('infrawise doctor')} to validate your setup`);
+    log.info(`Run ${chalk.cyan('infrawise doctor')} if extraction comes up empty`);
     console.log('');
   }
 }

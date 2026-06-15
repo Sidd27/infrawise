@@ -3,9 +3,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Command } from 'commander';
 import { printBanner } from './utils.js';
-import { runAuth } from './commands/auth.js';
 import { runAnalyze } from './commands/analyze.js';
-import { runDev } from './commands/dev.js';
+import { runCheck } from './commands/check.js';
+import { runServe } from './commands/serve.js';
 import { runDoctor } from './commands/doctor.js';
 import { runStdio } from './commands/stdio.js';
 import { runStart } from './commands/start.js';
@@ -43,14 +43,6 @@ program
   });
 
 program
-  .command('auth')
-  .description('Validate and select AWS profile from ~/.aws/credentials')
-  .action(async () => {
-    printBanner();
-    await runAuth();
-  });
-
-program
   .command('analyze')
   .description('Load config, run extractors, build graph, and run all analyzers')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
@@ -70,21 +62,39 @@ program
   });
 
 program
-  .command('dev')
-  .description('Start MCP server over HTTP at localhost:3000 (alternative to stdio-based start)')
+  .command('check')
+  .description('CI gate: analyze and exit non-zero if findings reach the threshold severity')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
-  .option('-p, --port <number>', 'Port to listen on', '3000')
+  .option('-r, --repo <path>', 'Path to repository to scan', process.cwd())
+  .option('--fail-on <level>', 'Severity that fails the build: high | medium | low', 'high')
   .action(async (options) => {
     printBanner();
-    await runDev({
+    await runCheck({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
-      port: parseInt(options.port, 10),
+      repo: options.repo,
+      failOn: options.failOn,
     });
   });
 
 program
-  .command('stdio')
-  .description('Start MCP server on stdio transport — used by editors via .mcp.json (auto-managed)')
+  .command('serve')
+  .description('Start the MCP server — HTTP by default, or stdio for editor integration')
+  .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
+  .option('--stdio', 'Use stdio transport (for editors via .mcp.json) instead of HTTP')
+  .option('-p, --port <number>', 'Port to listen on (HTTP only)', '3000')
+  .action(async (options) => {
+    if (!options.stdio) printBanner();
+    await runServe({
+      config: options.config !== 'infrawise.yaml' ? options.config : undefined,
+      stdio: options.stdio,
+      port: parseInt(options.port, 10),
+    });
+  });
+
+// Hidden backcompat alias: editors launched from a .mcp.json generated before
+// `serve` existed still invoke `infrawise stdio`. Kept out of --help.
+program
+  .command('stdio', { hidden: true })
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .action(async (options) => {
     await runStdio(options.config !== 'infrawise.yaml' ? options.config : undefined);
@@ -92,7 +102,7 @@ program
 
 program
   .command('doctor')
-  .description('Validate AWS access, postgres connectivity, config, and repo scan')
+  .description('Diagnostic escape hatch: validate AWS/DB access, config, and repo scan')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .action(async (options) => {
     printBanner();

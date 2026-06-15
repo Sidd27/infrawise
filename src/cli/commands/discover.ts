@@ -6,7 +6,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { probePort, scanDotEnv } from '../probe.js';
 import { readAWSProfiles, detectAWSRegion, log } from '../utils.js';
-import { runInit } from './init.js';
+import { runInit } from '../interactive-setup.js';
 
 const DB_PORTS = { postgres: 5432, mysql: 3306, mongodb: 27017 } as const;
 

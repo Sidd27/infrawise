@@ -69,10 +69,10 @@ infrawise start --claude
 
 That's it. Infrawise will:
 
-1. Ask a few questions and generate `infrawise.yaml` (first time only)
+1. Probe your environment and generate `infrawise.yaml` (first time only — asks which AWS profile to use only if you have several)
 2. Scan your AWS services, databases, and codebase
 3. Write `.mcp.json` so your editor auto-connects on every future launch
-4. Open Claude Code with all 15 MCP tools ready
+4. Open Claude Code with all 16 MCP tools ready
 
 **Every time after:**
 
@@ -80,7 +80,7 @@ That's it. Infrawise will:
 claude    # no infrawise command needed — editor manages the connection
 ```
 
-Analysis is cached for 24 hours. When the cache is stale, `infrawise stdio` (spawned automatically by your editor) refreshes it at session start. File changes are detected within the session and the code graph is updated automatically.
+Analysis is cached for 24 hours. When the cache is stale, `infrawise serve --stdio` (spawned automatically by your editor) refreshes it at session start. File changes are detected within the session and the code graph is updated automatically.
 
 ```
 Findings (3 total)
@@ -107,7 +107,7 @@ Findings (3 total)
 infrawise start --claude
 ```
 
-Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise stdio` process — no server to start, no ports to configure.
+Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise serve --stdio` process — no server to start, no ports to configure.
 
 ### Cursor
 
@@ -115,7 +115,7 @@ Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 15 infrawise tools are available in Cursor's MCP panel.
+Writes `.cursor/mcp.json` and opens Cursor. All 16 infrawise tools are available in Cursor's MCP panel.
 
 ### Any editor (no flag)
 
@@ -123,14 +123,14 @@ Writes `.cursor/mcp.json` and opens Cursor. All 15 infrawise tools are available
 infrawise start
 ```
 
-Writes `.mcp.json` and exits. Open whichever editor you prefer — point it at `infrawise stdio --config /path/to/infrawise.yaml` as an MCP server command.
+Writes `.mcp.json` and exits. Open whichever editor you prefer — point it at `infrawise serve --stdio --config /path/to/infrawise.yaml` as an MCP server command.
 
 ### HTTP transport (alternative)
 
 If your editor or workflow requires an HTTP MCP endpoint instead of stdio:
 
 ```bash
-infrawise dev    # starts server at http://localhost:3000/mcp
+infrawise serve    # starts server at http://localhost:3000/mcp
 ```
 
 Add to your editor's MCP config:
@@ -170,17 +170,17 @@ Add to your editor's MCP config:
 
 ## CLI reference
 
-| Command                      | What it does                                                                      |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| `infrawise start`            | **Primary command** — init + analyze + write editor MCP config, then exit         |
-| `infrawise start --claude`   | Same as above, then opens Claude Code                                             |
-| `infrawise start --cursor`   | Same as above, then opens Cursor                                                  |
-| `infrawise init`             | Generate `infrawise.yaml` only (no analysis, no editor config)                   |
-| `infrawise auth`             | Select or switch AWS profile                                                      |
-| `infrawise analyze`          | Force a full re-scan — useful after major infrastructure changes                  |
-| `infrawise dev`              | HTTP transport alternative — starts server at `localhost:3000/mcp`               |
-| `infrawise stdio`            | Stdio transport — auto-managed by editors via `.mcp.json` (rarely run directly)  |
-| `infrawise doctor`           | Validate AWS access, DB connectivity, and config                                  |
+| Command                       | What it does                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `infrawise start`             | **Primary command** — probe env, generate config, analyze, write editor MCP config |
+| `infrawise start --claude`    | Same as above, then opens Claude Code                                             |
+| `infrawise start --cursor`    | Same as above, then opens Cursor                                                  |
+| `infrawise start --interactive` | Run the guided setup wizard instead of auto-discovery                           |
+| `infrawise start --rediscover` | Delete `infrawise.yaml` + `.infrawise/`, then re-probe and re-analyze            |
+| `infrawise analyze`           | Force a full re-scan — useful after major infrastructure changes                  |
+| `infrawise check`             | CI gate — analyze and exit non-zero when findings reach the threshold severity    |
+| `infrawise serve`             | Start the MCP server — HTTP by default, or `--stdio` for editor integration       |
+| `infrawise doctor`            | Diagnostic escape hatch — validate AWS/DB access, config, and repo scan            |
 
 ### `infrawise analyze` options
 
@@ -190,7 +190,7 @@ Add to your editor's MCP config:
 | `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
 | `--no-cache`          | Skip reading/writing the cache                                         |
 | `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md`                   |
-| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` \| `verify` |
+| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` |
 
 ```bash
 # Export a shareable findings report
@@ -203,11 +203,37 @@ infrawise analyze --severity high
 infrawise analyze --severity high --output report.md
 ```
 
+### `infrawise check` options (CI/CD)
+
+`check` runs a fresh analysis and sets a non-zero exit code when blocking findings exist, so it can gate a pipeline without an AI editor.
+
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
+| `--fail-on <level>`   | Severity that fails the build: `high` (default) \| `medium` \| `low`   |
+
+```bash
+# Block a deploy if any high-severity finding exists (exit 1)
+infrawise check
+
+# Stricter gate — fail on medium and above
+infrawise check --fail-on medium
+```
+
+### `infrawise serve` options
+
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `--stdio`             | Use stdio transport (for editors via `.mcp.json`) instead of HTTP      |
+| `-p, --port <number>` | Port to listen on, HTTP only (default: `3000`)                         |
+
 ---
 
 ## Configuration
 
-`infrawise.yaml` is generated by `infrawise start` (or `infrawise init` to create the file only) and lives in your repo root. Every service must be explicitly `enabled: true` — infrawise never connects to anything not listed in config.
+`infrawise.yaml` is generated by `infrawise start` (or `infrawise start --interactive` for the guided wizard) and lives in your repo root. Every service must be explicitly `enabled: true` — infrawise never connects to anything not listed in config.
 
 Connection strings support `${ENV_VAR}` substitution so passwords never need to be committed:
 
@@ -345,7 +371,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | SNS                              | Subscription filter policies — required message attributes per subscription                                        |
 | Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
-| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/DynamoDB/Kinesis/EventBridge/S3), missing DLQ on trigger source |
+| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source |
 | S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
 | EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
 | API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
@@ -363,7 +389,7 @@ Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions ca
 | Missing GSI                | Medium   | Queries on attributes without a matching GSI  |
 | Hot Partition              | Medium   | 5+ distinct code paths hitting the same table |
 | Missing Index (PostgreSQL) | Medium   | Tables queried without indexes                |
-| N+1 Query                  | Medium   | Repeated query patterns from ORM loops        |
+| N+1 Query                  | High     | Repeated query patterns from ORM loops        |
 | Large SELECT               | Low      | `SELECT *` usage                              |
 | Missing MySQL Index        | Medium   | MySQL tables queried without indexes          |
 | MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |

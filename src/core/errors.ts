@@ -100,7 +100,7 @@ export class ConfigError extends InfrawiseError {
         'Missing required fields in configuration',
         details ?? 'Unexpected config error',
       ],
-      'infrawise init',
+      'infrawise start',
     );
     this.name = 'ConfigError';
   }

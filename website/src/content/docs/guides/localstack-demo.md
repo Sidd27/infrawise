@@ -55,7 +55,7 @@ Running `infrawise analyze` against this environment should produce findings for
 To test the MCP tools interactively against the demo environment:
 
 ```bash
-infrawise dev --config infrawise.yaml
+infrawise serve --config infrawise.yaml
 ```
 
 The server starts at `POST http://localhost:3000/mcp`. You can then use Claude Code or Cursor to call tools like `get_infra_overview` and `analyze_function` against the seeded LocalStack resources.
