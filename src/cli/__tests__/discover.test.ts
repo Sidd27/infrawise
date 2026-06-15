@@ -28,16 +28,24 @@ vi.mock('../interactive-setup.js', () => ({ runInit: vi.fn() }));
 describe('runDiscover', () => {
   let tmpDir: string;
   let originalCwd: () => string;
+  let prevAwsKey: string | undefined;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-discover-'));
     originalCwd = process.cwd;
     process.cwd = () => tmpDir;
+    // Make the "AWS configured" precondition deterministic. Without this the
+    // no-DB tests depend on the runner having ~/.aws (true locally, false in CI),
+    // which would trip the "Nothing detected" exit.
+    prevAwsKey = process.env.AWS_ACCESS_KEY_ID;
+    process.env.AWS_ACCESS_KEY_ID = 'testkey';
   });
 
   afterEach(() => {
     process.cwd = originalCwd;
     fs.rmSync(tmpDir, { recursive: true });
+    if (prevAwsKey === undefined) delete process.env.AWS_ACCESS_KEY_ID;
+    else process.env.AWS_ACCESS_KEY_ID = prevAwsKey;
     vi.resetAllMocks();
     vi.resetModules();
   });
