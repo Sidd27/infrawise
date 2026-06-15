@@ -65,7 +65,7 @@
     "build-arch": "node scripts/build-arch.mjs",
     "generate-diagrams": "node scripts/build-arch.mjs",
     "record": "bash docs/demo/record.sh",
-    "dev": "node dist/cli/index.js dev",
+    "dev": "node dist/cli/index.js serve",
     "release": "node scripts/release.js",
     "prepare": "simple-git-hooks"
   },

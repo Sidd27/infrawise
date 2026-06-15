@@ -298,9 +298,6 @@ rds:
 s3:
   enabled: false
 
-kafka:
-  enabled: false
-
 apiGateway:
   enabled: false
 
@@ -369,7 +366,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | MongoDB schema                   | Collections, indexes                                                                                               |
 | SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout vs Lambda timeout mismatch    |
 | SNS                              | Subscription filter policies — required message attributes per subscription                                        |
-| Kafka (kafkajs)                  | Producer/consumer topic mapping from code                                                                          |
+| Apache Kafka (kafkajs)           | Producer/consumer topic mapping from code — any broker (self-hosted, Confluent, Redpanda, MSK); distinct from the MSK Lambda trigger |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
 | Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source |
 | S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |

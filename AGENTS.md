@@ -15,6 +15,7 @@
 **What it covers today:**
 - AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs
 - Databases: PostgreSQL, MySQL, MongoDB
+- Messaging: Apache Kafka via `kafkajs` — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
 - IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection)
 
 **How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 16 MCP tools (server mode) that AI assistants call to get precise context before writing code.

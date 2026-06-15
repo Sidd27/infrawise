@@ -412,9 +412,6 @@ export interface InfrawiseConfig {
   s3?: {
     enabled?: boolean;
   };
-  kafka?: {
-    enabled?: boolean;
-  };
   apiGateway?: {
     enabled?: boolean;
   };

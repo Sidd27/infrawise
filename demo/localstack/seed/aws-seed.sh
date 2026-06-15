@@ -375,5 +375,5 @@ echo "   SQS         : orders-queue (no DLQ+unencrypted), payment-events (no DLQ
 echo "   Secrets     : db-password + stripe-api-key (no rotation)"
 echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB+300s, EventBridge+SQS trigger), sendNotification (control)"
 echo "   EventBridge : generate-report-schedule (rate), order-created-event (pattern)"
-echo "   API Gateway : demo-api (HTTP) — GET/POST /orders → processOrders, GET /reports → generateReport, POST /notifications → sendNotification"
+echo "   API Gateway : demo-api (REST) — GET/POST /orders → processOrders, GET /reports → generateReport, POST /notifications → sendNotification"
 echo "   Logs        : processOrders + generateReport (no retention), audit-logs (400 days)"

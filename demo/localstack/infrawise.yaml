@@ -37,7 +37,7 @@ s3:
 apiGateway:
   enabled: true
 cloudwatchLogs:
-  enabled: false
+  enabled: true
   logGroupPrefixes: []
   windowHours: 24
 analysis:

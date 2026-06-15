@@ -1,6 +1,6 @@
 # Infrawise
 
-> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, API Gateway, RDS), databases (PostgreSQL, MySQL, MongoDB), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
+> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, API Gateway, RDS), databases (PostgreSQL, MySQL, MongoDB), Apache Kafka (any broker, via kafkajs producer/consumer code detection), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
 
 ## Problem it solves
 
