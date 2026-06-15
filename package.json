@@ -70,7 +70,7 @@
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm format && git add src/ && pnpm lint && pnpm typecheck && pnpm test"
+    "pre-commit": "pnpm format && pnpm lint && pnpm typecheck && pnpm test"
   },
   "dependencies": {
     "@aws-sdk/client-api-gateway": "^3.1068.0",
