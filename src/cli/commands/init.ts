@@ -3,7 +3,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { generateDefaultConfig } from '../../core/index.js';
-import { readAWSProfiles, detectAWSRegion, detectRepoType, log, printHeader } from '../utils.js';
+import { readAWSProfiles, detectAWSRegion, log, printHeader } from '../utils.js';
 
 export async function runInit(options: { force?: boolean; quiet?: boolean } = {}): Promise<void> {
   const cwd = process.cwd();
@@ -18,13 +18,11 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
 
   printHeader('Initialize Infrawise');
 
-  const repoType = detectRepoType(cwd);
   const repoName = path.basename(cwd);
   const profiles = readAWSProfiles();
   const detectedRegion = detectAWSRegion();
 
   log.success(`Repository detected`, repoName);
-  log.success(`Type`, repoType);
   log.success(`AWS profiles found`, String(profiles.length));
   console.log('');
 
@@ -46,7 +44,6 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
       message: 'Infrastructure:',
       choices: [
         { name: 'AWS', value: 'aws' },
-        { name: 'LocalStack  (mimics AWS locally)', value: 'localstack' },
         { name: 'Local  (no cloud — databases, queues, self-hosted services)', value: 'local' },
       ],
     },
@@ -68,13 +65,10 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
       },
     ]);
     awsProfile = answer.awsProfile;
-  } else if (provider === 'localstack') {
-    awsProfile = '__localstack__';
   }
 
-  // ── Step 3: region + endpoint ─────────────────────────────────────────────
+  // ── Step 3: region ────────────────────────────────────────────────────────
   let region = detectedRegion;
-  let endpoint: string | undefined;
   if (provider !== 'local') {
     const regionAnswer = await inquirer.prompt([
       {
@@ -85,21 +79,9 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
       },
     ]);
     region = regionAnswer.region;
-
-    if (provider === 'localstack') {
-      const endpointAnswer = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'endpoint',
-          message: 'LocalStack endpoint:',
-          default: 'http://localhost:4566',
-        },
-      ]);
-      endpoint = endpointAnswer.endpoint;
-    }
   }
 
-  const core = { project, awsProfile, region, endpoint };
+  const core = { project, awsProfile, region };
 
   // ── Databases ──────────────────────────────────────────────────────────────
   console.log('\n  ' + chalk.bold('Databases'));
@@ -288,16 +270,13 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
         .filter(Boolean)
     : [];
 
-  const isLocalStack = core.awsProfile === '__localstack__';
   const isEnvVars = core.awsProfile === '__env__';
-  const resolvedProfile = isLocalStack || isEnvVars ? '' : core.awsProfile;
-  const resolvedEndpoint = isLocalStack ? (core.endpoint ?? 'http://localhost:4566') : undefined;
+  const resolvedProfile = isEnvVars ? '' : core.awsProfile;
 
   const configContent = generateDefaultConfig(core.project, {
     aws: {
       profile: resolvedProfile,
       region: core.region ?? detectedRegion,
-      endpoint: resolvedEndpoint,
     },
     dynamodb: { enabled: services.dynamoEnabled, includeTables },
     postgres: {

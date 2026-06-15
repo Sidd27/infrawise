@@ -10,7 +10,6 @@ export const InfrawiseConfigSchema = z.object({
     .object({
       profile: z.string().optional().default(''),
       region: z.string().optional().default('us-east-1'),
-      endpoint: z.string().optional(),
     })
     .optional()
     .default({ profile: 'default', region: 'us-east-1' }),
@@ -91,6 +90,27 @@ export class ConfigError extends Error {
   }
 }
 
+const SecretsSchema = z.object({
+  postgres: z.object({ connectionString: z.string() }).optional(),
+  mysql: z.object({ connectionString: z.string() }).optional(),
+  mongodb: z.object({ connectionString: z.string() }).optional(),
+});
+
+type Secrets = z.infer<typeof SecretsSchema>;
+
+export function loadSecrets(configDir: string): Secrets {
+  const secretsPath = path.join(configDir, '.infrawise', 'secrets.yaml');
+  if (!fs.existsSync(secretsPath)) return {};
+  try {
+    const raw = fs.readFileSync(secretsPath, 'utf-8');
+    const parsed = yaml.load(raw);
+    const result = SecretsSchema.safeParse(parsed);
+    return result.success ? result.data : {};
+  } catch {
+    return {};
+  }
+}
+
 export function loadConfig(configPath?: string): InfrawiseConfig {
   const resolvedPath = configPath
     ? path.resolve(configPath)
@@ -98,7 +118,7 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
 
   if (!fs.existsSync(resolvedPath)) {
     throw new ConfigError(`Configuration file not found at: ${resolvedPath}`, [
-      'Run `infrawise init` to generate a configuration file',
+      'Run `infrawise start` to generate a configuration file',
       `Or specify a path with --config <path>`,
     ]);
   }
@@ -129,7 +149,21 @@ export function loadConfig(configPath?: string): InfrawiseConfig {
     throw new ConfigError('Configuration validation failed', details);
   }
 
-  return result.data as InfrawiseConfig;
+  const config = result.data as InfrawiseConfig;
+
+  const configDir = path.dirname(resolvedPath);
+  const secrets = loadSecrets(configDir);
+  if (secrets.postgres?.connectionString && config.postgres) {
+    config.postgres.connectionString = secrets.postgres.connectionString;
+  }
+  if (secrets.mysql?.connectionString && config.mysql) {
+    config.mysql.connectionString = secrets.mysql.connectionString;
+  }
+  if (secrets.mongodb?.connectionString && config.mongodb) {
+    config.mongodb.connectionString = secrets.mongodb.connectionString;
+  }
+
+  return config;
 }
 
 export function generateDefaultConfig(
@@ -141,7 +175,6 @@ export function generateDefaultConfig(
     aws: {
       profile: options?.aws?.profile ?? '',
       region: options?.aws?.region ?? 'us-east-1',
-      ...(options?.aws?.endpoint ? { endpoint: options.aws.endpoint } : {}),
     },
     dynamodb: {
       enabled: options?.dynamodb?.enabled ?? true,

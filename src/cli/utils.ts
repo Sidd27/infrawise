@@ -1,48 +1,38 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { execSync } from 'child_process';
 import chalk from 'chalk';
 import type { Finding } from '../types.js';
 
 // ─── AWS helpers ─────────────────────────────────────────────────────────────
 
 export function readAWSProfiles(): string[] {
-  const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
-  const configPath = path.join(os.homedir(), '.aws', 'config');
-  const profiles = new Set<string>();
-
-  function parseFile(filePath: string): void {
-    if (!fs.existsSync(filePath)) return;
-    for (const line of fs.readFileSync(filePath, 'utf-8').split('\n')) {
-      const match = line.match(/^\[(.+)\]$/);
-      if (match?.[1]) {
-        let name = match[1];
-        if (name.startsWith('profile ')) name = name.slice(8);
-        profiles.add(name);
-      }
-    }
+  try {
+    const out = execSync('aws configure list-profiles', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const profiles = out.trim().split('\n').filter(Boolean);
+    return profiles.length > 0 ? profiles : ['default'];
+  } catch {
+    return ['default'];
   }
-
-  parseFile(credentialsPath);
-  parseFile(configPath);
-  return profiles.size > 0 ? [...profiles] : ['default'];
 }
 
-export function detectAWSRegion(): string {
+export function detectAWSRegion(profile?: string): string {
   if (process.env.AWS_DEFAULT_REGION) return process.env.AWS_DEFAULT_REGION;
   if (process.env.AWS_REGION) return process.env.AWS_REGION;
-  const configPath = path.join(os.homedir(), '.aws', 'config');
-  if (fs.existsSync(configPath)) {
-    const match = fs.readFileSync(configPath, 'utf-8').match(/region\s*=\s*(.+)/);
-    if (match?.[1]) return match[1].trim();
+  const target = profile ?? process.env.AWS_PROFILE ?? 'default';
+  try {
+    const region = execSync(`aws configure get region --profile ${target}`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    if (region) return region;
+  } catch {
+    // profile may not have region configured
   }
   return 'us-east-1';
-}
-
-export function detectRepoType(repoPath: string): 'typescript' | 'javascript' | 'unknown' {
-  if (fs.existsSync(path.join(repoPath, 'tsconfig.json'))) return 'typescript';
-  if (fs.existsSync(path.join(repoPath, 'package.json'))) return 'javascript';
-  return 'unknown';
 }
 
 // ─── Banner ──────────────────────────────────────────────────────────────────

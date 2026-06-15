@@ -136,7 +136,6 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   const awsCfg = {
     region: config.aws?.region,
     profile: config.aws?.profile,
-    endpoint: config.aws?.endpoint,
   };
 
   const dynamoMeta: Awaited<ReturnType<typeof extractDynamoMetadata>> = [];

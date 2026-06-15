@@ -7,6 +7,12 @@ services:
       - SERVICES=dynamodb,sqs,sns,lambda,ssm,secretsmanager,logs,iam,events,s3,apigateway
       - AWS_DEFAULT_REGION=us-east-1
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
+      # Make SQS queue URLs use host `localhost:4566` so they match the
+      # `endpoint_url = http://localhost:4566` in the `localstack` AWS profile.
+      # Without this LocalStack returns `*.localhost.localstack.cloud` URLs and the
+      # AWS SDK logs a noisy "QueueUrl differs from resolved endpoint" warning per queue.
+      - SQS_ENDPOINT_STRATEGY=off
+      - LOCALSTACK_HOST=localhost:4566
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
       interval: 5s

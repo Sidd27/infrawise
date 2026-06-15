@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { InfrawiseConfigSchema } from '../config';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { InfrawiseConfigSchema, loadSecrets } from '../config';
 
 describe('InfrawiseConfigSchema', () => {
   it('parses a valid minimal config', () => {
@@ -72,6 +76,42 @@ describe('InfrawiseConfigSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.dynamodb?.includeTables).toHaveLength(3);
+    }
+  });
+});
+
+describe('loadSecrets', () => {
+  it('returns empty object when .infrawise/secrets.yaml does not exist', () => {
+    const result = loadSecrets('/nonexistent/path');
+    expect(result).toEqual({});
+  });
+
+  it('reads postgres connectionString from secrets.yaml', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-secrets-'));
+    const infrawiseDir = path.join(tmpDir, '.infrawise');
+    fs.mkdirSync(infrawiseDir);
+    fs.writeFileSync(
+      path.join(infrawiseDir, 'secrets.yaml'),
+      yaml.dump({ postgres: { connectionString: 'postgresql://user:pass@localhost:5432/db' } }),
+    );
+    try {
+      const result = loadSecrets(tmpDir);
+      expect(result.postgres?.connectionString).toBe('postgresql://user:pass@localhost:5432/db');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it('returns empty object when secrets.yaml has invalid YAML', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-secrets-'));
+    const infrawiseDir = path.join(tmpDir, '.infrawise');
+    fs.mkdirSync(infrawiseDir);
+    fs.writeFileSync(path.join(infrawiseDir, 'secrets.yaml'), '{ invalid yaml ::');
+    try {
+      const result = loadSecrets(tmpDir);
+      expect(result).toEqual({});
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
     }
   });
 });

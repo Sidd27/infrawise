@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { readCache, setCacheDir, formatError, loadConfig } from '../../core/index.js';
 import type { SystemGraph, Finding } from '../../types.js';
 import { log, printHeader } from '../utils.js';
-import { runInit } from './init.js';
+import { runDiscover } from './discover.js';
 import { runAnalyze } from './analyze.js';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -14,6 +14,8 @@ interface StartOptions {
   config?: string;
   claude?: boolean;
   cursor?: boolean;
+  interactive?: boolean;
+  rediscover?: boolean;
 }
 
 function writeMcpJson(configAbsPath: string): void {
@@ -63,7 +65,7 @@ function launchEditor(editor: 'claude' | 'cursor'): Promise<void> {
       const cmd = editor;
       const args = ['.'];
       console.log('');
-      console.log(chalk.dim('  Opening Cursor...'));
+      console.log(chalk.dim(`  Opening ${cmd}...`));
       const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
       child.on('error', (err) => {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -83,17 +85,30 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   const configPath = options.config ?? 'infrawise.yaml';
   const configAbsPath = path.resolve(cwd, configPath);
 
-  // Step 1 — create infrawise.yaml if missing
-  if (!fs.existsSync(configAbsPath)) {
-    log.warn('No infrawise.yaml found — running setup...');
-    console.log('');
-    await runInit({ quiet: true });
+  // --rediscover: wipe yaml + entire .infrawise dir, then re-run discovery and analysis
+  if (options.rediscover) {
+    if (fs.existsSync(configAbsPath)) {
+      fs.unlinkSync(configAbsPath);
+    }
+    const infrawiseDir = path.join(path.dirname(configAbsPath), '.infrawise');
+    if (fs.existsSync(infrawiseDir)) {
+      fs.rmSync(infrawiseDir, { recursive: true, force: true });
+    }
+    log.warn('Cleared config and .infrawise — rediscovering...');
     console.log('');
   }
 
-  // Validate config is loadable before proceeding
+  // Generate config if missing
+  if (!fs.existsSync(configAbsPath)) {
+    log.warn('No infrawise.yaml found — probing environment...');
+    console.log('');
+    await runDiscover({ interactive: options.interactive });
+    console.log('');
+  }
+
+  // Validate config
   try {
-    loadConfig(configPath);
+    loadConfig(configAbsPath);
   } catch (err) {
     console.error(formatError(err));
     process.exit(1);
@@ -101,7 +116,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
 
   setCacheDir(path.dirname(configAbsPath));
 
-  // Step 2 — check cache with 24h TTL, re-analyze if stale or missing
+  // Check cache, re-analyze if stale
   const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
   const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
 
@@ -118,12 +133,12 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     console.log('');
   }
 
-  // Step 3 — write editor MCP config files
+  // Write editor MCP config files
   console.log('');
   writeMcpJson(configAbsPath);
   if (options.cursor) writeCursorMcp(configAbsPath);
 
-  // Step 4 — launch editor or print instructions
+  // Launch editor or print instructions
   const editor = options.claude ? 'claude' : options.cursor ? 'cursor' : null;
 
   if (!editor) {

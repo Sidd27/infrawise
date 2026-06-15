@@ -106,7 +106,6 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
   const awsCfg = {
     region: config?.aws?.region,
     profile: config?.aws?.profile,
-    endpoint: config?.aws?.endpoint,
   };
 
   // DynamoDB

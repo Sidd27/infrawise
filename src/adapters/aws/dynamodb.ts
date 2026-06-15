@@ -11,11 +11,9 @@ import { DynamoDBError, logger } from '../../core/index.js';
 function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
   const region = config.aws?.region ?? 'us-east-1';
   const profile = config.aws?.profile;
-  const endpoint = config.aws?.endpoint;
 
   const clientConfig: ConstructorParameters<typeof DynamoDBClient>[0] = { region };
 
-  if (endpoint) clientConfig.endpoint = endpoint;
   if (profile) clientConfig.credentials = fromIni({ profile });
 
   return new DynamoDBClient(clientConfig);

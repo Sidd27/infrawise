@@ -1,8 +1,7 @@
 project: localstack
 aws:
-  profile: ''
+  profile: localstack
   region: us-east-1
-  endpoint: http://localhost:4566
 dynamodb:
   enabled: true
   includeTables: []
@@ -38,7 +37,7 @@ s3:
 apiGateway:
   enabled: true
 cloudwatchLogs:
-  enabled: true
+  enabled: false
   logGroupPrefixes: []
   windowHours: 24
 analysis:

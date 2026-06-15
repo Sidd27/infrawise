@@ -14,6 +14,32 @@ Tests infrawise against AWS services emulated locally via LocalStack. Everything
 - [AWS CLI](https://aws.amazon.com/cli/) installed (`aws --version`)
 - infrawise on your PATH (`npm install -g infrawise` or built from source)
 - A free LocalStack auth token from [app.localstack.cloud](https://app.localstack.cloud)
+- A `localstack` AWS profile in your `~/.aws` (one-time setup — see below)
+
+---
+
+## One-time: add the `localstack` AWS profile
+
+infrawise is an AWS tool — it talks to whatever endpoint your selected AWS profile points at. To point it at LocalStack, add a `localstack` profile to your AWS config. This is the only LocalStack-specific setup, and it lives in your AWS config, not in infrawise.
+
+Append to `~/.aws/config`:
+
+```ini
+[profile localstack]
+region = us-east-1
+output = json
+endpoint_url = http://localhost:4566
+```
+
+Append to `~/.aws/credentials`:
+
+```ini
+[localstack]
+aws_access_key_id = test
+aws_secret_access_key = test
+```
+
+LocalStack accepts any credentials, so `test`/`test` is fine. The `endpoint_url` line is what routes calls to LocalStack. The demo's `infrawise.yaml` uses `profile: localstack`, and `.env` sets `AWS_PROFILE=localstack` so the AWS SDK resolves this profile.
 
 ---
 

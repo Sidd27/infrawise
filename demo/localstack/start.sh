@@ -6,11 +6,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  infrawise demo — LocalStack"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Source .env — sets LOCALSTACK_AUTH_TOKEN for the container
-# and AWS_* credentials for infrawise
+# Source .env — sets LOCALSTACK_AUTH_TOKEN for the container and selects the
+# `localstack` AWS profile (must exist in your ~/.aws — see README).
 [ -f .env ] && source .env
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
+export AWS_PROFILE=localstack
 
 # ── 1. Start LocalStack ──────────────────────────────────────────────────────
 

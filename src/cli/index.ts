@@ -3,7 +3,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Command } from 'commander';
 import { printBanner } from './utils.js';
-import { runInit } from './commands/init.js';
 import { runAuth } from './commands/auth.js';
 import { runAnalyze } from './commands/analyze.js';
 import { runDev } from './commands/dev.js';
@@ -26,28 +25,21 @@ program
 
 program
   .command('start')
-  .description(
-    'Set up infrawise and connect your editor — runs init + analyze + writes editor MCP config',
-  )
+  .description('Probe environment, generate config, analyze, and connect your editor')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('--claude', 'Write .mcp.json and open Claude Code')
   .option('--cursor', 'Write .cursor/mcp.json and open Cursor')
+  .option('--interactive', 'Run interactive setup wizard instead of auto-discovery')
+  .option('--rediscover', 'Delete existing infrawise.yaml and re-probe the environment')
   .action(async (options) => {
     printBanner();
     await runStart({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       claude: options.claude,
       cursor: options.cursor,
+      interactive: options.interactive,
+      rediscover: options.rediscover,
     });
-  });
-
-program
-  .command('init')
-  .description('Detect AWS profile/region, ask setup questions, and generate infrawise.yaml')
-  .option('--force', 'Overwrite existing infrawise.yaml')
-  .action(async (options) => {
-    printBanner();
-    await runInit({ force: options.force });
   });
 
 program

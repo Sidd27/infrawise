@@ -14,7 +14,6 @@ const MAX_EVENTS_PER_GROUP = 50;
 interface LogsConfig {
   region?: string;
   profile?: string;
-  endpoint?: string;
   logGroupPrefixes?: string[];
   windowHours?: number;
 }
@@ -22,7 +21,6 @@ interface LogsConfig {
 function clientConfig(cfg: LogsConfig) {
   const region = cfg.region ?? 'us-east-1';
   const base: Record<string, unknown> = { region };
-  if (cfg.endpoint) base.endpoint = cfg.endpoint;
   if (cfg.profile) base.credentials = fromIni({ profile: cfg.profile });
   return base;
 }
