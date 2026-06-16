@@ -54,7 +54,7 @@
     "node": ">=24.0.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
     "build": "tsc --noEmit false --outDir dist",
     "test": "vitest run --passWithNoTests",
