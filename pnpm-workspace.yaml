@@ -12,3 +12,5 @@ allowBuilds:
   puppeteer: true
   sharp: true
   simple-git-hooks: true
+policies:
+  minimumReleaseAge: '0 seconds'
