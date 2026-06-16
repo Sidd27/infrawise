@@ -9,10 +9,6 @@ export interface LambdaCodeLink {
   confidence: LinkConfidence;
 }
 
-export interface LambdaCodeLinker {
-  link(graph: SystemGraph): LambdaCodeLink[];
-}
-
 const STAGE_TOKENS = new Set([
   'prod',
   'production',
@@ -44,7 +40,7 @@ function functionNodes(graph: SystemGraph) {
   );
 }
 
-export class HeuristicLinker implements LambdaCodeLinker {
+export class HeuristicLinker {
   link(graph: SystemGraph): LambdaCodeLink[] {
     const fns = functionNodes(graph);
     const links: LambdaCodeLink[] = [];
@@ -79,7 +75,7 @@ function fileBaseNoExt(file: string): string {
   return base.replace(/\.(ts|js|mjs|cjs)$/, '');
 }
 
-export class IaCHandlerLinker implements LambdaCodeLinker {
+export class IaCHandlerLinker {
   constructor(private readonly iacLambdas: IaCLambda[]) {}
 
   link(graph: SystemGraph): LambdaCodeLink[] {
@@ -104,16 +100,8 @@ export class IaCHandlerLinker implements LambdaCodeLinker {
   }
 }
 
-export class CompositeLinker implements LambdaCodeLinker {
-  constructor(
-    private readonly proven: LambdaCodeLinker,
-    private readonly heuristic: LambdaCodeLinker,
-  ) {}
-
-  link(graph: SystemGraph): LambdaCodeLink[] {
-    const provenLinks = this.proven.link(graph);
-    const covered = new Set(provenLinks.map((l) => l.lambdaId));
-    const heur = this.heuristic.link(graph).filter((l) => !covered.has(l.lambdaId));
-    return [...provenLinks, ...heur];
-  }
+export function compositeLink(iacLambdas: IaCLambda[], graph: SystemGraph): LambdaCodeLink[] {
+  const proven = new IaCHandlerLinker(iacLambdas).link(graph);
+  const covered = new Set(proven.map((l) => l.lambdaId));
+  return [...proven, ...new HeuristicLinker().link(graph).filter((l) => !covered.has(l.lambdaId))];
 }

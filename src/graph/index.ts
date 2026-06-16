@@ -412,65 +412,35 @@ function resolveEdgeType(
 
 // ── Typed node selectors ─────────────────────────────────────────────────────
 
-export function getTableNodes(graph: SystemGraph): Extract<GraphNode, { type: 'table' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'table' }> => n.type === 'table');
+// ponytail: one generic replaces 11 typed selectors
+export function getNodes<T extends GraphNode>(graph: SystemGraph, type: T['type']): T[] {
+  return graph.nodes.filter((n): n is T => n.type === type);
 }
 
-export function getFunctionNodes(graph: SystemGraph): Extract<GraphNode, { type: 'function' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'function' }> => n.type === 'function',
-  );
-}
-
-export function getIndexNodes(graph: SystemGraph): Extract<GraphNode, { type: 'index' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'index' }> => n.type === 'index');
-}
-
-export function getQueueNodes(graph: SystemGraph): Extract<GraphNode, { type: 'queue' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'queue' }> => n.type === 'queue');
-}
-
-export function getTopicNodes(graph: SystemGraph): Extract<GraphNode, { type: 'topic' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'topic' }> => n.type === 'topic');
-}
-
-export function getSecretNodes(graph: SystemGraph): Extract<GraphNode, { type: 'secret' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'secret' }> => n.type === 'secret',
-  );
-}
-
-export function getParameterNodes(graph: SystemGraph): Extract<GraphNode, { type: 'parameter' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'parameter' }> => n.type === 'parameter',
-  );
-}
-
-export function getLogGroupNodes(graph: SystemGraph): Extract<GraphNode, { type: 'log_group' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'log_group' }> => n.type === 'log_group',
-  );
-}
-
-export function getLambdaNodes(graph: SystemGraph): Extract<GraphNode, { type: 'lambda' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'lambda' }> => n.type === 'lambda',
-  );
-}
-
-export function getEventBridgeRuleNodes(
-  graph: SystemGraph,
-): Extract<GraphNode, { type: 'eventbridge_rule' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'eventbridge_rule' }> => n.type === 'eventbridge_rule',
-  );
-}
-
-export function getBucketNodes(graph: SystemGraph): Extract<GraphNode, { type: 'bucket' }>[] {
-  return graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'bucket' }> => n.type === 'bucket',
-  );
-}
+export const getTableNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'table' }>>(g, 'table');
+export const getFunctionNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'function' }>>(g, 'function');
+export const getIndexNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'index' }>>(g, 'index');
+export const getQueueNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'queue' }>>(g, 'queue');
+export const getTopicNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'topic' }>>(g, 'topic');
+export const getSecretNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'secret' }>>(g, 'secret');
+export const getParameterNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'parameter' }>>(g, 'parameter');
+export const getLogGroupNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'log_group' }>>(g, 'log_group');
+export const getLambdaNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'lambda' }>>(g, 'lambda');
+export const getEventBridgeRuleNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'eventbridge_rule' }>>(g, 'eventbridge_rule');
+export const getBucketNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'bucket' }>>(g, 'bucket');
+export const getAPINodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'api' }>>(g, 'api');
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);
@@ -495,10 +465,6 @@ export function getEdgeFrequency(graph: SystemGraph): Map<string, number> {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   return freq;
-}
-
-export function getAPINodes(graph: SystemGraph): Extract<GraphNode, { type: 'api' }>[] {
-  return graph.nodes.filter((n): n is Extract<GraphNode, { type: 'api' }> => n.type === 'api');
 }
 
 export type { SystemGraph, GraphNode, GraphEdge };

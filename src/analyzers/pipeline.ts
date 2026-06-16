@@ -1,11 +1,6 @@
 import type { Analyzer, Finding, SystemGraph, GraphNode } from '../types.js';
 import type { IaCLambda } from '../adapters/iac/terraform.js';
-import {
-  type LambdaCodeLink,
-  HeuristicLinker,
-  IaCHandlerLinker,
-  CompositeLinker,
-} from './linkers.js';
+import { type LambdaCodeLink, compositeLink } from './linkers.js';
 
 const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 
@@ -18,10 +13,7 @@ export class PipelineAnalyzer implements Analyzer {
   }
 
   async analyze(graph: SystemGraph): Promise<Finding[]> {
-    const links = new CompositeLinker(
-      new IaCHandlerLinker(this.iacLambdas),
-      new HeuristicLinker(),
-    ).link(graph);
+    const links = compositeLink(this.iacLambdas, graph);
     const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
     return [
       ...detectMissingDlqHop(graph),

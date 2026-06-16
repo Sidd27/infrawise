@@ -48,11 +48,6 @@ export function clearCache(key?: string): void {
     const filePath = path.join(cacheDir, `${key}.json`);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } else {
-    if (fs.existsSync(cacheDir)) {
-      const files = fs.readdirSync(cacheDir);
-      for (const file of files) {
-        fs.unlinkSync(path.join(cacheDir, file));
-      }
-    }
+    if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true });
   }
 }

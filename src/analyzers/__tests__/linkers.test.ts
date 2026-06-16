@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SystemGraph } from '../../types.js';
 import type { IaCLambda } from '../../adapters/iac/terraform.js';
-import { normalizeName, HeuristicLinker, IaCHandlerLinker, CompositeLinker } from '../linkers.js';
+import { normalizeName, HeuristicLinker, IaCHandlerLinker, compositeLink } from '../linkers.js';
 
 function graphWith(lambdaName: string, fnName: string, fnFile: string): SystemGraph {
   return {
@@ -113,7 +113,7 @@ describe('IaCHandlerLinker', () => {
   });
 });
 
-describe('CompositeLinker', () => {
+describe('compositeLink', () => {
   it('prefers proven and only fills uncovered lambdas with heuristic', () => {
     const g: SystemGraph = {
       nodes: [
@@ -137,7 +137,7 @@ describe('CompositeLinker', () => {
         filePath: 'main.tf',
       },
     ];
-    const links = new CompositeLinker(new IaCHandlerLinker(iac), new HeuristicLinker()).link(g);
+    const links = compositeLink(iac, g);
     expect(links).toContainEqual({
       lambdaId: 'lambda:aws:fulfill-prod',
       functionId: 'function:src/fulfill.ts:handler',
