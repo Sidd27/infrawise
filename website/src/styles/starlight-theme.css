@@ -212,7 +212,7 @@ a[aria-current='page']:hover {
   border-inline-start: 1px solid rgba(255,255,255,0.04) !important;
 }
 .right-sidebar {
-  padding: 1.5rem 1rem !important;
+  padding: 1.5rem 0.75rem 1.5rem 1rem !important;
 }
 
 #starlight__on-this-page,
@@ -225,11 +225,23 @@ a[aria-current='page']:hover {
   margin-bottom: 0.75rem !important;
 }
 
+/* Reset browser default ul indent so we control all spacing */
+.right-sidebar ul {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.right-sidebar li {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 .right-sidebar a {
-  font-size: 0.8125rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.45 !important;
   color: var(--sl-color-gray-3) !important;
   text-decoration: none !important;
-  padding: 0.25rem 0 !important;
+  padding: 0.28rem 0 !important;
   transition: color 0.12s !important;
   display: block;
 }

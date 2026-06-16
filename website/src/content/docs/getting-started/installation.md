@@ -87,7 +87,7 @@ Not directly. Infrawise targets editors with native MCP support: Claude Code and
 
 ### What happens when I run `infrawise start`?
 
-`infrawise start` does three things in sequence: reads `infrawise.yaml` in the current directory, scans the configured AWS services and databases using read-only API calls, runs the 29 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
+`infrawise start` does the following in sequence: auto-generates `infrawise.yaml` in the current directory if one doesn't exist (by probing your environment), scans the configured AWS services and databases using read-only API calls, runs the 29 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
 
 ### Why do some security scanners flag Infrawise?
 

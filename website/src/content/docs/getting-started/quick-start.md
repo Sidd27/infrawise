@@ -3,33 +3,23 @@ title: Quick start
 description: Go from zero to a working Infrawise + Claude Code setup in under 60 seconds — configure credentials, create infrawise.yaml, and start asking your AI about your infrastructure.
 ---
 
-This guide gets Infrawise connected to Claude Code and talking to your AWS environment in four steps. By the end, your AI assistant can call all 15 Infrawise MCP tools to inspect infrastructure, identify issues, and suggest fixes — without you leaving your editor.
+This guide gets Infrawise connected to Claude Code and talking to your AWS environment in five steps. By the end, your AI assistant can call all 16 Infrawise MCP tools to inspect infrastructure, identify issues, and suggest fixes — without you leaving your editor.
 
 If you haven't installed Infrawise yet, start with the [installation guide](/infrawise/getting-started/installation/).
 
 ## Step 1: Configure your AWS credentials
 
-Infrawise uses your existing AWS credentials — the same ones the AWS CLI uses. No extra IAM setup is needed beyond read-only access to the services you want to inspect.
-
-```bash
-aws configure
-# or set environment variables:
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-For the minimum required IAM permissions, see [AWS setup](/infrawise/getting-started/aws-setup/).
+Infrawise uses your existing AWS credentials — the same ones the AWS CLI uses. If you haven't set up credentials and the required IAM policy yet, see [AWS setup](/infrawise/getting-started/aws-setup/) first.
 
 ## Step 2: Create `infrawise.yaml`
 
-`infrawise start` auto-generates `infrawise.yaml` on its first run by probing your environment — you usually do not create it by hand. To answer the questions yourself instead, use the guided wizard:
+`infrawise start` auto-generates `infrawise.yaml` on its first run by probing your environment — you usually do not need to create it by hand:
 
 ```bash
-infrawise start --interactive
+infrawise start
 ```
 
-Or create `infrawise.yaml` manually:
+Infrawise detects your AWS credentials, region, and any local databases, then writes `infrawise.yaml` for you. If you want to answer the questions yourself instead of relying on auto-discovery, pass `--interactive`. Or create `infrawise.yaml` manually:
 
 ```yaml
 services:

@@ -50,15 +50,21 @@ The `start.sh` script seeds the following resources, each with at least one inte
 
 Running `infrawise analyze` against this environment should produce findings for every row above, confirming the analyzers and AWS adapters are working end-to-end.
 
-## Start the MCP server against LocalStack
+## Use Claude Code against LocalStack
 
-To test the MCP tools interactively against the demo environment:
+To connect Claude Code to the LocalStack demo environment, run this from the `demo/localstack` directory:
 
 ```bash
-infrawise serve --config infrawise.yaml
+infrawise start --claude --config infrawise.yaml
 ```
 
-The server starts at `POST http://localhost:3000/mcp`. You can then use Claude Code or Cursor to call tools like `get_infra_overview` and `analyze_function` against the seeded LocalStack resources.
+This writes `.mcp.json` pointing Infrawise at the LocalStack config. Open Claude Code in the same directory — all 16 MCP tools are immediately available and running against the seeded LocalStack resources. Try asking: "What infrastructure issues should I fix first?"
+
+For Cursor, use `--cursor` instead of `--claude`.
+
+:::note
+If you prefer an HTTP server (for debugging tool calls or a custom MCP client), run `infrawise serve --config infrawise.yaml`. The server starts at `POST http://localhost:3000/mcp`. This is not needed for Claude Code or Cursor.
+:::
 
 ## Stop
 

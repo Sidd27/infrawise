@@ -149,6 +149,8 @@ const cases: UseCase[] = [
     border-radius: var(--radius-md);
     overflow: hidden;
     border: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
   }
   .panel--before { border-color: rgba(248,113,113,0.28); background: rgba(248,113,113,0.05); }
   .panel--after  { border-color: rgba(52,211,153,0.28);  background: rgba(52,211,153,0.05);  }
@@ -177,6 +179,7 @@ const cases: UseCase[] = [
     color: var(--text-secondary);
     margin: 0;
     white-space: pre;
+    flex: 1;
   }
   .panel-code .c   { color: var(--text-muted); }
   .panel-code .ok  { color: var(--teal); }

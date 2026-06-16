@@ -46,31 +46,31 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Installation',  slug: 'getting-started/installation' },
-						{ label: 'Quick start',   slug: 'getting-started/quick-start'  },
 						{ label: 'AWS setup',     slug: 'getting-started/aws-setup'    },
+						{ label: 'Quick start',   slug: 'getting-started/quick-start'  },
 					],
 				},
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'Configuration', slug: 'reference/configuration' },
-						{ label: 'CLI reference', slug: 'reference/cli'           },
-						{ label: 'MCP tools',     slug: 'reference/mcp-tools'    },
+						{ label: 'Configuration',         slug: 'reference/configuration' },
+						{ label: 'CLI reference',         slug: 'reference/cli'           },
+						{ label: 'MCP tools',             slug: 'reference/mcp-tools'    },
+						{ label: 'Analysis capabilities', slug: 'guides/analysis'         },
 					],
 				},
 				{
 					label: 'Guides',
 					items: [
-						{ label: 'Analysis capabilities', slug: 'guides/analysis'         },
-						{ label: 'LocalStack demo',        slug: 'guides/localstack-demo' },
+						{ label: 'LocalStack demo', slug: 'guides/localstack-demo' },
 					],
 				},
 				{
 					label: 'Use Cases',
 					items: [
+						{ label: 'Lambda event shapes',       slug: 'use-cases/lambda-event-shapes' },
 						{ label: 'DynamoDB scan detection',   slug: 'use-cases/dynamodb-scans'      },
 						{ label: 'SQS dead-letter queues',    slug: 'use-cases/sqs-dlq'             },
-						{ label: 'Lambda event shapes',       slug: 'use-cases/lambda-event-shapes' },
 						{ label: 'IaC drift detection',       slug: 'use-cases/iac-drift'           },
 						{ label: 'AWS security posture',      slug: 'use-cases/security-posture'    },
 					],

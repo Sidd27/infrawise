@@ -86,4 +86,4 @@ Infrawise scans on each `infrawise analyze` run or `infrawise start`. It does no
 
 ### What IAM permissions does Infrawise need for these checks?
 
-Infrawise uses read-only APIs: `secretsmanager:ListSecrets`, `logs:DescribeLogGroups`, `s3:GetBucketVersioning`, `s3:GetBucketEncryption`, `s3:GetPublicAccessBlock`, `lambda:ListFunctions`, `lambda:GetFunctionConfiguration`. See the [AWS setup](/infrawise/getting-started/aws-setup/) page for the full minimum IAM policy.
+Infrawise uses read-only APIs: `secretsmanager:ListSecrets`, `logs:DescribeLogGroups`, `s3:GetBucketVersioning`, `s3:GetBucketEncryption`, `s3:GetPublicAccessBlock`, `lambda:ListFunctions`, `lambda:GetFunction`. See the [AWS setup](/infrawise/getting-started/aws-setup/) page for the full minimum IAM policy.
