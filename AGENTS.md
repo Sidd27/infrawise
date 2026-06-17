@@ -176,7 +176,7 @@ Infrawise exposes 16 tools via MCP. Run `infrawise start` to analyze and write `
 
 No inputs required.
 
-Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations.
+Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations, and a `configured` flag. When `configured` is false the server booted without an infrawise.yaml (e.g. a remotely hosted instance with no access to your cloud account or code) so every tool returns empty results; a `setupHint` then explains how to run infrawise locally.
 
 **When to call:** At the start of any database or infrastructure task to understand what's in scope.
 

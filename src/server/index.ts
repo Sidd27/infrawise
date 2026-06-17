@@ -32,11 +32,21 @@ import {
 
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
+// False when the server booted without an infrawise.yaml (e.g. a hosted MCP
+// runtime). Used to return a "run locally" hint instead of a bare empty graph.
+let configured = true;
 
 export function setGraphState(graph: SystemGraph, findings: Finding[]): void {
   currentGraph = graph;
   currentFindings = findings;
 }
+
+export function setConfigured(value: boolean): void {
+  configured = value;
+}
+
+const NOT_CONFIGURED_HINT =
+  'No infrastructure loaded. infrawise reads your live infra locally — run `npx infrawise start` in your project (with AWS credentials and an infrawise.yaml) so these tools return your real DynamoDB/RDS/SQS/Lambda/etc. context. A remotely hosted instance has no access to your cloud account or code, so it returns empty results by design.';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +74,7 @@ export function createMcpServer(): McpServer {
     'get_infra_overview',
     {
       description:
-        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full.',
+        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally.',
       inputSchema: z.object({}),
     },
     logged('get_infra_overview', async () => {
@@ -78,6 +88,8 @@ export function createMcpServer(): McpServer {
       const functions = getFunctionNodes(currentGraph);
       const buckets = getBucketNodes(currentGraph);
       return toText({
+        configured,
+        ...(configured ? {} : { setupHint: NOT_CONFIGURED_HINT }),
         summary: {
           tables: tables.length,
           functions: functions.length,

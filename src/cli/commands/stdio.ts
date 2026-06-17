@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig, readCache, setCacheDir } from '../../core/index.js';
-import { createMcpServer, setGraphState } from '../../server/index.js';
+import { createMcpServer, setGraphState, setConfigured } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { runAnalyze, runCodeRefresh } from './analyze.js';
 
@@ -23,6 +23,7 @@ export async function runStdio(configPath?: string): Promise<void> {
       `infrawise: starting with empty graph (no config loaded: ${err instanceof Error ? err.message : String(err)})\n`,
     );
   }
+  setConfigured(config !== undefined);
 
   const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
   const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);

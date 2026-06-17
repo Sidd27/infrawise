@@ -3,7 +3,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig, readCache, setCacheDir } from '../../core/index.js';
-import { createServer, setGraphState } from '../../server/index.js';
+import { createServer, setGraphState, setConfigured } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { log, printHeader } from '../utils.js';
 import { runAnalyze, runCodeRefresh } from './analyze.js';
@@ -93,6 +93,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
       `Starting with empty graph (no config loaded): ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+  setConfigured(config !== undefined);
 
   const repoPath = process.cwd();
 
