@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, readCache, setCacheDir } from '../../core/index.js';
+import { loadConfig, readCache, setCacheDir } from '../../core/index.js';
 import { createServer, setGraphState } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { log, printHeader } from '../utils.js';
@@ -36,8 +36,10 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
 ];
 
-function isEnabled(cfg: InfrawiseConfig, service?: string): boolean {
-  if (!service) return true;
+// With no config every registered tool is shown as active (the server exposes
+// all of them); a config narrows the list to its enabled services.
+function isEnabled(cfg: InfrawiseConfig | undefined, service?: string): boolean {
+  if (!service || !cfg) return true;
   const svc = (cfg as unknown as Record<string, { enabled?: boolean } | undefined>)[service];
   return svc?.enabled === true;
 }
@@ -78,14 +80,18 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
 
   printHeader('MCP Server');
 
-  let config!: InfrawiseConfig;
+  setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
+
+  // A hosted MCP runtime may launch the server with no infrawise.yaml. Start
+  // anyway with an empty graph so the host can connect and list tools.
+  let config: InfrawiseConfig | undefined;
   try {
     config = loadConfig(options.config);
-    setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
     log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
-    console.error(formatError(err));
-    process.exit(1);
+    log.warn(
+      `Starting with empty graph (no config loaded): ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const repoPath = process.cwd();
@@ -100,13 +106,15 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
       `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
     );
     setGraphState(cachedGraph, cachedFindings);
-  } else {
+  } else if (config) {
     log.warn('No cache found — running analysis now...');
     console.log('');
     await runAnalyze({ repo: repoPath, config: options.config });
     const freshGraph = readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] };
     const freshFindings = readCache<Finding[]>('findings') ?? [];
     setGraphState(freshGraph, freshFindings);
+  } else {
+    setGraphState({ nodes: [], edges: [] }, []);
   }
 
   console.log('');
@@ -156,50 +164,55 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   console.log('');
   console.log(chalk.dim('  Watching for file changes... Press Ctrl+C to stop\n'));
 
-  // File watch — re-run code analysis on save, skip slow AWS/DB extraction
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let refreshing = false;
+  // File watch — re-run code analysis on save (needs a config to drive analyzers)
+  if (config) {
+    const cfg = config;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshing = false;
+    const configFile = path.resolve(options.config ?? 'infrawise.yaml');
 
-  const configFile = path.resolve(options.config ?? 'infrawise.yaml');
+    try {
+      fs.watch(repoPath, { recursive: true }, (_, filename) => {
+        if (!filename) return;
+        const abs = path.join(repoPath, filename);
 
-  try {
-    fs.watch(repoPath, { recursive: true }, (_, filename) => {
-      if (!filename) return;
-      const abs = path.join(repoPath, filename);
-
-      if (abs === configFile) {
-        console.log(chalk.dim('\n  infrawise.yaml changed — restart to apply config changes\n'));
-        return;
-      }
-
-      const ext = path.extname(filename);
-      if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) return;
-      if (filename.includes('node_modules') || filename.startsWith('.infrawise')) return;
-
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        if (refreshing) return;
-        refreshing = true;
-        const spin = ora({ text: chalk.dim('Refreshing code analysis...'), color: 'cyan' }).start();
-        try {
-          const { graph, findings } = await runCodeRefresh(repoPath, config);
-          setGraphState(graph, findings);
-          spin.succeed(
-            chalk.green('Analysis refreshed') +
-              chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`),
-          );
-        } catch (err) {
-          spin.warn(
-            chalk.yellow('Refresh failed') +
-              chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-          );
-        } finally {
-          refreshing = false;
+        if (abs === configFile) {
+          console.log(chalk.dim('\n  infrawise.yaml changed — restart to apply config changes\n'));
+          return;
         }
-      }, 2000);
-    });
-  } catch {
-    // fs.watch may not support recursive on all platforms — silently skip
+
+        const ext = path.extname(filename);
+        if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) return;
+        if (filename.includes('node_modules') || filename.startsWith('.infrawise')) return;
+
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          if (refreshing) return;
+          refreshing = true;
+          const spin = ora({
+            text: chalk.dim('Refreshing code analysis...'),
+            color: 'cyan',
+          }).start();
+          try {
+            const { graph, findings } = await runCodeRefresh(repoPath, cfg);
+            setGraphState(graph, findings);
+            spin.succeed(
+              chalk.green('Analysis refreshed') +
+                chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`),
+            );
+          } catch (err) {
+            spin.warn(
+              chalk.yellow('Refresh failed') +
+                chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
+            );
+          } finally {
+            refreshing = false;
+          }
+        }, 2000);
+      });
+    } catch {
+      // fs.watch may not support recursive on all platforms — silently skip
+    }
   }
 
   process.on('SIGINT', () => {
