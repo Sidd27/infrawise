@@ -24,12 +24,12 @@ export async function runStdio(configPath?: string): Promise<void> {
   const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
 
   if (cachedGraph && cachedFindings) {
-    setGraphState(cachedGraph, cachedFindings, config);
+    setGraphState(cachedGraph, cachedFindings);
   } else {
     await runAnalyze({ config: configPath });
     const graph = readCache<SystemGraph>('graph', CACHE_TTL_MS) ?? { nodes: [], edges: [] };
     const findings = readCache<Finding[]>('findings', CACHE_TTL_MS) ?? [];
-    setGraphState(graph, findings, config);
+    setGraphState(graph, findings);
   }
 
   // File watching — re-run code analysis on save (no AWS calls, instant)
@@ -54,7 +54,7 @@ export async function runStdio(configPath?: string): Promise<void> {
         refreshing = true;
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, config);
-          setGraphState(graph, findings, config);
+          setGraphState(graph, findings);
           process.stderr.write(
             `infrawise: code graph refreshed (${graph.nodes.length} nodes · ${findings.length} finding(s))\n`,
           );

@@ -5,7 +5,7 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding, InfrawiseConfig } from '../types.js';
+import type { SystemGraph, Finding } from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(
@@ -33,11 +33,7 @@ import {
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
 
-export function setGraphState(
-  graph: SystemGraph,
-  findings: Finding[],
-  _config?: InfrawiseConfig,
-): void {
+export function setGraphState(graph: SystemGraph, findings: Finding[]): void {
   currentGraph = graph;
   currentFindings = findings;
 }
@@ -621,6 +617,7 @@ export function createServer(port = 3000) {
       'get_lambda_overview',
       'get_eventbridge_details',
       'get_s3_overview',
+      'get_api_routes',
       'get_log_errors',
     ],
   }));

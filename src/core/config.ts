@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import type { InfrawiseConfig } from '../types.js';
+import { InfrawiseError } from './errors.js';
 
 export const InfrawiseConfigSchema = z.object({
   project: z.string().min(1, 'Project name is required'),
@@ -79,12 +80,9 @@ export const InfrawiseConfigSchema = z.object({
 
 export type ValidatedConfig = z.infer<typeof InfrawiseConfigSchema>;
 
-export class ConfigError extends Error {
-  constructor(
-    message: string,
-    public readonly details?: string[],
-  ) {
-    super(message);
+export class ConfigError extends InfrawiseError {
+  constructor(message: string, details?: string[]) {
+    super(message, details, 'infrawise start');
     this.name = 'ConfigError';
   }
 }
@@ -202,13 +200,18 @@ export function generateDefaultConfig(
     secretsManager: { enabled: options?.secretsManager?.enabled ?? true },
     lambda: { enabled: options?.lambda?.enabled ?? true },
     eventbridge: { enabled: options?.eventbridge?.enabled ?? true },
-    rds: { enabled: options?.rds?.enabled ?? true },
+    rds: { enabled: options?.rds?.enabled ?? false },
+    s3: { enabled: options?.s3?.enabled ?? false },
+    apiGateway: { enabled: options?.apiGateway?.enabled ?? false },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,
       logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],
       windowHours: options?.cloudwatchLogs?.windowHours ?? 24,
     },
-    analysis: { sampleSize: options?.analysis?.sampleSize ?? 100 },
+    analysis: {
+      sampleSize: options?.analysis?.sampleSize ?? 100,
+      hotPartitionThreshold: options?.analysis?.hotPartitionThreshold ?? 5,
+    },
   };
 
   return yaml.dump(config, { lineWidth: 120 });

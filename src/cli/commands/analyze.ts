@@ -56,6 +56,7 @@ import {
 } from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type {
+  Analyzer,
   Finding,
   ServicesMeta,
   ExtractedOperation,
@@ -118,6 +119,97 @@ function mkSpinner(text: string) {
   return ora({ text: chalk.dim(text), color: 'cyan' }).start();
 }
 
+// Runs one extractor behind a spinner: succeeds with a count summary, or warns and
+// returns undefined on failure so a single service never aborts the whole analysis.
+async function extract<T>(
+  enabled: boolean | undefined,
+  spinnerText: string,
+  label: string,
+  fn: () => Promise<T>,
+  summarize: (result: T) => string,
+): Promise<T | undefined> {
+  if (!enabled) return undefined;
+  const s = mkSpinner(spinnerText);
+  try {
+    const result = await fn();
+    s.succeed(chalk.green(label) + chalk.dim(`  ${summarize(result)}`));
+    return result;
+  } catch (err) {
+    s.warn(
+      chalk.yellow(`${label} skipped`) +
+        chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
+    );
+    return undefined;
+  }
+}
+
+// Single source of truth for which analyzers run given the config. Used by both the
+// full `runAnalyze` and the cache-backed `runCodeRefresh` so the two never drift.
+function buildAnalyzers(
+  config: InfrawiseConfig,
+  iacDriftAnalyzer: IaCDriftAnalyzer | undefined,
+  iacLambdas: IaCLambda[],
+): Analyzer[] {
+  const pipelineAnalyzer = new PipelineAnalyzer();
+  pipelineAnalyzer.setIaCLambdas(iacLambdas);
+  return [
+    ...(config.dynamodb?.enabled === true
+      ? [
+          new FullTableScanAnalyzer(),
+          new MissingGSIAnalyzer(),
+          new HotPartitionAnalyzer(
+            config.analysis?.hotPartitionThreshold,
+            config.analysis?.hotPartitionThresholds,
+          ),
+        ]
+      : []),
+    ...(config.postgres?.enabled
+      ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]
+      : []),
+    ...(config.mysql?.enabled
+      ? [new MissingMySQLIndexAnalyzer(), new MySQLFullTableScanAnalyzer()]
+      : []),
+    ...(config.mongodb?.enabled
+      ? [new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer()]
+      : []),
+    ...(config.sqs?.enabled === true
+      ? [
+          new MissingDLQAnalyzer(),
+          new UnencryptedQueueAnalyzer(),
+          new LargeQueueBacklogAnalyzer(),
+          new VisibilityTimeoutMismatchAnalyzer(),
+        ]
+      : []),
+    ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
+    ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
+    ...(config.lambda?.enabled === true
+      ? [
+          new LambdaDefaultMemoryAnalyzer(),
+          new LambdaHighTimeoutAnalyzer(),
+          new LambdaMissingTriggerDLQAnalyzer(),
+        ]
+      : []),
+    ...(config.rds?.enabled === true
+      ? [
+          new RDSPubliclyAccessibleAnalyzer(),
+          new RDSNoBackupAnalyzer(),
+          new RDSUnencryptedAnalyzer(),
+          new RDSNoDeletionProtectionAnalyzer(),
+          new RDSNoMultiAZAnalyzer(),
+        ]
+      : []),
+    ...(config.s3?.enabled === true
+      ? [
+          new S3PublicAccessAnalyzer(),
+          new S3MissingVersioningAnalyzer(),
+          new S3UnencryptedAnalyzer(),
+        ]
+      : []),
+    ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
+    pipelineAnalyzer,
+  ];
+}
+
 export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   printHeader('Running Analysis');
 
@@ -138,243 +230,132 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     profile: config.aws?.profile,
   };
 
-  const dynamoMeta: Awaited<ReturnType<typeof extractDynamoMetadata>> = [];
-  const postgresMeta: Awaited<ReturnType<typeof extractPostgresMetadata>> = [];
-  const mysqlMeta: Awaited<ReturnType<typeof extractMySQLMetadata>> = [];
-  const mongoMeta: Awaited<ReturnType<typeof extractMongoMetadata>> = [];
   const servicesMeta: ServicesMeta = {};
 
-  // ── DynamoDB ────────────────────────────────────────────────────────────────
-  if (config.dynamodb?.enabled === true) {
-    const s = mkSpinner('Extracting DynamoDB tables...');
-    try {
-      const result = await extractDynamoMetadata(config);
-      dynamoMeta.push(...result);
-      s.succeed(chalk.green('DynamoDB') + chalk.dim(`  ${result.length} table(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('DynamoDB skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  const dynamoMeta =
+    (await extract(
+      config.dynamodb?.enabled === true,
+      'Extracting DynamoDB tables...',
+      'DynamoDB',
+      () => extractDynamoMetadata(config),
+      (r) => `${r.length} table(s)`,
+    )) ?? [];
 
-  // ── PostgreSQL ──────────────────────────────────────────────────────────────
-  if (config.postgres?.enabled && config.postgres.connectionString) {
-    const s = mkSpinner('Extracting PostgreSQL schema...');
-    try {
-      const result = await extractPostgresMetadata(config.postgres.connectionString);
-      postgresMeta.push(...result);
-      s.succeed(chalk.green('PostgreSQL') + chalk.dim(`  ${result.length} table(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('PostgreSQL skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  const pgConn = config.postgres?.enabled ? config.postgres.connectionString : undefined;
+  const postgresMeta =
+    (await extract(
+      !!pgConn,
+      'Extracting PostgreSQL schema...',
+      'PostgreSQL',
+      () => extractPostgresMetadata(pgConn ?? ''),
+      (r) => `${r.length} table(s)`,
+    )) ?? [];
 
-  // ── MySQL ───────────────────────────────────────────────────────────────────
-  if (config.mysql?.enabled && config.mysql.connectionString) {
-    const s = mkSpinner('Extracting MySQL schema...');
-    try {
-      const result = await extractMySQLMetadata(config.mysql.connectionString);
-      mysqlMeta.push(...result);
-      s.succeed(chalk.green('MySQL') + chalk.dim(`  ${result.length} table(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('MySQL skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  const mysqlConn = config.mysql?.enabled ? config.mysql.connectionString : undefined;
+  const mysqlMeta =
+    (await extract(
+      !!mysqlConn,
+      'Extracting MySQL schema...',
+      'MySQL',
+      () => extractMySQLMetadata(mysqlConn ?? ''),
+      (r) => `${r.length} table(s)`,
+    )) ?? [];
 
-  // ── MongoDB ─────────────────────────────────────────────────────────────────
-  if (config.mongodb?.enabled && config.mongodb.connectionString) {
-    const s = mkSpinner('Extracting MongoDB schema...');
-    try {
-      const result = await extractMongoMetadata(
-        config.mongodb.connectionString,
-        config.mongodb.databases,
-      );
-      mongoMeta.push(...result);
-      s.succeed(chalk.green('MongoDB') + chalk.dim(`  ${result.length} collection(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('MongoDB skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  const mongoConn = config.mongodb?.enabled ? config.mongodb.connectionString : undefined;
+  const mongoMeta =
+    (await extract(
+      !!mongoConn,
+      'Extracting MongoDB schema...',
+      'MongoDB',
+      () => extractMongoMetadata(mongoConn ?? '', config.mongodb?.databases),
+      (r) => `${r.length} collection(s)`,
+    )) ?? [];
 
-  // ── SQS ─────────────────────────────────────────────────────────────────────
-  if (config.sqs?.enabled === true) {
-    const s = mkSpinner('Extracting SQS queues...');
-    try {
-      const result = await extractSQSMetadata(awsCfg);
-      servicesMeta.sqs = result;
-      s.succeed(chalk.green('SQS') + chalk.dim(`  ${result.length} queue(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('SQS skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.sqs = await extract(
+    config.sqs?.enabled === true,
+    'Extracting SQS queues...',
+    'SQS',
+    () => extractSQSMetadata(awsCfg),
+    (r) => `${r.length} queue(s)`,
+  );
 
-  // ── SNS ─────────────────────────────────────────────────────────────────────
-  if (config.sns?.enabled === true) {
-    const s = mkSpinner('Extracting SNS topics...');
-    try {
-      const result = await extractSNSMetadata(awsCfg);
-      servicesMeta.sns = result;
-      s.succeed(chalk.green('SNS') + chalk.dim(`  ${result.length} topic(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('SNS skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.sns = await extract(
+    config.sns?.enabled === true,
+    'Extracting SNS topics...',
+    'SNS',
+    () => extractSNSMetadata(awsCfg),
+    (r) => `${r.length} topic(s)`,
+  );
 
-  // ── SSM Parameter Store ──────────────────────────────────────────────────────
-  if (config.ssm?.enabled === true) {
-    const s = mkSpinner('Extracting SSM parameters...');
-    try {
-      const result = await extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths });
-      servicesMeta.ssm = result;
-      s.succeed(
-        chalk.green('SSM') +
-          chalk.dim(`  ${result.length} parameter(s)  `) +
-          chalk.dim('(metadata only, no values)'),
-      );
-    } catch (err) {
-      s.warn(
-        chalk.yellow('SSM skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.ssm = await extract(
+    config.ssm?.enabled === true,
+    'Extracting SSM parameters...',
+    'SSM',
+    () => extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths }),
+    (r) => `${r.length} parameter(s)  (metadata only, no values)`,
+  );
 
-  // ── Secrets Manager ──────────────────────────────────────────────────────────
-  if (config.secretsManager?.enabled === true) {
-    const s = mkSpinner('Extracting Secrets Manager metadata...');
-    try {
-      const result = await extractSecretsMetadata(awsCfg);
-      servicesMeta.secrets = result;
-      s.succeed(
-        chalk.green('Secrets Manager') +
-          chalk.dim(`  ${result.length} secret(s)  `) +
-          chalk.dim('(names/rotation only, no values)'),
-      );
-    } catch (err) {
-      s.warn(
-        chalk.yellow('Secrets Manager skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.secrets = await extract(
+    config.secretsManager?.enabled === true,
+    'Extracting Secrets Manager metadata...',
+    'Secrets Manager',
+    () => extractSecretsMetadata(awsCfg),
+    (r) => `${r.length} secret(s)  (names/rotation only, no values)`,
+  );
 
-  // ── Lambda ───────────────────────────────────────────────────────────────────
-  if (config.lambda?.enabled === true) {
-    const s = mkSpinner('Extracting Lambda functions...');
-    try {
-      const result = await extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions);
-      servicesMeta.lambda = result;
-      s.succeed(chalk.green('Lambda') + chalk.dim(`  ${result.length} function(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('Lambda skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.lambda = await extract(
+    config.lambda?.enabled === true,
+    'Extracting Lambda functions...',
+    'Lambda',
+    () => extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions),
+    (r) => `${r.length} function(s)`,
+  );
 
-  // ── EventBridge ──────────────────────────────────────────────────────────────
-  if (config.eventbridge?.enabled === true) {
-    const s = mkSpinner('Extracting EventBridge rules...');
-    try {
-      const result = await extractEventBridgeMetadata(awsCfg);
-      servicesMeta.eventbridge = result;
-      s.succeed(chalk.green('EventBridge') + chalk.dim(`  ${result.length} rule(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('EventBridge skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.eventbridge = await extract(
+    config.eventbridge?.enabled === true,
+    'Extracting EventBridge rules...',
+    'EventBridge',
+    () => extractEventBridgeMetadata(awsCfg),
+    (r) => `${r.length} rule(s)`,
+  );
 
-  // ── RDS ──────────────────────────────────────────────────────────────────────
-  if (config.rds?.enabled === true) {
-    const s = mkSpinner('Extracting RDS instances...');
-    try {
-      const result = await extractRDSMetadata(awsCfg);
-      servicesMeta.rds = result;
-      s.succeed(chalk.green('RDS') + chalk.dim(`  ${result.length} instance(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('RDS skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.rds = await extract(
+    config.rds?.enabled === true,
+    'Extracting RDS instances...',
+    'RDS',
+    () => extractRDSMetadata(awsCfg),
+    (r) => `${r.length} instance(s)`,
+  );
 
-  // ── S3 ────────────────────────────────────────────────────────────────────────
-  if (config.s3?.enabled === true) {
-    const s = mkSpinner('Extracting S3 buckets...');
-    try {
-      const result = await extractS3Metadata(awsCfg);
-      servicesMeta.s3 = result;
-      s.succeed(chalk.green('S3') + chalk.dim(`  ${result.length} bucket(s)`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('S3 skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.s3 = await extract(
+    config.s3?.enabled === true,
+    'Extracting S3 buckets...',
+    'S3',
+    () => extractS3Metadata(awsCfg),
+    (r) => `${r.length} bucket(s)`,
+  );
 
-  // ── API Gateway ───────────────────────────────────────────────────────────────
-  if (config.apiGateway?.enabled === true) {
-    const s = mkSpinner('Extracting API Gateway routes...');
-    try {
-      const result = await extractAPIGatewayMetadata(awsCfg);
-      servicesMeta.apiGateway = result;
-      const routeCount = result.reduce((sum, api) => sum + api.routes.length, 0);
-      s.succeed(
-        chalk.green('API Gateway') + chalk.dim(`  ${result.length} API(s), ${routeCount} route(s)`),
-      );
-    } catch (err) {
-      s.warn(
-        chalk.yellow('API Gateway skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+  servicesMeta.apiGateway = await extract(
+    config.apiGateway?.enabled === true,
+    'Extracting API Gateway routes...',
+    'API Gateway',
+    () => extractAPIGatewayMetadata(awsCfg),
+    (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
+  );
 
-  // ── CloudWatch Logs ──────────────────────────────────────────────────────────
-  if (config.cloudwatchLogs?.enabled) {
-    const s = mkSpinner('Sampling CloudWatch Logs (errors only, max 50 groups)...');
-    try {
-      const result = await extractLogsMetadata({
+  const cwLogs = config.cloudwatchLogs;
+  servicesMeta.logs = await extract(
+    cwLogs?.enabled,
+    'Sampling CloudWatch Logs (errors only, max 50 groups)...',
+    'CloudWatch Logs',
+    () =>
+      extractLogsMetadata({
         ...awsCfg,
-        logGroupPrefixes: config.cloudwatchLogs.logGroupPrefixes,
-        windowHours: config.cloudwatchLogs.windowHours,
-      });
-      servicesMeta.logs = result;
-      const errorGroups = result.filter((lg) => lg.errorCount > 0).length;
-      s.succeed(
-        chalk.green('CloudWatch Logs') +
-          chalk.dim(`  ${result.length} group(s), ${errorGroups} with errors`),
-      );
-    } catch (err) {
-      s.warn(
-        chalk.yellow('CloudWatch Logs skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
+        logGroupPrefixes: cwLogs?.logGroupPrefixes,
+        windowHours: cwLogs?.windowHours,
+      }),
+    (r) => `${r.length} group(s), ${r.filter((lg) => lg.errorCount > 0).length} with errors`,
+  );
 
   // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
@@ -440,63 +421,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
   {
     const s = mkSpinner('Running analyzers...');
-    const hotPartitionThreshold = config.analysis?.hotPartitionThreshold;
-    const hotPartitionThresholds = config.analysis?.hotPartitionThresholds;
-    const pipelineAnalyzer = new PipelineAnalyzer();
-    pipelineAnalyzer.setIaCLambdas(iacLambdas);
-    const analyzers = [
-      ...(config.dynamodb?.enabled === true
-        ? [
-            new FullTableScanAnalyzer(),
-            new MissingGSIAnalyzer(),
-            new HotPartitionAnalyzer(hotPartitionThreshold, hotPartitionThresholds),
-          ]
-        : []),
-      ...(config.postgres?.enabled
-        ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]
-        : []),
-      ...(config.mysql?.enabled
-        ? [new MissingMySQLIndexAnalyzer(), new MySQLFullTableScanAnalyzer()]
-        : []),
-      ...(config.mongodb?.enabled
-        ? [new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer()]
-        : []),
-      ...(config.sqs?.enabled === true
-        ? [
-            new MissingDLQAnalyzer(),
-            new UnencryptedQueueAnalyzer(),
-            new LargeQueueBacklogAnalyzer(),
-            new VisibilityTimeoutMismatchAnalyzer(),
-          ]
-        : []),
-      ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
-      ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
-      ...(config.lambda?.enabled === true
-        ? [
-            new LambdaDefaultMemoryAnalyzer(),
-            new LambdaHighTimeoutAnalyzer(),
-            new LambdaMissingTriggerDLQAnalyzer(),
-          ]
-        : []),
-      ...(config.rds?.enabled === true
-        ? [
-            new RDSPubliclyAccessibleAnalyzer(),
-            new RDSNoBackupAnalyzer(),
-            new RDSUnencryptedAnalyzer(),
-            new RDSNoDeletionProtectionAnalyzer(),
-            new RDSNoMultiAZAnalyzer(),
-          ]
-        : []),
-      ...(config.s3?.enabled === true
-        ? [
-            new S3PublicAccessAnalyzer(),
-            new S3MissingVersioningAnalyzer(),
-            new S3UnencryptedAnalyzer(),
-          ]
-        : []),
-      ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
-      pipelineAnalyzer,
-    ];
+    const analyzers = buildAnalyzers(config, iacDriftAnalyzer, iacLambdas);
     findings = await runAllAnalyzers(graph, analyzers);
     s.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${findings.length} finding(s)`));
   }
@@ -600,64 +525,7 @@ export async function runCodeRefresh(
     servicesMeta,
   );
 
-  const hotPartitionThreshold = config.analysis?.hotPartitionThreshold;
-  const hotPartitionThresholds = config.analysis?.hotPartitionThresholds;
-  const pipelineAnalyzer = new PipelineAnalyzer();
-  pipelineAnalyzer.setIaCLambdas(iacLambdas);
-  const analyzers = [
-    ...(config.dynamodb?.enabled === true
-      ? [
-          new FullTableScanAnalyzer(),
-          new MissingGSIAnalyzer(),
-          new HotPartitionAnalyzer(hotPartitionThreshold, hotPartitionThresholds),
-        ]
-      : []),
-    ...(config.postgres?.enabled
-      ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]
-      : []),
-    ...(config.mysql?.enabled
-      ? [new MissingMySQLIndexAnalyzer(), new MySQLFullTableScanAnalyzer()]
-      : []),
-    ...(config.mongodb?.enabled
-      ? [new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer()]
-      : []),
-    ...(config.sqs?.enabled === true
-      ? [
-          new MissingDLQAnalyzer(),
-          new UnencryptedQueueAnalyzer(),
-          new LargeQueueBacklogAnalyzer(),
-          new VisibilityTimeoutMismatchAnalyzer(),
-        ]
-      : []),
-    ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
-    ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
-    ...(config.lambda?.enabled === true
-      ? [
-          new LambdaDefaultMemoryAnalyzer(),
-          new LambdaHighTimeoutAnalyzer(),
-          new LambdaMissingTriggerDLQAnalyzer(),
-        ]
-      : []),
-    ...(config.rds?.enabled === true
-      ? [
-          new RDSPubliclyAccessibleAnalyzer(),
-          new RDSNoBackupAnalyzer(),
-          new RDSUnencryptedAnalyzer(),
-          new RDSNoDeletionProtectionAnalyzer(),
-          new RDSNoMultiAZAnalyzer(),
-        ]
-      : []),
-    ...(config.s3?.enabled === true
-      ? [
-          new S3PublicAccessAnalyzer(),
-          new S3MissingVersioningAnalyzer(),
-          new S3UnencryptedAnalyzer(),
-        ]
-      : []),
-    ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
-    pipelineAnalyzer,
-  ];
-
+  const analyzers = buildAnalyzers(config, iacDriftAnalyzer, iacLambdas);
   const findings = await runAllAnalyzers(graph, analyzers);
 
   writeCache('graph', graph);

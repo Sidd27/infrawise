@@ -27,22 +27,6 @@ export class InfrawiseError extends Error {
   }
 }
 
-export class AWSConnectionError extends InfrawiseError {
-  constructor(details?: string) {
-    super(
-      'Unable to connect to AWS.',
-      [
-        'Invalid or missing AWS credentials',
-        'Incorrect AWS profile specified',
-        'Network connectivity issues',
-        details ?? 'Unexpected AWS error',
-      ],
-      'infrawise doctor',
-    );
-    this.name = 'AWSConnectionError';
-  }
-}
-
 export class DynamoDBError extends InfrawiseError {
   constructor(details?: string) {
     super(
@@ -88,21 +72,6 @@ export class RepositoryScanError extends InfrawiseError {
       'infrawise doctor',
     );
     this.name = 'RepositoryScanError';
-  }
-}
-
-export class ConfigError extends InfrawiseError {
-  constructor(details?: string) {
-    super(
-      'Invalid or missing configuration.',
-      [
-        'infrawise.yaml not found in current directory',
-        'Missing required fields in configuration',
-        details ?? 'Unexpected config error',
-      ],
-      'infrawise start',
-    );
-    this.name = 'ConfigError';
   }
 }
 
