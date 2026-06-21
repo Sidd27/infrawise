@@ -1,38 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
-    <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#34d399"/>
-      <stop offset="100%" stop-color="#818cf8"/>
-    </linearGradient>
-    <radialGradient id="ng">
-      <stop offset="0%" stop-color="#34d399" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0c1628"/>
+      <stop offset="100%" stop-color="#04080e"/>
     </radialGradient>
+    <linearGradient id="hg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ccff"/>
+      <stop offset="55%" stop-color="#3355ff"/>
+      <stop offset="100%" stop-color="#8833ee"/>
+    </linearGradient>
+    <linearGradient id="lg" x1="6" y1="21" x2="23" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2255ee"/>
+      <stop offset="60%" stop-color="#5544cc"/>
+      <stop offset="100%" stop-color="#8844dd"/>
+    </linearGradient>
+    <filter id="fo" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+    <filter id="fb" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="0.7"/>
+    </filter>
   </defs>
-  <rect width="32" height="32" rx="7" fill="#0d1117"/>
-  <polygon points="16,3 26.4,9 26.4,21 16,27 5.6,21 5.6,9"
-           fill="rgba(13,148,136,0.07)"/>
-  <polygon points="16,3 26.4,9 26.4,21 16,27 5.6,21 5.6,9"
-           fill="none" stroke="url(#hg)" stroke-width="1"
-           stroke-dasharray="2,2" opacity="0.9"/>
-  <!-- Bright nodes: top-left, top-right, bottom-center (inverted triangle) -->
-  <circle cx="5.6" cy="9" r="3.8" fill="url(#ng)"/>
-  <circle cx="5.6" cy="9" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="5.6" cy="9" r="0.8" fill="#34d399"/>
-  <circle cx="5.6" cy="9" r="0.35" fill="white" fill-opacity="0.9"/>
-  <circle cx="26.4" cy="9" r="3.8" fill="url(#ng)"/>
-  <circle cx="26.4" cy="9" r="2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="26.4" cy="9" r="0.8" fill="#34d399"/>
-  <circle cx="26.4" cy="9" r="0.35" fill="white" fill-opacity="0.9"/>
-  <circle cx="16" cy="27" r="4" fill="url(#ng)"/>
-  <circle cx="16" cy="27" r="2.2" fill="#065f46" stroke="#34d399" stroke-width="1"/>
-  <circle cx="16" cy="27" r="0.9" fill="#34d399"/>
-  <circle cx="16" cy="27" r="0.4" fill="white" fill-opacity="0.9"/>
-  <!-- Ghost nodes: top-center, bottom-left, bottom-right -->
-  <circle cx="16" cy="3" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <circle cx="5.6" cy="21" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <circle cx="26.4" cy="21" r="1.4" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.28"/>
-  <text x="16" y="19" text-anchor="middle"
-        font-family="'Libre Baskerville', Georgia, serif"
-        font-weight="700" font-size="13" fill="#e0fdf4">I</text>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" fill="url(#bg)"/>
+
+  <!-- Outer glow -->
+  <polygon points="16,2 28,9 28,23 16,30 4,23 4,9"
+           fill="none" stroke="#0088ee" stroke-width="4" filter="url(#fo)" opacity="0.55"/>
+  <polygon points="16,2 28,9 28,23 16,30 4,23 4,9"
+           fill="none" stroke="#7722cc" stroke-width="2" filter="url(#fo)" opacity="0.35"/>
+
+  <!-- Hex dark fill -->
+  <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="#060c18"/>
+
+  <!-- Hex border -->
+  <polygon points="16,2 28,9 28,23 16,30 4,23 4,9"
+           fill="none" stroke="#00aaff" stroke-width="1" filter="url(#fb)" opacity="0.8"/>
+  <polygon points="16,2 28,9 28,23 16,30 4,23 4,9"
+           fill="none" stroke="url(#hg)" stroke-width="0.7" opacity="0.95"/>
+
+  <!-- Letters iw -->
+  <!-- i -->
+  <rect x="6" y="12" width="2" height="9" fill="url(#lg)"/>
+  <!-- w left piece -->
+  <polygon points="10,12 13,12 16,21 9,21" fill="url(#lg)"/>
+  <!-- w right piece -->
+  <polygon points="19,12 22,12 23,21 16,21" fill="url(#lg)"/>
 </svg>
