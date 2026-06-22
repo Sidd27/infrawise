@@ -230,7 +230,11 @@ a[aria-current='page']:hover {
   border-inline-start: 1px solid rgba(255, 255, 255, 0.04) !important;
 }
 .right-sidebar {
-  padding: 0.5rem 0.75rem 1.5rem 1rem !important;
+  padding-top: var(--sl-nav-height) !important;
+  padding-inline-end: 0.75rem !important;
+  padding-bottom: 1.5rem !important;
+  padding-inline-start: 1rem !important;
+  scroll-behavior: auto !important;
 }
 
 #starlight__on-this-page,

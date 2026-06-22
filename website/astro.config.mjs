@@ -27,7 +27,8 @@ export default defineConfig({
 				{ tag: 'script', content: "localStorage.setItem('starlight-theme','dark');document.documentElement.setAttribute('data-theme','dark');" },
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
 				{ tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' } },
-				{ tag: 'link', attrs: { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap' } },
+				{ tag: 'link', attrs: { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap', media: 'print', onload: "this.media='all'" } },
+				{ tag: 'noscript', content: '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Libre+Baskerville:wght@700&family=JetBrains+Mono:wght@400;500&display=swap">' },
 				{ tag: 'script', attrs: { type: 'application/ld+json' }, content: JSON.stringify({
 					"@context": "https://schema.org",
 					"@type": "TechArticle",
