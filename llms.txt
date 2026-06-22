@@ -9,6 +9,7 @@ When an AI coding assistant writes a Lambda handler, it doesn't know:
 - The correct SQS / SNS / EventBridge trigger event shape for the handler
 - Whether a GSI or index exists for a query pattern
 - Which secrets are missing rotation or which DLQs are unconfigured
+- Whether the Lambda execution role actually allows the services the function calls
 
 Infrawise answers all of these via 16 MCP tools served over Streamable HTTP.
 
@@ -41,7 +42,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 
 - `get_infra_overview` — full snapshot of all infrastructure, start here
 - `get_graph_summary` — complete graph: all nodes, edges, findings
-- `analyze_function` — per-function analysis with correct trigger event shapes
+- `analyze_function` — per-function analysis with trigger event shapes and missing IAM permissions
 - `suggest_gsi` — ready-to-use DynamoDB GSI definition
 - `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
 - `suggest_mongo_index` — exact db.collection.createIndex command
@@ -50,7 +51,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
-- `get_lambda_overview` — Lambda config, memory, timeout, trigger event shapes
+- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — CloudWatch error patterns (never raw log messages)

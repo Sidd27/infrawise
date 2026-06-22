@@ -307,3 +307,67 @@ export class S3UnencryptedAnalyzer implements Analyzer {
     return findings;
   }
 }
+
+// ─── IAM ─────────────────────────────────────────────────────────────────────
+
+const MINIMAL_ACTIONS: Record<string, string> = {
+  dynamodb:
+    'dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:UpdateItem, dynamodb:DeleteItem',
+  secretsmanager: 'secretsmanager:GetSecretValue',
+  ssm: 'ssm:GetParameter, ssm:GetParameters, ssm:GetParametersByPath',
+  sqs: 'sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes',
+  sns: 'sns:Publish',
+  s3: 's3:GetObject, s3:PutObject, s3:DeleteObject',
+};
+
+export class LambdaMissingIAMPermissionsAnalyzer implements Analyzer {
+  name = 'LambdaMissingIAMPermissionsAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    const nodeMap = new Map(graph.nodes.map((n) => [n.id, n]));
+
+    for (const lambda of graph.nodes) {
+      if (lambda.type !== 'lambda') continue;
+      if (!lambda.allowedServices) continue; // IAM data unavailable — skip
+      if (lambda.allowedServices.includes('*')) continue; // AdministratorAccess
+
+      const funcNode = graph.nodes.find((n) => n.type === 'function' && n.name === lambda.name);
+      if (!funcNode) continue;
+
+      const needed = new Set<string>();
+      for (const edge of graph.edges) {
+        if (edge.from !== funcNode.id) continue;
+        const target = nodeMap.get(edge.to);
+        if (!target) continue;
+        if (
+          (edge.type === 'query' || edge.type === 'scan') &&
+          target.type === 'table' &&
+          target.databaseType === 'dynamodb'
+        ) {
+          needed.add('dynamodb');
+        } else if (edge.type === 'reads_secret') {
+          needed.add('secretsmanager');
+        } else if (edge.type === 'reads_parameter') {
+          needed.add('ssm');
+        } else if (edge.type === 'publishes_to' && target.type === 'queue') {
+          needed.add('sqs');
+        } else if (edge.type === 'publishes_to' && target.type === 'topic') {
+          needed.add('sns');
+        }
+      }
+
+      for (const service of needed) {
+        if (lambda.allowedServices.includes(service)) continue;
+        findings.push({
+          severity: 'high',
+          issue: `Lambda "${lambda.name}" accesses ${service} but execution role has no ${service} permissions`,
+          description: `"${lambda.name}" calls ${service} in code but its IAM execution role (${lambda.roleArn ?? 'unknown'}) has no ${service}:* permissions. This will cause AccessDeniedException at runtime — code passes tests but fails in AWS.`,
+          recommendation: `Add ${service} permissions to the execution role for "${lambda.name}". Minimum required: ${MINIMAL_ACTIONS[service] ?? `${service}:*`}.`,
+          metadata: { functionName: lambda.name, missingService: service, roleArn: lambda.roleArn },
+        });
+      }
+    }
+    return findings;
+  }
+}

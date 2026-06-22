@@ -77,6 +77,8 @@ export type GraphNode =
       timeoutSec?: number;
       envVarKeys?: string[];
       triggers?: LambdaTrigger[];
+      roleArn?: string;
+      allowedServices?: string[];
     }
   | {
       id: string;
@@ -258,6 +260,8 @@ export interface LambdaFunctionMetadata {
   envVarKeys: string[]; // Key names only — values are never included
   layers: string[];
   triggers: LambdaTrigger[];
+  roleArn?: string;
+  allowedServices?: string[]; // service prefixes the execution role allows, e.g. ['dynamodb', 's3']
 }
 
 export interface LogGroupSummary {

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sidd27.github.io/infrawise/sitemap-index.xml

@@ -45,6 +45,7 @@ import {
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
+  LambdaMissingIAMPermissionsAnalyzer,
   RDSPubliclyAccessibleAnalyzer,
   RDSNoBackupAnalyzer,
   RDSUnencryptedAnalyzer,
@@ -187,6 +188,7 @@ function buildAnalyzers(
           new LambdaDefaultMemoryAnalyzer(),
           new LambdaHighTimeoutAnalyzer(),
           new LambdaMissingTriggerDLQAnalyzer(),
+          new LambdaMissingIAMPermissionsAnalyzer(),
         ]
       : []),
     ...(config.rds?.enabled === true

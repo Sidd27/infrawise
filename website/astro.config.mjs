@@ -1,11 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
 	site: 'https://sidd27.github.io',
 	base: '/infrawise',
 	integrations: [
+		sitemap(),
 		starlight({
 			title: 'infrawise',
 			description: 'AI-aware infrastructure layer for your codebase',

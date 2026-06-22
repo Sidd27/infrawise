@@ -151,7 +151,7 @@ Add to your editor's MCP config:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `get_infra_overview`         | Complete snapshot — all services, counts, high-severity findings, and a `configured` flag                   |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
-| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes                           |
+| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions  |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
@@ -161,7 +161,7 @@ Add to your editor's MCP config:
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
-| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |

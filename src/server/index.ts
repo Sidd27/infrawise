@@ -194,6 +194,30 @@ export function createMcpServer(): McpServer {
 
       const allTriggers = lambdaNode?.type === 'lambda' ? (lambdaNode.triggers ?? []) : [];
 
+      // Compute missing IAM permissions inline from graph data
+      const allowedServices =
+        lambdaNode?.type === 'lambda' ? lambdaNode.allowedServices : undefined;
+      let missingPermissions: string[] | undefined;
+      if (allowedServices && !allowedServices.includes('*') && funcNode) {
+        const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
+        const needed = new Set<string>();
+        for (const edge of outEdges) {
+          const target = nodeMap.get(edge.to);
+          if (!target) continue;
+          if (
+            (edge.type === 'query' || edge.type === 'scan') &&
+            target.type === 'table' &&
+            target.databaseType === 'dynamodb'
+          )
+            needed.add('dynamodb');
+          else if (edge.type === 'reads_secret') needed.add('secretsmanager');
+          else if (edge.type === 'reads_parameter') needed.add('ssm');
+          else if (edge.type === 'publishes_to' && target.type === 'queue') needed.add('sqs');
+          else if (edge.type === 'publishes_to' && target.type === 'topic') needed.add('sns');
+        }
+        missingPermissions = [...needed].filter((s) => !allowedServices.includes(s));
+      }
+
       return toText({
         function: functionName,
         found: true,
@@ -213,6 +237,7 @@ export function createMcpServer(): McpServer {
             targetType: target?.type,
           };
         }),
+        ...(missingPermissions !== undefined ? { missingPermissions } : {}),
         issues: relatedFindings.map((f) => ({
           severity: f.severity,
           issue: f.issue,
@@ -468,6 +493,7 @@ export function createMcpServer(): McpServer {
           timeoutSec: l.timeoutSec,
           envVarCount: l.envVarKeys?.length ?? 0,
           envVarKeys: l.envVarKeys,
+          roleArn: l.roleArn,
           triggers: (l.triggers ?? []).map((t) => ({
             type: t.type,
             source: t.sourceName,

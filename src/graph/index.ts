@@ -181,6 +181,8 @@ export function buildGraph(
       timeoutSec: fn.timeoutSec,
       envVarKeys: fn.envVarKeys,
       triggers: fn.triggers,
+      roleArn: fn.roleArn,
+      allowedServices: fn.allowedServices,
     });
 
     // Add trigger edges from source → lambda (only for enabled/active mappings)

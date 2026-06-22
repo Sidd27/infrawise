@@ -40,6 +40,7 @@ Before running `pnpm release <patch|minor|major>`, every item below must be curr
 | `AGENTS.md` | MCP tool reference section — all tools, inputs, return shape, when to call |
 | `llms.txt` | Quick start commands, MCP tools list (count + names match `src/server/index.ts`) |
 | `src/server/index.ts` | Tool descriptions — purpose + when to call + when NOT to call (TDQS criteria) |
+| `website/src/pages/index.astro` | `softwareVersion` in `SoftwareApplication` JSON-LD schema (hardcoded string, search for `"softwareVersion"`) |
 
 **Auto-updated by `pnpm release` — no action needed:**
 - `package.json` — version
@@ -202,9 +203,9 @@ Analyze a single function for infrastructure issues, including trigger event sha
 |---|---|---|
 | `function` | string | yes |
 
-Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
+Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, **missingPermissions** (list of AWS service names the function accesses in code but the execution role does not allow — present only when IAM data is available), related findings, deduplicated recommendations.
 
-**When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source. Also use when a function touches a database, queue, or other service.
+**When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source, confirm IAM permissions cover the services the function calls, and get all findings scoped to this function. Also use when a function touches a database, queue, or other service.
 
 ---
 
@@ -322,7 +323,7 @@ All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), findings.
 
 **When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler. S3-triggered Lambdas show `event.Records[0].s3.object.key` as the event shape.
 

@@ -1,0 +1,242 @@
+---
+interface Article {
+  title: string;
+  url: string;
+  published_at: string;
+  description: string;
+  tag_list: string[];
+  reading_time_minutes: number;
+}
+
+interface MediumItem {
+  title: string;
+  link: string;
+  pubDate: string;
+  description: string;
+  categories: string[];
+}
+
+interface Post {
+  title: string;
+  url: string;
+  date: string;
+  description: string;
+  tags: string[];
+  readingTime?: number;
+  source: 'devto' | 'medium';
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ').trim();
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+const posts: Post[] = [];
+
+try {
+  const [devtoRes, mediumRes] = await Promise.allSettled([
+    fetch('https://dev.to/api/articles?username=siddharth_pandey_27&per_page=20'),
+    fetch('https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@siddharthpandey_77104'),
+  ]);
+
+  if (devtoRes.status === 'fulfilled' && devtoRes.value.ok) {
+    const data: Article[] = await devtoRes.value.json();
+    for (const a of data) {
+      posts.push({
+        title: a.title,
+        url: a.url,
+        date: fmtDate(a.published_at),
+        description: a.description,
+        tags: a.tag_list ?? [],
+        readingTime: a.reading_time_minutes,
+        source: 'devto',
+      });
+    }
+  }
+
+  if (mediumRes.status === 'fulfilled' && mediumRes.value.ok) {
+    const data = await mediumRes.value.json();
+    if (data.status === 'ok') {
+      for (const item of data.items as MediumItem[]) {
+        const plain = stripHtml(item.description);
+        posts.push({
+          title: item.title,
+          url: item.link,
+          date: fmtDate(item.pubDate),
+          description: plain.length > 180 ? plain.slice(0, 180) + '…' : plain,
+          tags: item.categories ?? [],
+          source: 'medium',
+        });
+      }
+    }
+  }
+} catch { /* build-time fetch failed — section renders empty */ }
+
+// Sort by date descending, show 4
+posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const visible = posts.slice(0, 4);
+---
+
+{visible.length > 0 && (
+<section class="blog-section">
+  <div class="blog-inner">
+    <p class="label">Writing</p>
+    <h2 class="blog-headline">From the blog</h2>
+    <p class="blog-sub">Practical guides on AWS, serverless patterns, and AI-assisted infrastructure from the team behind Infrawise.</p>
+
+    <div class="blog-grid">
+      {visible.map(post => (
+        <a href={post.url} target="_blank" rel="noopener noreferrer" class="blog-card">
+          <div class="card-top">
+            <span class={`source-badge source-${post.source}`}>
+              {post.source === 'devto' ? 'Dev.to' : 'Medium'}
+            </span>
+            <span class="card-date">
+              {post.date}
+              {post.readingTime && ` · ${post.readingTime} min read`}
+            </span>
+          </div>
+          <h3 class="card-title">{post.title}</h3>
+          <p class="card-desc">{post.description}</p>
+          {post.tags.length > 0 && (
+            <div class="card-tags">
+              {post.tags.slice(0, 3).map(tag => (
+                <span class="tag">#{tag}</span>
+              ))}
+            </div>
+          )}
+          <span class="card-cta">Read article →</span>
+        </a>
+      ))}
+    </div>
+
+    <div class="blog-footer">
+      <a href="https://dev.to/siddharth_pandey_27" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">
+        All articles on Dev.to
+      </a>
+      <a href="https://medium.com/@siddharthpandey_77104" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">
+        Medium
+      </a>
+    </div>
+  </div>
+</section>
+)}
+
+<style>
+  .blog-section {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .blog-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .blog-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 8px;
+  }
+  .blog-sub {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 48px;
+    max-width: 520px;
+  }
+  .blog-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .blog-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .blog-card:hover {
+    border-color: rgba(129, 140, 248, 0.35);
+    transform: translateY(-2px);
+  }
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .source-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .source-devto {
+    background: rgba(129, 140, 248, 0.12);
+    color: var(--indigo);
+    border: 1px solid rgba(129, 140, 248, 0.2);
+  }
+  .source-medium {
+    background: rgba(52, 211, 153, 0.1);
+    color: var(--teal);
+    border: 1px solid rgba(52, 211, 153, 0.2);
+  }
+  .card-date {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.35;
+    letter-spacing: -0.2px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    flex: 1;
+  }
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tag {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: var(--radius-sm);
+  }
+  .card-cta {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--indigo);
+    margin-top: 4px;
+  }
+  .blog-footer {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 680px) {
+    .blog-grid { grid-template-columns: 1fr; }
+  }
+</style>

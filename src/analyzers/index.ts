@@ -17,6 +17,7 @@ export {
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
+  LambdaMissingIAMPermissionsAnalyzer,
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
   S3UnencryptedAnalyzer,

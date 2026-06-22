@@ -30,6 +30,14 @@ import {
   ListTargetsByRuleCommand,
 } from '@aws-sdk/client-eventbridge';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
+import {
+  IAMClient,
+  ListAttachedRolePoliciesCommand,
+  GetPolicyCommand,
+  GetPolicyVersionCommand,
+  ListRolePoliciesCommand,
+  GetRolePolicyCommand,
+} from '@aws-sdk/client-iam';
 import { fromIni } from '@aws-sdk/credential-providers';
 import type {
   SQSQueueMetadata,
@@ -282,6 +290,93 @@ export async function validateSecretsAccess(cfg: AWSConfig = {}): Promise<void> 
   await new SecretsManagerClient(clientConfig(cfg)).send(new ListSecretsCommand({ MaxResults: 1 }));
 }
 
+// ─── IAM ─────────────────────────────────────────────────────────────────────
+
+interface PolicyDoc {
+  Statement?: Array<{ Effect?: string; Action?: string | string[] }>;
+}
+
+function servicesFromDoc(doc: PolicyDoc): string[] {
+  const out = new Set<string>();
+  for (const stmt of doc.Statement ?? []) {
+    if (stmt.Effect !== 'Allow') continue;
+    const actions = Array.isArray(stmt.Action) ? stmt.Action : stmt.Action ? [stmt.Action] : [];
+    for (const a of actions) {
+      if (a === '*') {
+        out.add('*');
+        continue;
+      }
+      const prefix = a.split(':')[0].toLowerCase();
+      if (prefix) out.add(prefix);
+    }
+  }
+  return [...out];
+}
+
+async function extractAllowedServices(
+  roleArn: string,
+  cfg: AWSConfig,
+): Promise<string[] | undefined> {
+  const client = new IAMClient(clientConfig(cfg));
+  const roleName = roleArn.split('/').pop()!;
+  const services = new Set<string>();
+
+  try {
+    let marker: string | undefined;
+    do {
+      const res = await client.send(
+        new ListAttachedRolePoliciesCommand({ RoleName: roleName, Marker: marker }),
+      );
+      for (const policy of res.AttachedPolicies ?? []) {
+        try {
+          const meta = await client.send(new GetPolicyCommand({ PolicyArn: policy.PolicyArn }));
+          const versionId = meta.Policy?.DefaultVersionId;
+          if (!versionId) continue;
+          const ver = await client.send(
+            new GetPolicyVersionCommand({ PolicyArn: policy.PolicyArn!, VersionId: versionId }),
+          );
+          const doc = ver.PolicyVersion?.Document;
+          if (doc) {
+            const parsed = JSON.parse(decodeURIComponent(doc)) as PolicyDoc;
+            for (const s of servicesFromDoc(parsed)) services.add(s);
+          }
+        } catch {
+          /* skip unparseable policy */
+        }
+      }
+      marker = res.Marker;
+    } while (marker);
+
+    let iMarker: string | undefined;
+    do {
+      const res = await client.send(
+        new ListRolePoliciesCommand({ RoleName: roleName, Marker: iMarker }),
+      );
+      for (const name of res.PolicyNames ?? []) {
+        try {
+          const inline = await client.send(
+            new GetRolePolicyCommand({ RoleName: roleName, PolicyName: name }),
+          );
+          if (inline.PolicyDocument) {
+            const parsed = JSON.parse(decodeURIComponent(inline.PolicyDocument)) as PolicyDoc;
+            for (const s of servicesFromDoc(parsed)) services.add(s);
+          }
+        } catch {
+          /* skip */
+        }
+      }
+      iMarker = res.Marker;
+    } while (iMarker);
+
+    return [...services];
+  } catch (err) {
+    logger.debug(
+      `IAM fetch skipped for ${roleName}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
+}
+
 // ─── Lambda ───────────────────────────────────────────────────────────────────
 
 const EVENT_SHAPES: Record<string, string> = {
@@ -401,6 +496,7 @@ export async function extractLambdaMetadata(
           envVarKeys: Object.keys(fn.Environment?.Variables ?? {}),
           layers: (fn.Layers ?? []).map((l) => l.Arn ?? '').filter(Boolean),
           triggers: [],
+          roleArn: fn.Role,
         });
       }
       marker = res.NextMarker;
@@ -410,6 +506,18 @@ export async function extractLambdaMetadata(
     const triggerMap = await fetchAllEventSourceMappings(cfg);
     for (const fn of functions) {
       fn.triggers = triggerMap.get(fn.arn) ?? [];
+    }
+
+    // Batch IAM policy fetch per unique role ARN
+    const uniqueRoles = [...new Set(functions.map((f) => f.roleArn).filter(Boolean) as string[])];
+    const roleServices = new Map<string, string[] | undefined>();
+    await Promise.all(
+      uniqueRoles.map(async (arn) => {
+        roleServices.set(arn, await extractAllowedServices(arn, cfg));
+      }),
+    );
+    for (const fn of functions) {
+      if (fn.roleArn) fn.allowedServices = roleServices.get(fn.roleArn);
     }
   } catch (err) {
     logger.warn(`Lambda list failed: ${err instanceof Error ? err.message : String(err)}`);
