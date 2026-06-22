@@ -105,7 +105,7 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^25.8.0",
+    "@types/node": "^26.0.0",
     "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^8.61.1",
     "@typescript-eslint/parser": "^8.61.1",
