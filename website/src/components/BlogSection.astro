@@ -1,89 +1,43 @@
 ---
-interface Article {
-  title: string;
-  url: string;
-  published_at: string;
-  description: string;
-  tag_list: string[];
-  reading_time_minutes: number;
-}
-
-interface MediumItem {
-  title: string;
-  link: string;
-  pubDate: string;
-  description: string;
-  categories: string[];
-}
-
-interface Post {
-  title: string;
-  url: string;
-  date: string;
-  description: string;
-  tags: string[];
-  readingTime?: number;
-  source: 'devto' | 'medium';
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ').trim();
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-const posts: Post[] = [];
-
-try {
-  const [devtoRes, mediumRes] = await Promise.allSettled([
-    fetch('https://dev.to/api/articles?username=siddharth_pandey_27&per_page=20'),
-    fetch('https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@siddharthpandey_77104'),
-  ]);
-
-  if (devtoRes.status === 'fulfilled' && devtoRes.value.ok) {
-    const data: Article[] = await devtoRes.value.json();
-    for (const a of data) {
-      posts.push({
-        title: a.title,
-        url: a.url,
-        date: fmtDate(a.published_at),
-        description: a.description,
-        tags: a.tag_list ?? [],
-        readingTime: a.reading_time_minutes,
-        source: 'devto',
-      });
-    }
-  }
-
-  if (mediumRes.status === 'fulfilled' && mediumRes.value.ok) {
-    const data = await mediumRes.value.json();
-    if (data.status === 'ok') {
-      for (const item of data.items as MediumItem[]) {
-        const plain = stripHtml(item.description);
-        posts.push({
-          title: item.title,
-          url: item.link,
-          date: fmtDate(item.pubDate),
-          description: plain.length > 180 ? plain.slice(0, 180) + '…' : plain,
-          tags: item.categories ?? [],
-          source: 'medium',
-        });
-      }
-    }
-  }
-} catch { /* build-time fetch failed — section renders empty */ }
-
-// Sort by date descending, show 4
-posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-const visible = posts.slice(0, 4);
+const posts = [
+  {
+    title: 'Fix N+1 Trigger Patterns Where Lambda Functions Hammer the Same DynamoDB Partition Key',
+    url: 'https://dev.to/siddharth_pandey_27/fix-n1-trigger-patterns-where-lambda-functions-hammer-the-same-dynamodb-partition-key-1m60',
+    date: 'Jun 20, 2026',
+    description: 'You add a sixth Lambda trigger to your OrderEvents table, deploy it, and within 20 minutes your SLA breaches. Here\'s how to detect and fix N+1 trigger patterns before they hit production.',
+    tags: ['typescript', 'aws', 'dynamodb'],
+    readingTime: 5,
+    source: 'devto',
+  },
+  {
+    title: 'Give Your AI Assistant Infrastructure Eyes Before It Writes Another Query',
+    url: 'https://dev.to/siddharth_pandey_27/give-your-ai-assistant-infrastructure-eyes-before-it-writes-another-query-p0o',
+    date: 'Jun 9, 2026',
+    description: 'You asked Claude Code to add pagination to your order history endpoint. It generated a clean function — for a GSI that doesn\'t exist. Here\'s how to fix that.',
+    tags: ['typescript', 'aws', 'dynamodb'],
+    readingTime: 4,
+    source: 'devto',
+  },
+  {
+    title: 'How I gave Claude Code eyes on my infrastructure — and stopped flying blind',
+    url: 'https://medium.com/@siddharthpandey_77104/how-i-gave-claude-code-eyes-on-my-infrastructure-and-stopped-flying-blind-4c200dfa8b8d',
+    date: 'May 21, 2026',
+    description: 'As a full-stack developer, I write the code. But I don\'t always know what happens after it deploys. Is my Lambda running out of memory? Is that SQS queue dropping messages silently?',
+    tags: ['devops', 'claude-code', 'aws'],
+    source: 'medium',
+  },
+  {
+    title: 'AI Generated a DynamoDB Query That Could Never Work',
+    url: 'https://dev.to/siddharth_pandey_27/ai-generated-a-dynamodb-query-that-could-never-work-53h9',
+    date: 'May 13, 2026',
+    description: 'I asked an AI coding assistant to generate a DynamoDB query. A few seconds later it confidently gave me code querying a GSI that didn\'t exist. Here\'s what went wrong and how to prevent it.',
+    tags: ['ai', 'devops', 'architecture'],
+    readingTime: 3,
+    source: 'devto',
+  },
+] as const;
 ---
 
-{visible.length > 0 && (
 <section class="blog-section">
   <div class="blog-inner">
     <p class="label">Writing</p>
@@ -91,7 +45,7 @@ const visible = posts.slice(0, 4);
     <p class="blog-sub">Practical guides on AWS, serverless patterns, and AI-assisted infrastructure from the team behind Infrawise.</p>
 
     <div class="blog-grid">
-      {visible.map(post => (
+      {posts.map(post => (
         <a href={post.url} target="_blank" rel="noopener noreferrer" class="blog-card">
           <div class="card-top">
             <span class={`source-badge source-${post.source}`}>
@@ -99,18 +53,16 @@ const visible = posts.slice(0, 4);
             </span>
             <span class="card-date">
               {post.date}
-              {post.readingTime && ` · ${post.readingTime} min read`}
+              {'readingTime' in post && post.readingTime && ` · ${post.readingTime} min read`}
             </span>
           </div>
           <h3 class="card-title">{post.title}</h3>
           <p class="card-desc">{post.description}</p>
-          {post.tags.length > 0 && (
-            <div class="card-tags">
-              {post.tags.slice(0, 3).map(tag => (
-                <span class="tag">#{tag}</span>
-              ))}
-            </div>
-          )}
+          <div class="card-tags">
+            {post.tags.slice(0, 3).map(tag => (
+              <span class="tag">#{tag}</span>
+            ))}
+          </div>
           <span class="card-cta">Read article →</span>
         </a>
       ))}
@@ -126,7 +78,6 @@ const visible = posts.slice(0, 4);
     </div>
   </div>
 </section>
-)}
 
 <style>
   .blog-section {
