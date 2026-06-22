@@ -1,5 +1,6 @@
 ---
-import logoSrc from '../assets/logo.svg?url'
+import { Image } from 'astro:assets'
+import logoSrc from '../assets/logo.png'
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 ---
 
@@ -89,7 +90,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 <header class="nav">
   <div class="nav-inner">
     <a href={`${base}/`} class="logo" aria-label="Infrawise home">
-      <img src={logoSrc} width="34" height="34" alt="" aria-hidden="true" />
+      <Image src={logoSrc} width={34} height={34} alt="" aria-hidden="true" />
       <span class="logo-wordmark">infrawise</span>
     </a>
 
