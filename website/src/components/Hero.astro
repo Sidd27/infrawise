@@ -62,6 +62,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
     letter-spacing: 0.01em;
     transition: background 0.15s;
     position: relative;
+    white-space: nowrap;
   }
   .hero-install:hover { background: #0f1a2e; }
   .hero-install-copy {
@@ -77,6 +78,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
     white-space: nowrap;
   }
 
+  /* On mobile the install command can't share a row with the CTA, so give it
+     its own full-width row with the command left and the copy icon pinned right. */
+  @media (max-width: 600px) {
+    .hero-install {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .hero-install-copy { margin-left: auto; }
+  }
 
 </style>
 
