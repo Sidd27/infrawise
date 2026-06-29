@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, readCache, setCacheDir } from '../../core/index.js';
+import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../../core/index.js';
 import { createServer, setGraphState, setConfigured } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { log, printHeader } from '../utils.js';
@@ -106,16 +106,16 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
       'Cached analysis loaded',
       `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
     );
-    setGraphState(cachedGraph, cachedFindings);
+    setGraphState(cachedGraph, cachedFindings, readCacheTimestamp('graph'));
   } else if (config) {
     log.warn('No cache found — running analysis now...');
     console.log('');
     await runAnalyze({ repo: repoPath, config: options.config });
     const freshGraph = readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] };
     const freshFindings = readCache<Finding[]>('findings') ?? [];
-    setGraphState(freshGraph, freshFindings);
+    setGraphState(freshGraph, freshFindings, readCacheTimestamp('graph'));
   } else {
-    setGraphState({ nodes: [], edges: [] }, []);
+    setGraphState({ nodes: [], edges: [] }, [], null);
   }
 
   console.log('');

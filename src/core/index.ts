@@ -8,4 +8,4 @@ export {
   RepositoryScanError,
   formatError,
 } from './errors.js';
-export { writeCache, readCache, clearCache, setCacheDir } from './cache.js';
+export { writeCache, readCache, readCacheTimestamp, clearCache, setCacheDir } from './cache.js';

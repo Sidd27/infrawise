@@ -32,13 +32,37 @@ import {
 
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
+// When the loaded analysis was produced (ms epoch). null when serving an empty
+// graph with no analysis. Surfaced via get_infra_overview so assistants can
+// judge how stale the facts are and decide to refresh.
+let analyzedAt: number | null = null;
+// Analysis is considered stale past this age — matches the 24h cache TTL that
+// drives auto-refresh in stdio/start.
+const STALE_AGE_MS = 24 * 60 * 60 * 1000;
 // False when the server booted without an infrawise.yaml (e.g. a hosted MCP
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
 
-export function setGraphState(graph: SystemGraph, findings: Finding[]): void {
+export function setGraphState(
+  graph: SystemGraph,
+  findings: Finding[],
+  analyzedAtMs: number | null = Date.now(),
+): void {
   currentGraph = graph;
   currentFindings = findings;
+  analyzedAt = analyzedAtMs;
+}
+
+function freshness() {
+  if (analyzedAt === null) return { analyzedAt: null, ageSeconds: null, stale: false };
+  const ageMs = Date.now() - analyzedAt;
+  const stale = ageMs > STALE_AGE_MS;
+  return {
+    analyzedAt: new Date(analyzedAt).toISOString(),
+    ageSeconds: Math.round(ageMs / 1000),
+    stale,
+    ...(stale ? { hint: 'Analysis is stale — run `infrawise analyze` to refresh.' } : {}),
+  };
 }
 
 export function setConfigured(value: boolean): void {
@@ -74,7 +98,7 @@ export function createMcpServer(): McpServer {
     'get_infra_overview',
     {
       description:
-        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally.',
+        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. The `freshness` field reports when the analysis ran (`analyzedAt`, `ageSeconds`) and a `stale` flag with a refresh hint once the data is older than 24h.',
       inputSchema: z.object({}),
     },
     logged('get_infra_overview', async () => {
@@ -90,6 +114,7 @@ export function createMcpServer(): McpServer {
       return toText({
         configured,
         ...(configured ? {} : { setupHint: NOT_CONFIGURED_HINT }),
+        freshness: freshness(),
         summary: {
           tables: tables.length,
           functions: functions.length,

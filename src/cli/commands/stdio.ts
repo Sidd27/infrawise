@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { loadConfig, readCache, setCacheDir } from '../../core/index.js';
+import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../../core/index.js';
 import { createMcpServer, setGraphState, setConfigured } from '../../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig } from '../../types.js';
 import { runAnalyze, runCodeRefresh } from './analyze.js';
@@ -29,14 +29,14 @@ export async function runStdio(configPath?: string): Promise<void> {
   const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
 
   if (cachedGraph && cachedFindings) {
-    setGraphState(cachedGraph, cachedFindings);
+    setGraphState(cachedGraph, cachedFindings, readCacheTimestamp('graph'));
   } else if (config) {
     await runAnalyze({ config: configPath });
     const graph = readCache<SystemGraph>('graph', CACHE_TTL_MS) ?? { nodes: [], edges: [] };
     const findings = readCache<Finding[]>('findings', CACHE_TTL_MS) ?? [];
-    setGraphState(graph, findings);
+    setGraphState(graph, findings, readCacheTimestamp('graph'));
   } else {
-    setGraphState({ nodes: [], edges: [] }, []);
+    setGraphState({ nodes: [], edges: [] }, [], null);
   }
 
   // File watching drives runCodeRefresh, which needs a config — skip it without one.

@@ -118,6 +118,9 @@ describe('MCP Server — tool results', () => {
     expect(data.summary.findings.medium).toBe(1);
     expect(data.highFindings).toHaveLength(1);
     expect(data.highFindings[0].issue).toBe('Full table scan');
+    expect(data.freshness.stale).toBe(false);
+    expect(typeof data.freshness.analyzedAt).toBe('string');
+    expect(data.freshness.ageSeconds).toBeGreaterThanOrEqual(0);
   });
 
   it('get_graph_summary returns all nodes and edges', async () => {

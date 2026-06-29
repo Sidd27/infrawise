@@ -149,7 +149,7 @@ Add to your editor's MCP config:
 
 | Tool                         | What it provides                                                                                            |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `get_infra_overview`         | Complete snapshot — all services, counts, high-severity findings, and a `configured` flag                   |
+| `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, analysis `freshness` (age + stale flag), `configured` flag |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
 | `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions  |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
