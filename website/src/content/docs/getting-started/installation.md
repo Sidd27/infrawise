@@ -7,7 +7,7 @@ Infrawise is an open-source MCP (Model Context Protocol) server that gives AI co
 
 ## Prerequisites
 
-- **Node.js 18 or later** — check with `node --version`
+- **Node.js 20 or later** — check with `node --version`
 - **AWS credentials configured** — the same credentials the AWS CLI uses; see [AWS setup](/infrawise/getting-started/aws-setup/) for the minimum IAM policy
 - **Claude Code or Cursor** — Infrawise writes the MCP config file your editor reads automatically
 
