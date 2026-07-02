@@ -56,11 +56,12 @@ Before running `pnpm release <patch|minor|major>`, every item below must be curr
 3. The website diagram automatically gets flowing-light edge animations and `font-family` from the page; no extra steps needed
 4. Commit both generated SVG files alongside your YAML change
 
-**After `pnpm release` — three required steps:**
+**After `pnpm release` — four required steps:**
 
 1. **Publish GitHub release** — go to the draft release on GitHub and publish it → triggers npm CI publish
 2. **MCP Registry** — `mcp-publisher publish server.json`
 3. **Glama** — admin page → Releases → click Sync → Glama auto-creates the release from the GitHub tag
+4. **Smithery** — `pnpm publish-smithery` (after the npm publish from step 1 is live — the script verifies this and fails otherwise). Rebuilds the MCPB bundle from the published npm package, regenerates the serverCard from the live `tools/list`, and publishes to https://smithery.ai/server/pandeysiddharth27/infrawise. Smithery has no scan stage for stdio bundles, so a stale serverCard means stale tools on the page — always rerun after a release that touches tools. Auth: `npx @smithery/cli auth login` (once) or `SMITHERY_TOKEN` env var.
 
 ---
 

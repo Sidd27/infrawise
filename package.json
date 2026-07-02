@@ -67,6 +67,7 @@
     "record": "bash docs/demo/record.sh",
     "dev": "node dist/cli/index.js serve",
     "release": "node scripts/release.js",
+    "publish-smithery": "node scripts/smithery-publish.mjs",
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
