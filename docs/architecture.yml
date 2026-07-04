@@ -56,11 +56,11 @@ nodes:
     row: 0
 
   L:
-    label: "Lambda · SQS · SNS\nAPI Gateway · RDS\nEventBridge"
+    label: "Lambda · SQS · SNS\nAPI Gateway · RDS · EventBridge\nCognito · Kinesis · MSK\nElastiCache"
     theme: aws
     col: 0
     row: 1
-    lines: 3
+    lines: 4
 
   S:
     label: "Secrets Manager · SSM\nCloudWatch"
