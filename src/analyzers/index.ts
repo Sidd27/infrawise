@@ -21,6 +21,8 @@ export {
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
   S3UnencryptedAnalyzer,
+  CacheTransitEncryptionAnalyzer,
+  CacheSingleNodeAnalyzer,
 } from './aws-services.js';
 export {
   RDSPubliclyAccessibleAnalyzer,

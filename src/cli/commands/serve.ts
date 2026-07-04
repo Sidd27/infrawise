@@ -37,6 +37,7 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_stack_outputs', service: 'terraform' },
   { name: 'get_cognito_overview', service: 'cognito' },
   { name: 'get_stream_details', service: 'kinesis' },
+  { name: 'get_cache_overview', service: 'elasticache' },
 ];
 
 // With no config every registered tool is shown as active (the server exposes

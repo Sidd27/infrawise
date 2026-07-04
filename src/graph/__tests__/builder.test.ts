@@ -678,6 +678,25 @@ describe('stream and kafka_cluster nodes', () => {
   });
 });
 
+describe('cache_cluster nodes', () => {
+  it('builds cache_cluster nodes from elasticache metadata', () => {
+    const graph = buildGraph([], [], [], [], [], {
+      elasticache: [
+        {
+          id: 'sessions-cache',
+          engine: 'redis',
+          engineVersion: '7.1',
+          nodeType: 'cache.t3.micro',
+          numNodes: 1,
+          transitEncryption: false,
+          atRestEncryption: false,
+        },
+      ],
+    });
+    expect(graph.nodes.find((n) => n.id === 'cache_cluster:aws:sessions-cache')).toBeDefined();
+  });
+});
+
 describe('addStackOutputNodes', () => {
   it('adds stack_output nodes and dedupes by id', () => {
     const graph: SystemGraph = { nodes: [], edges: [] };

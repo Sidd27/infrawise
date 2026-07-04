@@ -218,6 +218,7 @@ function writeYaml(
     cognito: { enabled: false },
     kinesis: { enabled: false },
     msk: { enabled: false },
+    elasticache: { enabled: false },
     cloudwatchLogs: { enabled: false, logGroupPrefixes: [], windowHours: 24 },
     analysis: { sampleSize: 100 },
   };

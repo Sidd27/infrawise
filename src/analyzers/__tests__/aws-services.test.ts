@@ -11,6 +11,8 @@ import {
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
   S3UnencryptedAnalyzer,
+  CacheTransitEncryptionAnalyzer,
+  CacheSingleNodeAnalyzer,
 } from '../aws-services';
 import type { SystemGraph } from '../../types';
 
@@ -699,6 +701,87 @@ describe('S3UnencryptedAnalyzer', () => {
   it('ignores non-bucket nodes', async () => {
     const graph: SystemGraph = {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('CacheTransitEncryptionAnalyzer', () => {
+  const analyzer = new CacheTransitEncryptionAnalyzer();
+
+  it('flags cluster without transit encryption', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'cache_cluster:aws:sessions',
+          type: 'cache_cluster',
+          name: 'sessions',
+          provider: 'aws',
+          engine: 'redis',
+          transitEncryption: false,
+        },
+      ],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('medium');
+  });
+
+  it('does not flag encrypted cluster', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'cache_cluster:aws:sessions',
+          type: 'cache_cluster',
+          name: 'sessions',
+          provider: 'aws',
+          engine: 'redis',
+          transitEncryption: true,
+        },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('CacheSingleNodeAnalyzer', () => {
+  const analyzer = new CacheSingleNodeAnalyzer();
+
+  it('flags standalone single-node cluster', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'cache_cluster:aws:sessions',
+          type: 'cache_cluster',
+          name: 'sessions',
+          provider: 'aws',
+          engine: 'redis',
+          numNodes: 1,
+        },
+      ],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('low');
+  });
+
+  it('does not flag cluster in a replication group', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'cache_cluster:aws:sessions',
+          type: 'cache_cluster',
+          name: 'sessions',
+          provider: 'aws',
+          engine: 'redis',
+          numNodes: 1,
+          replicationGroupId: 'sessions-rg',
+        },
+      ],
       edges: [],
     };
     expect(await analyzer.analyze(graph)).toHaveLength(0);

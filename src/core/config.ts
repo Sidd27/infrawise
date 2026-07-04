@@ -62,6 +62,7 @@ export const InfrawiseConfigSchema = z.object({
   cognito: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   kinesis: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   msk: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  elasticache: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cloudwatchLogs: z
     .object({
       enabled: z.boolean().optional().default(false),
@@ -209,6 +210,7 @@ export function generateDefaultConfig(
     cognito: { enabled: options?.cognito?.enabled ?? false },
     kinesis: { enabled: options?.kinesis?.enabled ?? false },
     msk: { enabled: options?.msk?.enabled ?? false },
+    elasticache: { enabled: options?.elasticache?.enabled ?? false },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,
       logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],

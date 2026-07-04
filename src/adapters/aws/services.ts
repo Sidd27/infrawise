@@ -37,6 +37,11 @@ import {
 } from '@aws-sdk/client-kinesis';
 import { KafkaClient, ListClustersV2Command } from '@aws-sdk/client-kafka';
 import {
+  ElastiCacheClient,
+  DescribeCacheClustersCommand,
+  DescribeReplicationGroupsCommand,
+} from '@aws-sdk/client-elasticache';
+import {
   CognitoIdentityProviderClient,
   ListUserPoolsCommand,
   ListUserPoolClientsCommand,
@@ -68,6 +73,7 @@ import type {
   CognitoAppClientMetadata,
   KinesisStreamMetadata,
   MSKClusterMetadata,
+  ElastiCacheClusterMetadata,
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
@@ -614,6 +620,58 @@ export async function extractMSKMetadata(cfg: AWSConfig = {}): Promise<MSKCluste
     } while (nextToken);
   } catch (err) {
     logger.warn(`MSK list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return clusters;
+}
+
+// ─── ElastiCache ─────────────────────────────────────────────────────────────
+
+export async function extractElastiCacheMetadata(
+  cfg: AWSConfig = {},
+): Promise<ElastiCacheClusterMetadata[]> {
+  const client = new ElastiCacheClient(clientConfig(cfg));
+  const clusters: ElastiCacheClusterMetadata[] = [];
+
+  try {
+    const failoverByGroup = new Map<string, string>();
+    try {
+      let marker: string | undefined;
+      do {
+        const res = await client.send(new DescribeReplicationGroupsCommand({ Marker: marker }));
+        for (const g of res.ReplicationGroups ?? []) {
+          if (g.ReplicationGroupId) {
+            failoverByGroup.set(g.ReplicationGroupId, g.AutomaticFailover ?? 'disabled');
+          }
+        }
+        marker = res.Marker;
+      } while (marker);
+    } catch {
+      /* replication groups are optional context */
+    }
+
+    let marker: string | undefined;
+    do {
+      const res = await client.send(new DescribeCacheClustersCommand({ Marker: marker }));
+      for (const c of res.CacheClusters ?? []) {
+        if (!c.CacheClusterId) continue;
+        clusters.push({
+          id: c.CacheClusterId,
+          engine: c.Engine ?? 'unknown',
+          engineVersion: c.EngineVersion ?? '',
+          nodeType: c.CacheNodeType ?? '',
+          numNodes: c.NumCacheNodes ?? 0,
+          transitEncryption: c.TransitEncryptionEnabled ?? false,
+          atRestEncryption: c.AtRestEncryptionEnabled ?? false,
+          replicationGroupId: c.ReplicationGroupId,
+          automaticFailover: c.ReplicationGroupId
+            ? failoverByGroup.get(c.ReplicationGroupId)
+            : undefined,
+        });
+      }
+      marker = res.Marker;
+    } while (marker);
+  } catch (err) {
+    logger.warn(`ElastiCache list failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   return clusters;
 }

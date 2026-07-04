@@ -99,6 +99,20 @@ export type GraphNode =
     }
   | {
       id: string;
+      type: 'cache_cluster';
+      name: string;
+      provider: string;
+      engine: string;
+      engineVersion?: string;
+      nodeType?: string;
+      numNodes?: number;
+      transitEncryption?: boolean;
+      atRestEncryption?: boolean;
+      replicationGroupId?: string;
+      automaticFailover?: string;
+    }
+  | {
+      id: string;
       type: 'stream';
       name: string;
       provider: string;
@@ -372,6 +386,18 @@ export interface MSKClusterMetadata {
   brokerNodes?: number;
 }
 
+export interface ElastiCacheClusterMetadata {
+  id: string;
+  engine: string;
+  engineVersion: string;
+  nodeType: string;
+  numNodes: number;
+  transitEncryption: boolean;
+  atRestEncryption: boolean;
+  replicationGroupId?: string;
+  automaticFailover?: string;
+}
+
 export interface CognitoAppClientMetadata {
   clientName: string;
   clientId: string;
@@ -408,6 +434,7 @@ export interface ServicesMeta {
   cognito?: CognitoUserPoolMetadata[];
   kinesis?: KinesisStreamMetadata[];
   msk?: MSKClusterMetadata[];
+  elasticache?: ElastiCacheClusterMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -509,6 +536,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   msk?: {
+    enabled?: boolean;
+  };
+  elasticache?: {
     enabled?: boolean;
   };
   cloudwatchLogs?: {

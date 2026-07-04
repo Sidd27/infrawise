@@ -308,6 +308,50 @@ export class S3UnencryptedAnalyzer implements Analyzer {
   }
 }
 
+// ─── ElastiCache ─────────────────────────────────────────────────────────────
+
+export class CacheTransitEncryptionAnalyzer implements Analyzer {
+  name = 'CacheTransitEncryptionAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'cache_cluster') continue;
+      if (node.transitEncryption === false) {
+        findings.push({
+          severity: 'medium',
+          issue: `Cache cluster "${node.name}" has no in-transit encryption`,
+          description: `ElastiCache cluster "${node.name}" (${node.engine}) does not have TLS in-transit encryption enabled. Credentials and cached data cross the network in plaintext.`,
+          recommendation: `Enable transit encryption on "${node.name}". Note this requires clients to connect with TLS (rediss:// for Redis).`,
+          metadata: { cacheClusterId: node.name, provider: node.provider },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
+export class CacheSingleNodeAnalyzer implements Analyzer {
+  name = 'CacheSingleNodeAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'cache_cluster') continue;
+      if (node.numNodes === 1 && !node.replicationGroupId) {
+        findings.push({
+          severity: 'low',
+          issue: `Cache cluster "${node.name}" is a single node with no replication`,
+          description: `"${node.name}" runs one cache node outside a replication group. A node failure loses all cached data and takes the cache offline until replaced.`,
+          recommendation: `Move "${node.name}" into a replication group with at least one replica and automatic failover if cache availability matters for this workload.`,
+          metadata: { cacheClusterId: node.name },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
 // ─── IAM ─────────────────────────────────────────────────────────────────────
 
 const MINIMAL_ACTIONS: Record<string, string> = {

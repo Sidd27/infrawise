@@ -326,6 +326,23 @@ export function buildGraph(
     }
   }
 
+  for (const c of servicesMeta.elasticache ?? []) {
+    addNode({
+      id: `cache_cluster:aws:${c.id}`,
+      type: 'cache_cluster',
+      name: c.id,
+      provider: 'aws',
+      engine: c.engine,
+      engineVersion: c.engineVersion,
+      nodeType: c.nodeType,
+      numNodes: c.numNodes,
+      transitEncryption: c.transitEncryption,
+      atRestEncryption: c.atRestEncryption,
+      replicationGroupId: c.replicationGroupId,
+      automaticFailover: c.automaticFailover,
+    });
+  }
+
   for (const pool of servicesMeta.cognito ?? []) {
     addNode({
       id: `user_pool:aws:${pool.id}`,
@@ -511,6 +528,8 @@ export const getStreamNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'stream' }>>(g, 'stream');
 export const getKafkaClusterNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'kafka_cluster' }>>(g, 'kafka_cluster');
+export const getCacheClusterNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'cache_cluster' }>>(g, 'cache_cluster');
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);

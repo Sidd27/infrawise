@@ -20,6 +20,7 @@ import {
   extractCognitoMetadata,
   extractKinesisMetadata,
   extractMSKMetadata,
+  extractElastiCacheMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
@@ -57,6 +58,8 @@ import {
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
   S3UnencryptedAnalyzer,
+  CacheTransitEncryptionAnalyzer,
+  CacheSingleNodeAnalyzer,
 } from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type {
@@ -209,6 +212,9 @@ function buildAnalyzers(
           new S3MissingVersioningAnalyzer(),
           new S3UnencryptedAnalyzer(),
         ]
+      : []),
+    ...(config.elasticache?.enabled === true
+      ? [new CacheTransitEncryptionAnalyzer(), new CacheSingleNodeAnalyzer()]
       : []),
     ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
     pipelineAnalyzer,
@@ -369,6 +375,14 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     'Extracting MSK clusters...',
     'MSK',
     () => extractMSKMetadata(awsCfg),
+    (r) => `${r.length} cluster(s)`,
+  );
+
+  servicesMeta.elasticache = await extract(
+    config.elasticache?.enabled === true,
+    'Extracting ElastiCache clusters...',
+    'ElastiCache',
+    () => extractElastiCacheMetadata(awsCfg),
     (r) => `${r.length} cluster(s)`,
   );
 

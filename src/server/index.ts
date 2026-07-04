@@ -28,6 +28,7 @@ import {
   getUserPoolNodes,
   getStreamNodes,
   getKafkaClusterNodes,
+  getCacheClusterNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -132,6 +133,7 @@ export function createMcpServer(): McpServer {
           buckets: buckets.length,
           userPools: userPools.length,
           streams: getStreamNodes(currentGraph).length,
+          cacheClusters: getCacheClusterNodes(currentGraph).length,
           totalNodes: currentGraph.nodes.length,
           totalEdges: currentGraph.edges.length,
           findings: summarizeFindings(currentFindings),
@@ -646,6 +648,39 @@ export function createMcpServer(): McpServer {
   );
 
   mcp.registerTool(
+    'get_cache_overview',
+    {
+      description:
+        'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included.',
+      inputSchema: z.object({}),
+    },
+    logged('get_cache_overview', async () => {
+      const caches = getCacheClusterNodes(currentGraph);
+      const cacheFindings = currentFindings.filter(
+        (f) => (f.metadata as Record<string, unknown> | undefined)?.cacheClusterId,
+      );
+      return toText({
+        total: caches.length,
+        note: 'Cached data is never included.',
+        caches: caches.map((c) => ({
+          id: c.name,
+          engine: c.engine,
+          engineVersion: c.engineVersion,
+          nodeType: c.nodeType,
+          numNodes: c.numNodes,
+          transitEncryption: c.transitEncryption,
+          atRestEncryption: c.atRestEncryption,
+          replicationGroupId: c.replicationGroupId,
+          automaticFailover: c.automaticFailover,
+          findings: cacheFindings
+            .filter((f) => (f.metadata as Record<string, unknown>).cacheClusterId === c.name)
+            .map((f) => ({ severity: f.severity, issue: f.issue })),
+        })),
+      });
+    }),
+  );
+
+  mcp.registerTool(
     'get_stream_details',
     {
       description:
@@ -769,6 +804,7 @@ export function createServer(port = 3000) {
       'get_stack_outputs',
       'get_cognito_overview',
       'get_stream_details',
+      'get_cache_overview',
     ],
   }));
 
