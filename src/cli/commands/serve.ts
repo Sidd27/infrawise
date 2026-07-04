@@ -35,6 +35,7 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_api_routes', service: 'apiGateway' },
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
   { name: 'get_stack_outputs', service: 'terraform' },
+  { name: 'get_cognito_overview', service: 'cognito' },
 ];
 
 // With no config every registered tool is shown as active (the server exposes

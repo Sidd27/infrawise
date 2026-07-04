@@ -588,6 +588,34 @@ describe('edge selectors', () => {
   });
 });
 
+describe('cognito nodes', () => {
+  it('builds user_pool nodes from cognito metadata', () => {
+    const graph = buildGraph([], [], [], [], [], {
+      cognito: [
+        {
+          name: 'app-users',
+          id: 'us-east-1_abc123',
+          mfaConfiguration: 'OFF',
+          clients: [
+            {
+              clientName: 'web',
+              clientId: 'client1',
+              authFlows: ['ALLOW_USER_PASSWORD_AUTH'],
+              oauthFlows: [],
+              oauthScopes: [],
+              callbackUrls: [],
+              generatesSecret: false,
+            },
+          ],
+        },
+      ],
+    });
+    const pool = graph.nodes.find((n) => n.type === 'user_pool');
+    expect(pool).toBeDefined();
+    expect(pool!.id).toBe('user_pool:aws:us-east-1_abc123');
+  });
+});
+
 describe('addStackOutputNodes', () => {
   it('adds stack_output nodes and dedupes by id', () => {
     const graph: SystemGraph = { nodes: [], edges: [] };

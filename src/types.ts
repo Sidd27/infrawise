@@ -99,6 +99,15 @@ export type GraphNode =
     }
   | {
       id: string;
+      type: 'user_pool';
+      name: string;
+      provider: string;
+      poolId: string;
+      mfaConfiguration?: string;
+      clients?: CognitoAppClientMetadata[];
+    }
+  | {
+      id: string;
       type: 'stack_output';
       name: string;
       description?: string;
@@ -323,6 +332,27 @@ export interface S3BucketMetadata {
   notifications: S3EventNotification[];
 }
 
+export interface CognitoAppClientMetadata {
+  clientName: string;
+  clientId: string;
+  authFlows: string[];
+  oauthFlows: string[];
+  oauthScopes: string[];
+  callbackUrls: string[];
+  generatesSecret: boolean; // whether a client secret exists — the value is NEVER included
+  accessTokenValidity?: number;
+  idTokenValidity?: number;
+  refreshTokenValidity?: number;
+  tokenValidityUnits?: { accessToken?: string; idToken?: string; refreshToken?: string };
+}
+
+export interface CognitoUserPoolMetadata {
+  name: string;
+  id: string;
+  mfaConfiguration?: string;
+  clients: CognitoAppClientMetadata[];
+}
+
 // Aggregated services metadata passed to graph builder
 export interface ServicesMeta {
   sqs?: SQSQueueMetadata[];
@@ -335,6 +365,7 @@ export interface ServicesMeta {
   rds?: RDSInstanceMetadata[];
   s3?: S3BucketMetadata[];
   apiGateway?: APIGatewayMetadata[];
+  cognito?: CognitoUserPoolMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -427,6 +458,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   apiGateway?: {
+    enabled?: boolean;
+  };
+  cognito?: {
     enabled?: boolean;
   };
   cloudwatchLogs?: {

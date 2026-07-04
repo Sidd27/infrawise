@@ -25,6 +25,7 @@ import {
   getBucketNodes,
   getAPINodes,
   getStackOutputNodes,
+  getUserPoolNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -112,6 +113,7 @@ export function createMcpServer(): McpServer {
       const lambdas = getLambdaNodes(currentGraph);
       const functions = getFunctionNodes(currentGraph);
       const buckets = getBucketNodes(currentGraph);
+      const userPools = getUserPoolNodes(currentGraph);
       return toText({
         configured,
         ...(configured ? {} : { setupHint: NOT_CONFIGURED_HINT }),
@@ -126,6 +128,7 @@ export function createMcpServer(): McpServer {
           logGroups: logGroups.length,
           lambdas: lambdas.length,
           buckets: buckets.length,
+          userPools: userPools.length,
           totalNodes: currentGraph.nodes.length,
           totalEdges: currentGraph.edges.length,
           findings: summarizeFindings(currentFindings),
@@ -640,6 +643,28 @@ export function createMcpServer(): McpServer {
   );
 
   mcp.registerTool(
+    'get_cognito_overview',
+    {
+      description:
+        'Returns all Cognito user pools with MFA configuration and every app client config: allowed auth flows, OAuth flows/scopes, callback URLs, token validity, and whether the client has a secret (SDK auth calls must send SECRET_HASH when true). Client secret values are never returned. Call this before writing any Cognito sign-in, sign-up, or token-refresh code to use the correct auth flow and client settings. Do NOT call to look up users or tokens — infrawise never reads user data.',
+      inputSchema: z.object({}),
+    },
+    logged('get_cognito_overview', async () => {
+      const pools = getUserPoolNodes(currentGraph);
+      return toText({
+        total: pools.length,
+        note: 'Client secret values and user data are never included.',
+        userPools: pools.map((p) => ({
+          name: p.name,
+          id: p.poolId,
+          mfaConfiguration: p.mfaConfiguration,
+          clients: p.clients ?? [],
+        })),
+      });
+    }),
+  );
+
+  mcp.registerTool(
     'get_stack_outputs',
     {
       description:
@@ -707,6 +732,7 @@ export function createServer(port = 3000) {
       'get_api_routes',
       'get_log_errors',
       'get_stack_outputs',
+      'get_cognito_overview',
     ],
   }));
 

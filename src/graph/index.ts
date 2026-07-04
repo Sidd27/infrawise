@@ -306,6 +306,18 @@ export function buildGraph(
     }
   }
 
+  for (const pool of servicesMeta.cognito ?? []) {
+    addNode({
+      id: `user_pool:aws:${pool.id}`,
+      type: 'user_pool',
+      name: pool.name,
+      provider: 'aws',
+      poolId: pool.id,
+      mfaConfiguration: pool.mfaConfiguration,
+      clients: pool.clients,
+    });
+  }
+
   // ── Code operations (functions + edges) ───────────────────────────────────
 
   for (const op of operations) {
@@ -473,6 +485,8 @@ export const getAPINodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'api' }>>(g, 'api');
 export const getStackOutputNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'stack_output' }>>(g, 'stack_output');
+export const getUserPoolNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'user_pool' }>>(g, 'user_pool');
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);

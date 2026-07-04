@@ -31,6 +31,13 @@ import {
 } from '@aws-sdk/client-eventbridge';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import {
+  CognitoIdentityProviderClient,
+  ListUserPoolsCommand,
+  ListUserPoolClientsCommand,
+  DescribeUserPoolClientCommand,
+  DescribeUserPoolCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import {
   IAMClient,
   ListAttachedRolePoliciesCommand,
   GetPolicyCommand,
@@ -51,6 +58,8 @@ import type {
   RDSInstanceMetadata,
   APIGatewayMetadata,
   APIGatewayRouteMetadata,
+  CognitoUserPoolMetadata,
+  CognitoAppClientMetadata,
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
@@ -527,6 +536,92 @@ export async function extractLambdaMetadata(
 
 export async function validateLambdaAccess(cfg: AWSConfig = {}): Promise<void> {
   await new LambdaClient(clientConfig(cfg)).send(new ListFunctionsCommand({ MaxItems: 1 }));
+}
+
+// ─── Cognito ─────────────────────────────────────────────────────────────────
+
+export async function extractCognitoMetadata(
+  cfg: AWSConfig = {},
+): Promise<CognitoUserPoolMetadata[]> {
+  const client = new CognitoIdentityProviderClient(clientConfig(cfg));
+  const pools: CognitoUserPoolMetadata[] = [];
+
+  try {
+    let nextToken: string | undefined;
+    const poolRefs: Array<{ id: string; name: string }> = [];
+    do {
+      const res = await client.send(
+        new ListUserPoolsCommand({ MaxResults: 60, NextToken: nextToken }),
+      );
+      for (const p of res.UserPools ?? []) {
+        if (p.Id && p.Name) poolRefs.push({ id: p.Id, name: p.Name });
+      }
+      nextToken = res.NextToken;
+    } while (nextToken);
+
+    for (const ref of poolRefs) {
+      try {
+        const poolRes = await client.send(new DescribeUserPoolCommand({ UserPoolId: ref.id }));
+        const clients: CognitoAppClientMetadata[] = [];
+        let clientToken: string | undefined;
+        do {
+          const clientsRes = await client.send(
+            new ListUserPoolClientsCommand({
+              UserPoolId: ref.id,
+              MaxResults: 60,
+              NextToken: clientToken,
+            }),
+          );
+          for (const c of clientsRes.UserPoolClients ?? []) {
+            if (!c.ClientId) continue;
+            try {
+              const detail = await client.send(
+                new DescribeUserPoolClientCommand({ UserPoolId: ref.id, ClientId: c.ClientId }),
+              );
+              const d = detail.UserPoolClient;
+              if (!d) continue;
+              clients.push({
+                clientName: d.ClientName ?? c.ClientName ?? '',
+                clientId: c.ClientId,
+                authFlows: d.ExplicitAuthFlows ?? [],
+                oauthFlows: d.AllowedOAuthFlows ?? [],
+                oauthScopes: d.AllowedOAuthScopes ?? [],
+                callbackUrls: d.CallbackURLs ?? [],
+                generatesSecret: !!d.ClientSecret,
+                accessTokenValidity: d.AccessTokenValidity,
+                idTokenValidity: d.IdTokenValidity,
+                refreshTokenValidity: d.RefreshTokenValidity,
+                tokenValidityUnits: d.TokenValidityUnits
+                  ? {
+                      accessToken: d.TokenValidityUnits.AccessToken,
+                      idToken: d.TokenValidityUnits.IdToken,
+                      refreshToken: d.TokenValidityUnits.RefreshToken,
+                    }
+                  : undefined,
+              });
+            } catch {
+              /* skip client on describe failure */
+            }
+          }
+          clientToken = clientsRes.NextToken;
+        } while (clientToken);
+
+        pools.push({
+          name: ref.name,
+          id: ref.id,
+          mfaConfiguration: poolRes.UserPool?.MfaConfiguration,
+          clients,
+        });
+      } catch (err) {
+        logger.warn(
+          `Cognito describe failed for ${ref.name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn(`Cognito list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return pools;
 }
 
 // ─── RDS ─────────────────────────────────────────────────────────────────────

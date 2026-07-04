@@ -17,6 +17,7 @@ import {
   extractEventBridgeMetadata,
   extractRDSMetadata,
   extractAPIGatewayMetadata,
+  extractCognitoMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
@@ -343,6 +344,14 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     'API Gateway',
     () => extractAPIGatewayMetadata(awsCfg),
     (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
+  );
+
+  servicesMeta.cognito = await extract(
+    config.cognito?.enabled === true,
+    'Extracting Cognito user pools...',
+    'Cognito',
+    () => extractCognitoMetadata(awsCfg),
+    (r) => `${r.length} user pool(s)`,
   );
 
   const cwLogs = config.cloudwatchLogs;

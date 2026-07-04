@@ -215,6 +215,7 @@ function writeYaml(
     rds: { enabled: false },
     s3: { enabled: true },
     apiGateway: { enabled: true },
+    cognito: { enabled: false },
     cloudwatchLogs: { enabled: false, logGroupPrefixes: [], windowHours: 24 },
     analysis: { sampleSize: 100 },
   };
