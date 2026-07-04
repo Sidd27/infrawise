@@ -1,0 +1,49 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<style>
+  .demo {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .demo-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(24px, 3vw, 34px);
+    font-weight: 900;
+    line-height: 1.2;
+    letter-spacing: -0.8px;
+    margin: 12px 0 32px;
+  }
+  .demo-gif-wrap {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .demo-gif-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+</style>
+
+<section class="demo">
+  <div class="demo-inner">
+    <p class="label">Demo</p>
+    <h2 class="section-headline">Ask about your infra. Claude already knows.</h2>
+    <div class="demo-gif-wrap">
+      <img
+        src={`${base}/demo-mcp.gif`}
+        alt="infrawise start --claude opens Claude Code; asked about an SQS-triggered Lambda, Claude pulls the queue details from infrawise and answers with the exact event shape plus the queue's missing DLQ and visibility timeout risks"
+        loading="lazy"
+        width="2138"
+        height="1142"
+      />
+    </div>
+  </div>
+</section>

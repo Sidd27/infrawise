@@ -32,8 +32,10 @@ infrawise.yaml
 # Test coverage
 coverage/
 
-# Demo recordings — generated on demand via pnpm record, not committed
-docs/demo/gifs/
+# Demo recordings — casts generated on demand via pnpm record; published GIFs are committed
+docs/demo/gifs/*
+!docs/demo/gifs/mcp.gif
+!docs/demo/gifs/analyze.gif
 docs/demo/casts/
 
 # Claude Code skills — local tooling, not part of the project

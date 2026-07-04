@@ -44,7 +44,7 @@ read -r  # wait here — recording has NOT started yet
 
 clear    # clean slate before asciinema starts
 
-asciinema rec "$CAST" --overwrite --cols 220 --rows 50
+asciinema rec "$CAST" --overwrite --window-size 220x50
 
 echo ""
 echo "  Converting to GIF..."

@@ -12,6 +12,8 @@ Infrawise gives AI coding assistants deterministic infrastructure awareness.
 
 It statically analyzes your codebase, cloud infrastructure, and database schemas, then exposes that context through MCP so tools like Claude Code can understand your actual tables, indexes, query patterns, and service relationships instead of guessing from source files alone.
 
+![infrawise start --claude, then Claude Code answers an SQS handler question with the exact event shape and queue risks pulled live from infrawise](https://raw.githubusercontent.com/Sidd27/infrawise/main/docs/demo/gifs/mcp.gif)
+
 ---
 
 ## Why this exists
@@ -472,6 +474,8 @@ Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd
 ## Demo
 
 The `demo/localstack/` directory runs infrawise against real AWS APIs emulated locally via [LocalStack](https://localstack.cloud) — an open-source tool that spins up a full AWS environment in Docker so you can test AWS integrations at zero cost, with no real AWS account needed. See [`demo/localstack/README.md`](demo/localstack/README.md) for setup instructions.
+
+![infrawise analyze running against the LocalStack demo and reporting the high-severity findings](https://raw.githubusercontent.com/Sidd27/infrawise/main/docs/demo/gifs/analyze.gif)
 
 ---
 
