@@ -31,6 +31,12 @@ import {
 } from '@aws-sdk/client-eventbridge';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import {
+  KinesisClient,
+  ListStreamsCommand,
+  DescribeStreamSummaryCommand,
+} from '@aws-sdk/client-kinesis';
+import { KafkaClient, ListClustersV2Command } from '@aws-sdk/client-kafka';
+import {
   CognitoIdentityProviderClient,
   ListUserPoolsCommand,
   ListUserPoolClientsCommand,
@@ -60,6 +66,8 @@ import type {
   APIGatewayRouteMetadata,
   CognitoUserPoolMetadata,
   CognitoAppClientMetadata,
+  KinesisStreamMetadata,
+  MSKClusterMetadata,
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
@@ -536,6 +544,78 @@ export async function extractLambdaMetadata(
 
 export async function validateLambdaAccess(cfg: AWSConfig = {}): Promise<void> {
   await new LambdaClient(clientConfig(cfg)).send(new ListFunctionsCommand({ MaxItems: 1 }));
+}
+
+// ─── Kinesis ─────────────────────────────────────────────────────────────────
+
+export async function extractKinesisMetadata(
+  cfg: AWSConfig = {},
+): Promise<KinesisStreamMetadata[]> {
+  const client = new KinesisClient(clientConfig(cfg));
+  const streams: KinesisStreamMetadata[] = [];
+
+  try {
+    let nextToken: string | undefined;
+    const names: string[] = [];
+    do {
+      const res = await client.send(new ListStreamsCommand({ NextToken: nextToken }));
+      names.push(...(res.StreamNames ?? []));
+      nextToken = res.NextToken;
+    } while (nextToken);
+
+    for (const name of names) {
+      try {
+        const res = await client.send(new DescribeStreamSummaryCommand({ StreamName: name }));
+        const d = res.StreamDescriptionSummary;
+        if (!d) continue;
+        streams.push({
+          name,
+          arn: d.StreamARN ?? '',
+          status: d.StreamStatus ?? 'UNKNOWN',
+          shardCount: d.OpenShardCount,
+          retentionHours: d.RetentionPeriodHours,
+          encrypted: d.EncryptionType === 'KMS',
+          mode: d.StreamModeDetails?.StreamMode ?? 'PROVISIONED',
+        });
+      } catch (err) {
+        logger.warn(
+          `Kinesis describe failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn(`Kinesis list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return streams;
+}
+
+// ─── MSK ─────────────────────────────────────────────────────────────────────
+
+export async function extractMSKMetadata(cfg: AWSConfig = {}): Promise<MSKClusterMetadata[]> {
+  const client = new KafkaClient(clientConfig(cfg));
+  const clusters: MSKClusterMetadata[] = [];
+
+  try {
+    let nextToken: string | undefined;
+    do {
+      const res = await client.send(new ListClustersV2Command({ NextToken: nextToken }));
+      for (const c of res.ClusterInfoList ?? []) {
+        if (!c.ClusterName) continue;
+        clusters.push({
+          name: c.ClusterName,
+          arn: c.ClusterArn ?? '',
+          state: c.State ?? 'UNKNOWN',
+          clusterType: c.ClusterType ?? 'PROVISIONED',
+          kafkaVersion: c.Provisioned?.CurrentBrokerSoftwareInfo?.KafkaVersion,
+          brokerNodes: c.Provisioned?.NumberOfBrokerNodes,
+        });
+      }
+      nextToken = res.NextToken;
+    } while (nextToken);
+  } catch (err) {
+    logger.warn(`MSK list failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return clusters;
 }
 
 // ─── Cognito ─────────────────────────────────────────────────────────────────

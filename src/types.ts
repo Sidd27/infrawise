@@ -99,6 +99,27 @@ export type GraphNode =
     }
   | {
       id: string;
+      type: 'stream';
+      name: string;
+      provider: string;
+      status?: string;
+      shardCount?: number;
+      retentionHours?: number;
+      encrypted?: boolean;
+      mode?: string;
+    }
+  | {
+      id: string;
+      type: 'kafka_cluster';
+      name: string;
+      provider: string;
+      state?: string;
+      clusterType?: string;
+      kafkaVersion?: string;
+      brokerNodes?: number;
+    }
+  | {
+      id: string;
       type: 'user_pool';
       name: string;
       provider: string;
@@ -332,6 +353,25 @@ export interface S3BucketMetadata {
   notifications: S3EventNotification[];
 }
 
+export interface KinesisStreamMetadata {
+  name: string;
+  arn: string;
+  status: string;
+  shardCount?: number;
+  retentionHours?: number;
+  encrypted: boolean;
+  mode: string;
+}
+
+export interface MSKClusterMetadata {
+  name: string;
+  arn: string;
+  state: string;
+  clusterType: string;
+  kafkaVersion?: string;
+  brokerNodes?: number;
+}
+
 export interface CognitoAppClientMetadata {
   clientName: string;
   clientId: string;
@@ -366,6 +406,8 @@ export interface ServicesMeta {
   s3?: S3BucketMetadata[];
   apiGateway?: APIGatewayMetadata[];
   cognito?: CognitoUserPoolMetadata[];
+  kinesis?: KinesisStreamMetadata[];
+  msk?: MSKClusterMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -461,6 +503,12 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   cognito?: {
+    enabled?: boolean;
+  };
+  kinesis?: {
+    enabled?: boolean;
+  };
+  msk?: {
     enabled?: boolean;
   };
   cloudwatchLogs?: {

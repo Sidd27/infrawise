@@ -36,6 +36,7 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
   { name: 'get_stack_outputs', service: 'terraform' },
   { name: 'get_cognito_overview', service: 'cognito' },
+  { name: 'get_stream_details', service: 'kinesis' },
 ];
 
 // With no config every registered tool is shown as active (the server exposes

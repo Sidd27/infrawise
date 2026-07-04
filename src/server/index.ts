@@ -26,6 +26,8 @@ import {
   getAPINodes,
   getStackOutputNodes,
   getUserPoolNodes,
+  getStreamNodes,
+  getKafkaClusterNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -129,6 +131,7 @@ export function createMcpServer(): McpServer {
           lambdas: lambdas.length,
           buckets: buckets.length,
           userPools: userPools.length,
+          streams: getStreamNodes(currentGraph).length,
           totalNodes: currentGraph.nodes.length,
           totalEdges: currentGraph.edges.length,
           findings: summarizeFindings(currentFindings),
@@ -643,6 +646,38 @@ export function createMcpServer(): McpServer {
   );
 
   mcp.registerTool(
+    'get_stream_details',
+    {
+      description:
+        'Returns all Kinesis data streams (status, shard count, retention hours, encryption, capacity mode) and Amazon MSK clusters (state, cluster type, Kafka version, broker count). Call this when writing Kinesis producer or consumer code, checking whether a stream is PROVISIONED or ON_DEMAND before writing PutRecord calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings extracted from application code, use get_topic_details instead.',
+      inputSchema: z.object({}),
+    },
+    logged('get_stream_details', async () => {
+      const streams = getStreamNodes(currentGraph);
+      const clusters = getKafkaClusterNodes(currentGraph);
+      return toText({
+        totalStreams: streams.length,
+        totalKafkaClusters: clusters.length,
+        streams: streams.map((s) => ({
+          name: s.name,
+          status: s.status,
+          shardCount: s.shardCount,
+          retentionHours: s.retentionHours,
+          encrypted: s.encrypted,
+          mode: s.mode,
+        })),
+        kafkaClusters: clusters.map((c) => ({
+          name: c.name,
+          state: c.state,
+          clusterType: c.clusterType,
+          kafkaVersion: c.kafkaVersion,
+          brokerNodes: c.brokerNodes,
+        })),
+      });
+    }),
+  );
+
+  mcp.registerTool(
     'get_cognito_overview',
     {
       description:
@@ -733,6 +768,7 @@ export function createServer(port = 3000) {
       'get_log_errors',
       'get_stack_outputs',
       'get_cognito_overview',
+      'get_stream_details',
     ],
   }));
 

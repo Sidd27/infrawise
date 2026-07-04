@@ -616,6 +616,68 @@ describe('cognito nodes', () => {
   });
 });
 
+describe('stream and kafka_cluster nodes', () => {
+  it('builds stream nodes from kinesis metadata', () => {
+    const graph = buildGraph([], [], [], [], [], {
+      kinesis: [
+        {
+          name: 'click-events',
+          arn: 'arn:aws:kinesis:us-east-1:1:stream/click-events',
+          status: 'ACTIVE',
+          shardCount: 2,
+          retentionHours: 24,
+          encrypted: false,
+          mode: 'PROVISIONED',
+        },
+      ],
+    });
+    expect(graph.nodes.find((n) => n.id === 'stream:aws:click-events')).toBeDefined();
+  });
+
+  it('builds kafka_cluster nodes from msk metadata', () => {
+    const graph = buildGraph([], [], [], [], [], {
+      msk: [
+        {
+          name: 'events-cluster',
+          arn: 'arn:aws:kafka:us-east-1:1:cluster/events-cluster/x',
+          state: 'ACTIVE',
+          clusterType: 'PROVISIONED',
+          brokerNodes: 3,
+        },
+      ],
+    });
+    expect(graph.nodes.find((n) => n.id === 'kafka_cluster:aws:events-cluster')).toBeDefined();
+  });
+
+  it('kinesis lambda trigger creates a stream node, not a queue node', () => {
+    const graph = buildGraph([], [], [], [], [], {
+      lambda: [
+        {
+          name: 'consumer',
+          arn: 'arn:aws:lambda:us-east-1:1:function:consumer',
+          envVarKeys: [],
+          layers: [],
+          triggers: [
+            {
+              type: 'kinesis',
+              sourceArn: 'arn:aws:kinesis:us-east-1:1:stream/click-events',
+              sourceName: 'click-events',
+              eventShape: 'event.Records[0].kinesis.data  // base64',
+            },
+          ],
+        },
+      ],
+    });
+    expect(graph.nodes.find((n) => n.id === 'stream:aws:click-events')).toBeDefined();
+    expect(graph.nodes.find((n) => n.id === 'queue:aws:click-events')).toBeUndefined();
+    expect(
+      graph.edges.find(
+        (e) => e.from === 'stream:aws:click-events' && e.to === 'lambda:aws:consumer',
+      ),
+    ).toBeDefined();
+  });
+});
+
 describe('addStackOutputNodes', () => {
   it('adds stack_output nodes and dedupes by id', () => {
     const graph: SystemGraph = { nodes: [], edges: [] };

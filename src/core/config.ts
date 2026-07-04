@@ -60,6 +60,8 @@ export const InfrawiseConfigSchema = z.object({
   s3: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   apiGateway: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cognito: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  kinesis: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  msk: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   cloudwatchLogs: z
     .object({
       enabled: z.boolean().optional().default(false),
@@ -205,6 +207,8 @@ export function generateDefaultConfig(
     s3: { enabled: options?.s3?.enabled ?? false },
     apiGateway: { enabled: options?.apiGateway?.enabled ?? false },
     cognito: { enabled: options?.cognito?.enabled ?? false },
+    kinesis: { enabled: options?.kinesis?.enabled ?? false },
+    msk: { enabled: options?.msk?.enabled ?? false },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,
       logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],

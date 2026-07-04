@@ -18,6 +18,8 @@ import {
   extractRDSMetadata,
   extractAPIGatewayMetadata,
   extractCognitoMetadata,
+  extractKinesisMetadata,
+  extractMSKMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
@@ -352,6 +354,22 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     'Cognito',
     () => extractCognitoMetadata(awsCfg),
     (r) => `${r.length} user pool(s)`,
+  );
+
+  servicesMeta.kinesis = await extract(
+    config.kinesis?.enabled === true,
+    'Extracting Kinesis streams...',
+    'Kinesis',
+    () => extractKinesisMetadata(awsCfg),
+    (r) => `${r.length} stream(s)`,
+  );
+
+  servicesMeta.msk = await extract(
+    config.msk?.enabled === true,
+    'Extracting MSK clusters...',
+    'MSK',
+    () => extractMSKMetadata(awsCfg),
+    (r) => `${r.length} cluster(s)`,
   );
 
   const cwLogs = config.cloudwatchLogs;

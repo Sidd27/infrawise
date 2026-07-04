@@ -107,6 +107,33 @@ export function buildGraph(
     });
   }
 
+  for (const s of servicesMeta.kinesis ?? []) {
+    addNode({
+      id: `stream:aws:${s.name}`,
+      type: 'stream',
+      name: s.name,
+      provider: 'aws',
+      status: s.status,
+      shardCount: s.shardCount,
+      retentionHours: s.retentionHours,
+      encrypted: s.encrypted,
+      mode: s.mode,
+    });
+  }
+
+  for (const c of servicesMeta.msk ?? []) {
+    addNode({
+      id: `kafka_cluster:aws:${c.name}`,
+      type: 'kafka_cluster',
+      name: c.name,
+      provider: 'aws',
+      state: c.state,
+      clusterType: c.clusterType,
+      kafkaVersion: c.kafkaVersion,
+      brokerNodes: c.brokerNodes,
+    });
+  }
+
   for (const api of servicesMeta.apiGateway ?? []) {
     addNode({
       id: `api:aws:${api.id}`,
@@ -208,15 +235,8 @@ export function buildGraph(
           databaseType: 'dynamodb',
         });
       } else if (trigger.type === 'kinesis') {
-        sourceId = `queue:aws:${trigger.sourceName}`;
-        addNode({
-          id: sourceId,
-          type: 'queue',
-          name: trigger.sourceName,
-          provider: 'aws',
-          hasDLQ: false,
-          encrypted: false,
-        });
+        sourceId = `stream:aws:${trigger.sourceName}`;
+        addNode({ id: sourceId, type: 'stream', name: trigger.sourceName, provider: 'aws' });
       } else {
         continue;
       }
@@ -487,6 +507,10 @@ export const getStackOutputNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'stack_output' }>>(g, 'stack_output');
 export const getUserPoolNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'user_pool' }>>(g, 'user_pool');
+export const getStreamNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'stream' }>>(g, 'stream');
+export const getKafkaClusterNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'kafka_cluster' }>>(g, 'kafka_cluster');
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);
