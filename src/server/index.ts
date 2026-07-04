@@ -406,7 +406,7 @@ export function createMcpServer(): McpServer {
     'get_queue_details',
     {
       description:
-        'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only.',
+        'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only. When runtime signals are enabled, oldestMessageAgeSec reports the age of the oldest message from CloudWatch.',
       inputSchema: z.object({}),
     },
     logged('get_queue_details', async () => {
@@ -425,6 +425,7 @@ export function createMcpServer(): McpServer {
           visibilityTimeoutSec: q.visibilityTimeoutSec,
           approximateMessages: q.approximateMessages,
           retentionDays: q.retentionDays,
+          oldestMessageAgeSec: q.oldestMessageAgeSec,
           findings: queueFindings
             .filter((f) => (f.metadata as Record<string, unknown>).queueName === q.name)
             .map((f) => ({ severity: f.severity, issue: f.issue })),
@@ -509,7 +510,7 @@ export function createMcpServer(): McpServer {
     'get_lambda_overview',
     {
       description:
-        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function.',
+        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window.',
       inputSchema: z.object({}),
     },
     logged('get_lambda_overview', async () => {
@@ -528,6 +529,8 @@ export function createMcpServer(): McpServer {
           envVarCount: l.envVarKeys?.length ?? 0,
           envVarKeys: l.envVarKeys,
           roleArn: l.roleArn,
+          recentThrottles: l.recentThrottles,
+          recentErrors: l.recentErrors,
           triggers: (l.triggers ?? []).map((t) => ({
             type: t.type,
             source: t.sourceName,

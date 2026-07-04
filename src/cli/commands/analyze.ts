@@ -23,6 +23,7 @@ import {
   extractElastiCacheMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
+import { extractRuntimeSignals } from '../../adapters/aws/metrics.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
 import { scanRepository } from '../../context/index.js';
 import { buildGraph, addStackOutputNodes } from '../../graph/index.js';
@@ -60,6 +61,8 @@ import {
   S3UnencryptedAnalyzer,
   CacheTransitEncryptionAnalyzer,
   CacheSingleNodeAnalyzer,
+  LambdaThrottlingAnalyzer,
+  StaleQueueMessagesAnalyzer,
 } from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type {
@@ -215,6 +218,9 @@ function buildAnalyzers(
       : []),
     ...(config.elasticache?.enabled === true
       ? [new CacheTransitEncryptionAnalyzer(), new CacheSingleNodeAnalyzer()]
+      : []),
+    ...(config.runtimeSignals?.enabled === true
+      ? [new LambdaThrottlingAnalyzer(), new StaleQueueMessagesAnalyzer()]
       : []),
     ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
     pipelineAnalyzer,
@@ -399,6 +405,38 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       }),
     (r) => `${r.length} group(s), ${r.filter((lg) => lg.errorCount > 0).length} with errors`,
   );
+
+  if (config.runtimeSignals?.enabled && (servicesMeta.lambda?.length || servicesMeta.sqs?.length)) {
+    const s = mkSpinner('Fetching runtime signals (CloudWatch metrics)...');
+    try {
+      const signals = await extractRuntimeSignals(
+        awsCfg,
+        (servicesMeta.lambda ?? []).map((f) => f.name),
+        (servicesMeta.sqs ?? []).map((q) => q.name),
+        config.runtimeSignals.windowHours,
+      );
+      for (const fn of servicesMeta.lambda ?? []) {
+        const sig = signals.lambdas.get(fn.name);
+        if (sig) {
+          fn.recentThrottles = sig.throttles;
+          fn.recentErrors = sig.errors;
+        }
+      }
+      for (const q of servicesMeta.sqs ?? []) {
+        const sig = signals.queues.get(q.name);
+        if (sig) q.oldestMessageAgeSec = sig.oldestMessageAgeSec;
+      }
+      s.succeed(
+        chalk.green('Runtime signals') +
+          chalk.dim(`  ${signals.lambdas.size} function(s), ${signals.queues.size} queue(s)`),
+      );
+    } catch (err) {
+      s.warn(
+        chalk.yellow('Runtime signals skipped') +
+          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }
+  }
 
   // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;

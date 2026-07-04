@@ -77,12 +77,12 @@ import type {
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
-interface AWSConfig {
+export interface AWSConfig {
   region?: string;
   profile?: string;
 }
 
-function clientConfig(cfg: AWSConfig) {
+export function clientConfig(cfg: AWSConfig) {
   const region = cfg.region ?? 'us-east-1';
   const base: Record<string, unknown> = { region };
   if (cfg.profile) base.credentials = fromIni({ profile: cfg.profile });

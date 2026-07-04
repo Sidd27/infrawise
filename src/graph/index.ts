@@ -104,6 +104,7 @@ export function buildGraph(
       visibilityTimeoutSec: q.visibilityTimeoutSec,
       approximateMessages: q.approximateMessages,
       retentionDays: q.retentionDays,
+      oldestMessageAgeSec: q.oldestMessageAgeSec,
     });
   }
 
@@ -210,6 +211,8 @@ export function buildGraph(
       triggers: fn.triggers,
       roleArn: fn.roleArn,
       allowedServices: fn.allowedServices,
+      recentThrottles: fn.recentThrottles,
+      recentErrors: fn.recentErrors,
     });
 
     // Add trigger edges from source → lambda (only for enabled/active mappings)

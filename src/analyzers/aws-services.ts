@@ -352,6 +352,57 @@ export class CacheSingleNodeAnalyzer implements Analyzer {
   }
 }
 
+// ─── Runtime signals ─────────────────────────────────────────────────────────
+
+export class LambdaThrottlingAnalyzer implements Analyzer {
+  name = 'LambdaThrottlingAnalyzer';
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'lambda') continue;
+      if ((node.recentThrottles ?? 0) > 0) {
+        findings.push({
+          severity: 'high',
+          issue: `Lambda "${node.name}" was throttled ${node.recentThrottles} time(s) recently`,
+          description: `"${node.name}" hit concurrency throttling in the analysis window. Throttled invocations are rejected or delayed; for sync callers this surfaces as errors, for event sources as retries and growing backlogs.`,
+          recommendation: `Check reserved/account concurrency for "${node.name}". Raise reserved concurrency, request an account limit increase, or smooth the invoke rate (SQS between producer and Lambda).`,
+          metadata: { functionName: node.name, recentThrottles: node.recentThrottles },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
+export class StaleQueueMessagesAnalyzer implements Analyzer {
+  name = 'StaleQueueMessagesAnalyzer';
+
+  private readonly thresholdSec: number;
+
+  constructor(thresholdSec = 3600) {
+    this.thresholdSec = thresholdSec;
+  }
+
+  async analyze(graph: SystemGraph): Promise<Finding[]> {
+    const findings: Finding[] = [];
+    for (const node of graph.nodes) {
+      if (node.type !== 'queue') continue;
+      const age = node.oldestMessageAgeSec ?? 0;
+      if (age > this.thresholdSec) {
+        findings.push({
+          severity: 'medium',
+          issue: `Queue "${node.name}" has messages older than ${Math.round(age / 3600)} hour(s)`,
+          description: `The oldest message in "${node.name}" is ${Math.round(age / 60)} minutes old. Consumers are not keeping up, are failing, or are not running.`,
+          recommendation: `Check consumer health for "${node.name}". If a Lambda consumes it, look at its error and throttle counts; if messages are near the retention limit they will be silently dropped.`,
+          metadata: { queueName: node.name, oldestMessageAgeSec: age },
+        });
+      }
+    }
+    return findings;
+  }
+}
+
 // ─── IAM ─────────────────────────────────────────────────────────────────────
 
 const MINIMAL_ACTIONS: Record<string, string> = {

@@ -19,6 +19,7 @@ export type GraphNode =
       visibilityTimeoutSec?: number;
       approximateMessages?: number;
       retentionDays?: number;
+      oldestMessageAgeSec?: number;
     }
   | {
       id: string;
@@ -79,6 +80,8 @@ export type GraphNode =
       triggers?: LambdaTrigger[];
       roleArn?: string;
       allowedServices?: string[];
+      recentThrottles?: number;
+      recentErrors?: number;
     }
   | {
       id: string;
@@ -236,6 +239,7 @@ export interface SQSQueueMetadata {
   retentionDays: number;
   approximateMessages: number;
   approximateInflight: number;
+  oldestMessageAgeSec?: number;
 }
 
 export interface APIGatewayRouteMetadata {
@@ -316,6 +320,8 @@ export interface LambdaFunctionMetadata {
   triggers: LambdaTrigger[];
   roleArn?: string;
   allowedServices?: string[]; // service prefixes the execution role allows, e.g. ['dynamodb', 's3']
+  recentThrottles?: number;
+  recentErrors?: number;
 }
 
 export interface LogGroupSummary {
@@ -540,6 +546,10 @@ export interface InfrawiseConfig {
   };
   elasticache?: {
     enabled?: boolean;
+  };
+  runtimeSignals?: {
+    enabled?: boolean;
+    windowHours?: number;
   };
   cloudwatchLogs?: {
     enabled?: boolean;

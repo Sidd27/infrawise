@@ -63,6 +63,12 @@ export const InfrawiseConfigSchema = z.object({
   kinesis: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   msk: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
   elasticache: z.object({ enabled: z.boolean().optional().default(false) }).optional(),
+  runtimeSignals: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      windowHours: z.number().int().positive().optional().default(24),
+    })
+    .optional(),
   cloudwatchLogs: z
     .object({
       enabled: z.boolean().optional().default(false),
@@ -211,6 +217,10 @@ export function generateDefaultConfig(
     kinesis: { enabled: options?.kinesis?.enabled ?? false },
     msk: { enabled: options?.msk?.enabled ?? false },
     elasticache: { enabled: options?.elasticache?.enabled ?? false },
+    runtimeSignals: {
+      enabled: options?.runtimeSignals?.enabled ?? false,
+      windowHours: options?.runtimeSignals?.windowHours ?? 24,
+    },
     cloudwatchLogs: {
       enabled: options?.cloudwatchLogs?.enabled ?? false,
       logGroupPrefixes: options?.cloudwatchLogs?.logGroupPrefixes ?? [],

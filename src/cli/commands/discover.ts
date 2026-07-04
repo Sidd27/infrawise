@@ -219,6 +219,7 @@ function writeYaml(
     kinesis: { enabled: false },
     msk: { enabled: false },
     elasticache: { enabled: false },
+    runtimeSignals: { enabled: false, windowHours: 24 },
     cloudwatchLogs: { enabled: false, logGroupPrefixes: [], windowHours: 24 },
     analysis: { sampleSize: 100 },
   };

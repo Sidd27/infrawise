@@ -23,6 +23,8 @@ export {
   S3UnencryptedAnalyzer,
   CacheTransitEncryptionAnalyzer,
   CacheSingleNodeAnalyzer,
+  LambdaThrottlingAnalyzer,
+  StaleQueueMessagesAnalyzer,
 } from './aws-services.js';
 export {
   RDSPubliclyAccessibleAnalyzer,

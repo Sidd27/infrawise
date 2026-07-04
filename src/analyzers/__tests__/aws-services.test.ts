@@ -13,6 +13,8 @@ import {
   S3UnencryptedAnalyzer,
   CacheTransitEncryptionAnalyzer,
   CacheSingleNodeAnalyzer,
+  LambdaThrottlingAnalyzer,
+  StaleQueueMessagesAnalyzer,
 } from '../aws-services';
 import type { SystemGraph } from '../../types';
 
@@ -780,6 +782,70 @@ describe('CacheSingleNodeAnalyzer', () => {
           engine: 'redis',
           numNodes: 1,
           replicationGroupId: 'sessions-rg',
+        },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('LambdaThrottlingAnalyzer', () => {
+  const analyzer = new LambdaThrottlingAnalyzer();
+
+  it('flags lambda with recent throttles', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'lambda:aws:worker', type: 'lambda', name: 'worker', recentThrottles: 12 }],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('high');
+  });
+
+  it('does not flag lambda with zero throttles', async () => {
+    const graph: SystemGraph = {
+      nodes: [{ id: 'lambda:aws:worker', type: 'lambda', name: 'worker', recentThrottles: 0 }],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+});
+
+describe('StaleQueueMessagesAnalyzer', () => {
+  const analyzer = new StaleQueueMessagesAnalyzer();
+
+  it('flags queue whose oldest message exceeds one hour', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+          oldestMessageAgeSec: 7200,
+        },
+      ],
+      edges: [],
+    };
+    const findings = await analyzer.analyze(graph);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('medium');
+  });
+
+  it('does not flag fresh queue', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+          oldestMessageAgeSec: 30,
         },
       ],
       edges: [],
