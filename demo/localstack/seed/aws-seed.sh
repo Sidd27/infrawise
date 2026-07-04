@@ -368,6 +368,42 @@ $AWS logs put-retention-policy --log-group-name "/app/audit-logs" --retention-in
 $AWS logs create-log-group --log-group-name "/app/api" --no-cli-pager 2>/dev/null || true
 $AWS logs put-retention-policy --log-group-name "/app/api" --retention-in-days 90 --no-cli-pager 2>/dev/null || true
 
+# ── Kinesis ─────────────────────────────────────────────────────────────────
+
+echo "  → Kinesis streams"
+
+$AWS kinesis create-stream --stream-name click-events --shard-count 1 --no-cli-pager 2>/dev/null || true
+
+# ── Cognito ─────────────────────────────────────────────────────────────────
+
+echo "  → Cognito user pool"
+
+POOL_ID=$($AWS cognito-idp create-user-pool \
+  --pool-name demo-users \
+  --query 'UserPool.Id' --output text --no-cli-pager 2>/dev/null || echo "")
+
+if [ -n "$POOL_ID" ]; then
+  $AWS cognito-idp create-user-pool-client \
+    --user-pool-id "$POOL_ID" \
+    --client-name web-client \
+    --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+    --no-cli-pager 2>/dev/null || true
+fi
+
+# ── ElastiCache ─────────────────────────────────────────────────────────────
+
+echo "  → ElastiCache cluster"
+
+# memcached: appears in DescribeCacheClusters on both real AWS and Floci
+# (Floci surfaces Redis only via replication groups, which real AWS also
+# lists as member cache clusters — so memcached keeps the demo portable)
+$AWS elasticache create-cache-cluster \
+  --cache-cluster-id sessions-cache \
+  --engine memcached \
+  --cache-node-type cache.t3.micro \
+  --num-cache-nodes 1 \
+  --no-cli-pager 2>/dev/null || true
+
 echo ""
 echo "✅ AWS seed complete"
 echo "   DynamoDB    : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
@@ -377,3 +413,6 @@ echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB
 echo "   EventBridge : generate-report-schedule (rate), order-created-event (pattern)"
 echo "   API Gateway : demo-api (REST) — GET/POST /orders → processOrders, GET /reports → generateReport, POST /notifications → sendNotification"
 echo "   Logs        : processOrders + generateReport (no retention), audit-logs (400 days)"
+echo "   Kinesis     : click-events (1 shard) — needs Floci or LocalStack with Kinesis"
+echo "   Cognito     : demo-users pool + web-client app client — needs Floci (LocalStack Pro only)"
+echo "   ElastiCache : sessions-cache (single node, no transit encryption) — needs Floci (LocalStack Pro only)"

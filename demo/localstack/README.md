@@ -60,3 +60,28 @@ The resources and their intentional issues are defined in [`seed/aws-seed.sh`](s
 ```bash
 docker compose down
 ```
+
+---
+
+## Validating against Floci
+
+[Floci](https://floci.io) is a free, MIT-licensed LocalStack drop-in on the same
+port 4566 — it covers Cognito, Kinesis, and ElastiCache, which the LocalStack
+community image does not. No source or config changes are needed: the same
+`localstack` AWS profile reaches whichever emulator is listening on 4566.
+
+```bash
+docker compose down     # stop LocalStack first
+docker run --rm -d --name floci -p 4566:4566 \
+  -v /var/run/docker.sock:/var/run/docker.sock floci/floci:latest
+./seed/aws-seed.sh
+infrawise analyze --config infrawise.yaml
+```
+
+The Docker socket mount is for ElastiCache, which Floci runs as a real Valkey
+container. Stop with `docker stop floci`.
+
+Known Floci fidelity gaps (as of floci 1.5.x): `DescribeCacheClusters` does not
+list Redis replication-group members (the seed uses memcached for portability),
+and API Gateway REST `GetResources` does not return embedded methods, so route
+extraction shows 0 routes. Neither affects real AWS.

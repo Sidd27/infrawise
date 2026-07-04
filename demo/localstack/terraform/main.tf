@@ -114,3 +114,8 @@ resource "aws_lambda_function" "cleanup_job" {
   role          = "arn:aws:iam::000000000000:role/demo-role"
   filename      = "placeholder.zip"
 }
+
+output "orders_table_name" {
+  description = "Name of the orders DynamoDB table"
+  value       = aws_dynamodb_table.orders.name
+}

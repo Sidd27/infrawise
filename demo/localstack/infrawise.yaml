@@ -36,6 +36,16 @@ s3:
   enabled: true
 apiGateway:
   enabled: true
+cognito:
+  enabled: true
+kinesis:
+  enabled: true
+msk:
+  enabled: false
+elasticache:
+  enabled: true
+runtimeSignals:
+  enabled: false
 cloudwatchLogs:
   enabled: true
   logGroupPrefixes: []
