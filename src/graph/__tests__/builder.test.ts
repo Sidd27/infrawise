@@ -16,8 +16,10 @@ import {
   getEdgesForNode,
   getOutgoingEdges,
   getIncomingEdges,
+  addStackOutputNodes,
 } from '../index';
 import type {
+  SystemGraph,
   ExtractedOperation,
   DynamoTableMetadata,
   PostgresTableMetadata,
@@ -583,5 +585,21 @@ describe('edge selectors', () => {
 
   it('getEdgesForNode returns empty array for unknown node', () => {
     expect(getEdgesForNode(graph, 'nonexistent:node')).toHaveLength(0);
+  });
+});
+
+describe('addStackOutputNodes', () => {
+  it('adds stack_output nodes and dedupes by id', () => {
+    const graph: SystemGraph = { nodes: [], edges: [] };
+    const out = {
+      name: 'table_arn',
+      exportName: 'shared-arn',
+      value: 'aws_dynamodb_table.orders.arn',
+      source: 'terraform',
+      filePath: 'main.tf',
+    };
+    addStackOutputNodes(graph, [out, out]);
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0].type).toBe('stack_output');
   });
 });

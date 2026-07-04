@@ -847,3 +847,51 @@ Resources:
     expect(sources).toEqual(['cloudformation', 'terraform']);
   });
 });
+
+// ─── IaC outputs ─────────────────────────────────────────────────────────────
+
+describe('IaC outputs', () => {
+  it('parses Terraform output blocks', async () => {
+    write(
+      dir,
+      'outputs.tf',
+      `
+output "orders_table_arn" {
+  description = "ARN of the orders table"
+  value       = aws_dynamodb_table.orders.arn
+}
+`,
+    );
+    const schema = await extractTerraformSchema(dir);
+    expect(schema.outputs).toHaveLength(1);
+    expect(schema.outputs[0].name).toBe('orders_table_arn');
+    expect(schema.outputs[0].description).toBe('ARN of the orders table');
+    expect(schema.outputs[0].value).toBe('aws_dynamodb_table.orders.arn');
+    expect(schema.outputs[0].source).toBe('terraform');
+  });
+
+  it('parses CloudFormation Outputs with Export names', async () => {
+    write(
+      dir,
+      'template.yaml',
+      `
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+Outputs:
+  OrdersTableArn:
+    Description: Orders table ARN
+    Value:
+      'Fn::GetAtt': [OrdersTable, Arn]
+    Export:
+      Name: shared-orders-table-arn
+`,
+    );
+    const schema = await extractCloudFormationSchema(dir);
+    expect(schema.outputs).toHaveLength(1);
+    expect(schema.outputs[0].name).toBe('OrdersTableArn');
+    expect(schema.outputs[0].exportName).toBe('shared-orders-table-arn');
+    expect(schema.outputs[0].source).toBe('cloudformation');
+  });
+});

@@ -24,6 +24,7 @@ import {
   getEventBridgeRuleNodes,
   getBucketNodes,
   getAPINodes,
+  getStackOutputNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -638,6 +639,29 @@ export function createMcpServer(): McpServer {
     }),
   );
 
+  mcp.registerTool(
+    'get_stack_outputs',
+    {
+      description:
+        'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack.',
+      inputSchema: z.object({}),
+    },
+    logged('get_stack_outputs', async () => {
+      const outputs = getStackOutputNodes(currentGraph);
+      return toText({
+        total: outputs.length,
+        outputs: outputs.map((o) => ({
+          name: o.name,
+          description: o.description,
+          exportName: o.exportName,
+          value: o.value,
+          source: o.iacSource,
+          file: o.file,
+        })),
+      });
+    }),
+  );
+
   return mcp;
 }
 
@@ -682,6 +706,7 @@ export function createServer(port = 3000) {
       'get_s3_overview',
       'get_api_routes',
       'get_log_errors',
+      'get_stack_outputs',
     ],
   }));
 

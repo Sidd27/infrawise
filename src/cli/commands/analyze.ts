@@ -7,7 +7,7 @@ import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
 import { extractMongoMetadata } from '../../adapters/db/mongodb.js';
-import { extractIaCSchema, type IaCLambda } from '../../adapters/iac/terraform.js';
+import { extractIaCSchema, type IaCLambda, type IaCOutput } from '../../adapters/iac/terraform.js';
 import {
   extractSQSMetadata,
   extractSNSMetadata,
@@ -21,7 +21,7 @@ import {
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
 import { scanRepository } from '../../context/index.js';
-import { buildGraph } from '../../graph/index.js';
+import { buildGraph, addStackOutputNodes } from '../../graph/index.js';
 import {
   runAllAnalyzers,
   IaCDriftAnalyzer,
@@ -362,6 +362,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
   let iacLambdas: IaCLambda[] = [];
+  let iacOutputs: IaCOutput[] = [];
   {
     const s = mkSpinner('Extracting IaC schema (Terraform / CloudFormation / CDK)...');
     try {
@@ -376,10 +377,12 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         iacSchema.buckets.length +
         iacSchema.parameters.length +
         iacSchema.secrets.length +
-        iacSchema.apiGateways.length;
+        iacSchema.apiGateways.length +
+        iacSchema.outputs.length;
       iacDriftAnalyzer = new IaCDriftAnalyzer();
       iacDriftAnalyzer.setIaCSchema(iacSchema);
       iacLambdas = iacSchema.lambdas;
+      iacOutputs = iacSchema.outputs;
       s.succeed(chalk.green('IaC schema') + chalk.dim(`  ${total} resource(s) across TF/CFN/CDK`));
     } catch (err) {
       s.warn(
@@ -413,6 +416,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   {
     const s = mkSpinner('Building infrastructure graph...');
     graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta, servicesMeta);
+    addStackOutputNodes(graph, iacOutputs);
     s.succeed(
       chalk.green('Graph built') +
         chalk.dim(`  ${graph.nodes.length} nodes, ${graph.edges.length} edges`),
@@ -501,11 +505,13 @@ export async function runCodeRefresh(
   // Re-run IaC schema (pure file scan, no AWS calls)
   let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
   let iacLambdas: IaCLambda[] = [];
+  let iacOutputs: IaCOutput[] = [];
   try {
     const iacSchema = await extractIaCSchema(repoPath);
     iacDriftAnalyzer = new IaCDriftAnalyzer();
     iacDriftAnalyzer.setIaCSchema(iacSchema);
     iacLambdas = iacSchema.lambdas;
+    iacOutputs = iacSchema.outputs;
   } catch {
     // IaC scan is best-effort
   }
@@ -526,6 +532,7 @@ export async function runCodeRefresh(
     mongoMeta,
     servicesMeta,
   );
+  addStackOutputNodes(graph, iacOutputs);
 
   const analyzers = buildAnalyzers(config, iacDriftAnalyzer, iacLambdas);
   const findings = await runAllAnalyzers(graph, analyzers);

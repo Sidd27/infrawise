@@ -34,6 +34,7 @@ const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_s3_overview', service: 's3' },
   { name: 'get_api_routes', service: 'apiGateway' },
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
+  { name: 'get_stack_outputs', service: 'terraform' },
 ];
 
 // With no config every registered tool is shown as active (the server exposes

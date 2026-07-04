@@ -76,6 +76,15 @@ export interface IaCApiGateway {
   filePath: string;
 }
 
+export interface IaCOutput {
+  name: string;
+  description?: string;
+  exportName?: string;
+  value?: string;
+  source: IaCSource;
+  filePath: string;
+}
+
 export interface IaCSchema {
   dynamoTables: IaCDynamoTable[];
   rdsInstances: IaCRDSInstance[];
@@ -87,6 +96,7 @@ export interface IaCSchema {
   parameters: IaCParameter[];
   secrets: IaCSecret[];
   apiGateways: IaCApiGateway[];
+  outputs: IaCOutput[];
 }
 
 function emptySchema(): IaCSchema {
@@ -101,6 +111,7 @@ function emptySchema(): IaCSchema {
     parameters: [],
     secrets: [],
     apiGateways: [],
+    outputs: [],
   };
 }
 
@@ -172,6 +183,24 @@ function tfGSINames(body: string): string[] {
     if (nameMatch?.[1]) names.push(nameMatch[1]);
   }
   return names;
+}
+
+function extractTerraformOutputBlocks(content: string): Array<{ name: string; body: string }> {
+  const results: Array<{ name: string; body: string }> = [];
+  const pat = /output\s+"([^"]+)"\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = pat.exec(content)) !== null) {
+    const startBrace = match.index + match[0].length - 1;
+    let depth = 1;
+    let i = startBrace + 1;
+    while (i < content.length && depth > 0) {
+      if (content[i] === '{') depth++;
+      else if (content[i] === '}') depth--;
+      i++;
+    }
+    results.push({ name: match[1] ?? '', body: content.slice(startBrace + 1, i - 1) });
+  }
+  return results;
 }
 
 export async function extractTerraformSchema(repoPath: string): Promise<IaCSchema> {
@@ -282,6 +311,17 @@ export async function extractTerraformSchema(repoPath: string): Promise<IaCSchem
           });
           break;
       }
+    }
+
+    for (const { name, body } of extractTerraformOutputBlocks(content)) {
+      const valueMatch = body.match(/value\s*=\s*(.+)/);
+      schema.outputs.push({
+        name,
+        description: tfStr(body, 'description'),
+        value: valueMatch?.[1]?.trim(),
+        source: 'terraform',
+        filePath,
+      });
     }
   }
 
@@ -471,6 +511,35 @@ function processCFNResources(
   }
 }
 
+function processCFNOutputs(
+  template: Record<string, unknown>,
+  schema: IaCSchema,
+  filePath: string,
+  source: IaCSource,
+): void {
+  const outputs = template['Outputs'];
+  if (typeof outputs !== 'object' || outputs === null) return;
+  for (const [name, raw] of Object.entries(outputs as Record<string, unknown>)) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const out = raw as Record<string, unknown>;
+    const exp = out['Export'] as Record<string, unknown> | undefined;
+    const expName = exp?.['Name'];
+    schema.outputs.push({
+      name,
+      description: typeof out['Description'] === 'string' ? out['Description'] : undefined,
+      exportName:
+        expName === undefined
+          ? undefined
+          : typeof expName === 'string'
+            ? expName
+            : JSON.stringify(expName),
+      value: typeof out['Value'] === 'string' ? out['Value'] : JSON.stringify(out['Value']),
+      source,
+      filePath,
+    });
+  }
+}
+
 export async function extractCloudFormationSchema(repoPath: string): Promise<IaCSchema> {
   const schema = emptySchema();
   const cfnFiles = findFilesRecursively(repoPath, ['.yaml', '.yml', '.json']);
@@ -482,6 +551,7 @@ export async function extractCloudFormationSchema(repoPath: string): Promise<IaC
     const resources = parsed['Resources'] as Record<string, unknown> | undefined;
     if (!resources) continue;
     processCFNResources(resources, schema, filePath, 'cloudformation');
+    processCFNOutputs(parsed, schema, filePath, 'cloudformation');
   }
 
   return schema;
@@ -508,6 +578,7 @@ export async function extractCDKSchema(repoPath: string): Promise<IaCSchema> {
       const resources = parsed['Resources'] as Record<string, unknown> | undefined;
       if (!resources) continue;
       processCFNResources(resources, schema, filePath, 'cdk');
+      processCFNOutputs(parsed, schema, filePath, 'cdk');
     }
   }
 
@@ -538,6 +609,7 @@ function mergeSchemas(...schemas: IaCSchema[]): IaCSchema {
     param: new Set<string>(),
     secret: new Set<string>(),
     api: new Set<string>(),
+    output: new Set<string>(),
   };
 
   for (const schema of schemas) {
@@ -611,6 +683,13 @@ function mergeSchemas(...schemas: IaCSchema[]): IaCSchema {
         merged.apiGateways.push(a);
       }
     }
+    for (const o of schema.outputs) {
+      const k = `${o.source}::${o.filePath}::${o.name}`;
+      if (!seen.output.has(k)) {
+        seen.output.add(k);
+        merged.outputs.push(o);
+      }
+    }
   }
 
   return merged;
@@ -635,7 +714,8 @@ export async function extractIaCSchema(repoPath: string): Promise<IaCSchema> {
     merged.buckets.length +
     merged.parameters.length +
     merged.secrets.length +
-    merged.apiGateways.length;
+    merged.apiGateways.length +
+    merged.outputs.length;
 
   logger.debug(`IaC schema total: ${total} resource(s) across TF/CFN/CDK`);
   return merged;

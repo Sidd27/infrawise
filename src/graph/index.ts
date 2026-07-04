@@ -403,6 +403,34 @@ export function buildGraph(
   return { nodes, edges };
 }
 
+export interface StackOutputInfo {
+  name: string;
+  description?: string;
+  exportName?: string;
+  value?: string;
+  source: string;
+  filePath: string;
+}
+
+export function addStackOutputNodes(graph: SystemGraph, outputs: StackOutputInfo[]): void {
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  for (const o of outputs) {
+    const id = `stack_output:${o.source}:${o.filePath}:${o.name}`;
+    if (ids.has(id)) continue;
+    ids.add(id);
+    graph.nodes.push({
+      id,
+      type: 'stack_output',
+      name: o.name,
+      description: o.description,
+      exportName: o.exportName,
+      value: o.value,
+      iacSource: o.source,
+      file: o.filePath,
+    });
+  }
+}
+
 function resolveEdgeType(
   operationType: string,
 ): Extract<GraphEdge, { type: 'query' | 'scan' | 'joins' }>['type'] {
@@ -443,6 +471,8 @@ export const getBucketNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'bucket' }>>(g, 'bucket');
 export const getAPINodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'api' }>>(g, 'api');
+export const getStackOutputNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'stack_output' }>>(g, 'stack_output');
 
 export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);

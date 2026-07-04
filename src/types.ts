@@ -99,6 +99,16 @@ export type GraphNode =
     }
   | {
       id: string;
+      type: 'stack_output';
+      name: string;
+      description?: string;
+      exportName?: string;
+      value?: string;
+      iacSource: string;
+      file: string;
+    }
+  | {
+      id: string;
       type: 'database_instance';
       name: string;
       provider: string;
