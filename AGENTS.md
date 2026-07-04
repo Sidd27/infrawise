@@ -13,12 +13,12 @@
 *Guard* (mistake prevention) — Surface costly infra mistakes before they ship. Wrong SQS visibility timeout causing duplicate Lambda processing. Missing DLQ silently dropping failed messages. A Lambda scanning a DynamoDB table without a GSI. RDS queries on unindexed columns. These are expensive to discover in production. Infrawise warns at coding time, not incident time.
 
 **What it covers today:**
-- AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs
+- AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs, Cognito, Kinesis, MSK (clusters), ElastiCache, CloudWatch metrics (opt-in runtime signals)
 - Databases: PostgreSQL, MySQL, MongoDB
 - Messaging: Apache Kafka via `kafkajs` — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
-- IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection)
+- IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection, plus stack outputs / cross-stack exports)
 
-**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 16 MCP tools (server mode) that AI assistants call to get precise context before writing code.
+**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 20 MCP tools (server mode) that AI assistants call to get precise context before writing code.
 
 **Strategic bets:**
 - MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). `infrawise check` is the standalone CI/CD gate — runs a fresh analysis and exits non-zero when findings reach `--fail-on` severity (default high), reaching teams not yet using AI editors.
@@ -112,7 +112,7 @@ source .env                 # sets AWS_PROFILE=localstack — required every ses
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 35+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted).
+Expected: 35+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Against Floci (see demo README) Cognito (1 user pool), Kinesis (1 stream), and ElastiCache (1 cluster, transit encryption finding) also extract — 38 findings total. Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders).
 
 To start the MCP server against LocalStack:
 
@@ -153,7 +153,7 @@ src/
   core/       config, logger, cache
   graph/      graph engine
   adapters/
-    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS/APIGateway, s3)
+    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS/APIGateway/Cognito/Kinesis/MSK/ElastiCache, s3, metrics — CloudWatch runtime signals)
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
@@ -170,7 +170,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 16 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
+Infrawise exposes 20 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
 ### `get_infra_overview`
 
@@ -276,7 +276,7 @@ All SQS queues with operational metadata.
 
 No inputs required.
 
-Returns: per-queue — name, provider, DLQ status, encryption, isFifo (bool), visibilityTimeoutSec, approximate message count, retention days, findings.
+Returns: per-queue — name, provider, DLQ status, encryption, isFifo (bool), visibilityTimeoutSec, approximate message count, retention days, oldestMessageAgeSec (only when runtime signals are enabled), findings.
 
 **When to call:** When reviewing messaging architecture, debugging backlogs, checking DLQ coverage, or verifying that the queue's visibility timeout is at least 6× the consumer Lambda's timeout (mismatches cause duplicate processing). When `isFifo` is true, all `SendMessage` calls must include a `MessageGroupId` — omitting it causes a runtime error.
 
@@ -324,7 +324,7 @@ All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), recentThrottles/recentErrors (only when runtime signals are enabled), findings.
 
 **When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler. S3-triggered Lambdas show `event.Records[0].s3.object.key` as the event shape.
 
@@ -380,6 +380,54 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 
 ---
 
+### `get_stack_outputs`
+
+Stack outputs and cross-stack exports parsed from local IaC files.
+
+No inputs required.
+
+Returns: per-output — name, description, exportName (CFN/CDK `Export.Name`), raw value expression, source (terraform/cloudformation/cdk), file path.
+
+**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack.
+
+---
+
+### `get_cognito_overview`
+
+All Cognito user pools with app client configuration. **Client secret values and user data are never included.**
+
+No inputs required.
+
+Returns: per-pool — name, id, mfaConfiguration, clients (clientName, clientId, authFlows, oauthFlows, oauthScopes, callbackUrls, generatesSecret, token validity + units).
+
+**When to call:** Before writing any Cognito sign-in, sign-up, or token-refresh code — use an allowed auth flow, and send `SECRET_HASH` when `generatesSecret` is true.
+
+---
+
+### `get_stream_details`
+
+All Kinesis data streams and Amazon MSK clusters.
+
+No inputs required.
+
+Returns: streams (name, status, shardCount, retentionHours, encrypted, mode PROVISIONED/ON_DEMAND) and kafkaClusters (name, state, clusterType, kafkaVersion, brokerNodes).
+
+**When to call:** When writing Kinesis producer/consumer code, checking capacity mode before PutRecord calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings from application code, use `get_topic_details` instead.
+
+---
+
+### `get_cache_overview`
+
+All ElastiCache clusters. **Cached data is never read or included.**
+
+No inputs required.
+
+Returns: per-cluster — id, engine, engineVersion, nodeType, numNodes, transitEncryption, atRestEncryption, replicationGroupId, automaticFailover, findings.
+
+**When to call:** Before writing cache client code (TLS required when transit encryption is on — `rediss://` for Redis) or when reviewing cache availability and security posture.
+
+---
+
 ## Recommended usage patterns
 
 **Before writing a query:**
@@ -390,6 +438,10 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 **Before writing an SNS publish call:**
 1. `get_topic_details` → check for filter policies on the target topic
 2. Include all `requiredAttributes` as `MessageAttributes` in the publish call — missing any will silently drop the message for that subscription
+
+**Before writing Cognito auth code:**
+1. `get_cognito_overview` → check the app client's allowed auth flows
+2. Use one of the allowed flows; include `SECRET_HASH` when `generatesSecret` is true
 
 **Reviewing an entire service:**
 1. `get_graph_summary` → full graph
@@ -408,6 +460,8 @@ Returns: per-log-group — name, retention days, error count, top error patterns
 ## What infrawise never does
 
 - Never reads secret values or parameter values
+- Never reads Cognito user data or client secret values
+- Never reads cached data from ElastiCache
 - Never reads raw log messages
 - Never writes to AWS or your database
 - Never executes DDL

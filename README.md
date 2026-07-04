@@ -74,7 +74,7 @@ That's it. Infrawise will:
 1. Probe your environment and generate `infrawise.yaml` (first time only — asks which AWS profile to use only if you have several)
 2. Scan your AWS services, databases, and codebase
 3. Write `.mcp.json` so your editor auto-connects on every future launch
-4. Open Claude Code with all 16 MCP tools ready
+4. Open Claude Code with all 20 MCP tools ready
 
 **Every time after:**
 
@@ -117,7 +117,7 @@ Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 16 infrawise tools are available in Cursor's MCP panel.
+Writes `.cursor/mcp.json` and opens Cursor. All 20 infrawise tools are available in Cursor's MCP panel.
 
 ### Any editor (no flag)
 
@@ -167,6 +167,10 @@ Add to your editor's MCP config:
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
+| `get_stack_outputs`          | Stack outputs and cross-stack exports parsed from local IaC files (Terraform outputs, CFN/CDK Outputs)      |
+| `get_cognito_overview`       | Cognito user pools — MFA config, app client auth flows, OAuth settings, token validity (secrets never included) |
+| `get_stream_details`         | Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)          |
+| `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover (data never read)  |
 
 ---
 
@@ -303,6 +307,22 @@ s3:
 apiGateway:
   enabled: false
 
+cognito:
+  enabled: false
+
+kinesis:
+  enabled: false
+
+msk:
+  enabled: false
+
+elasticache:
+  enabled: false
+
+runtimeSignals:
+  enabled: false # Lambda throttles/errors + queue age via CloudWatch metrics
+  windowHours: 24
+
 cloudwatchLogs:
   enabled: false
   logGroupPrefixes: []
@@ -376,7 +396,11 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
 | RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ                                    |
 | CloudWatch Logs                  | Log groups with no retention policy                                                                                |
-| Terraform / CloudFormation / CDK | IaC drift vs deployed state                                                                                        |
+| Cognito                          | User pools and app client config — auth flows, OAuth settings, token validity, client secret presence              |
+| Kinesis / MSK                    | Streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)                        |
+| ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication                                            |
+| Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
+| Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
 
 ### Code correlation analysis (TypeScript / JavaScript)
 
@@ -448,7 +472,7 @@ src/
     aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS/APIGateway, CloudWatch
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
-  analyzers/    29 rule-based analyzers
+  analyzers/    34 rule-based analyzers
   context/      Repository scanner (ts-morph AST)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)
