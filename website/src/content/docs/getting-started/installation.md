@@ -37,7 +37,7 @@ Infrawise scans your AWS infrastructure, runs the 34 analyzers, and writes `.mcp
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 16 Infrawise MCP tools appear in Cursor's MCP panel.
+Writes `.cursor/mcp.json` and opens Cursor. All 20 Infrawise MCP tools appear in Cursor's MCP panel.
 
 ## HTTP transport mode
 
