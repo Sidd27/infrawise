@@ -56,43 +56,50 @@ nodes:
     row: 0
 
   L:
-    label: "Lambda · SQS · SNS\nAPI Gateway · RDS · EventBridge\nCognito · Kinesis · MSK\nElastiCache"
+    label: "Lambda · SQS · SNS\nAPI Gateway · RDS\nEventBridge"
     theme: aws
     col: 0
     row: 1
-    lines: 4
+    lines: 3
+
+  L2:
+    label: "Cognito · Kinesis\nMSK · ElastiCache"
+    theme: aws
+    col: 0
+    row: 2
+    lines: 2
 
   S:
     label: "Secrets Manager · SSM\nCloudWatch"
     theme: aws
     col: 0
-    row: 2
+    row: 3
     lines: 2
 
   P:
     label: 'PostgreSQL · MySQL'
     theme: db
     col: 0
-    row: 3
+    row: 4
 
   M:
     label: 'MongoDB'
     theme: db
     col: 0
-    row: 4
+    row: 5
 
   T:
     label: "Terraform · CDK\nCloudFormation"
     theme: iac
     col: 0
-    row: 5
+    row: 6
     lines: 2
 
   C:
     label: 'TypeScript / JS'
     theme: code
     col: 0
-    row: 6
+    row: 7
 
   A:
     label: 'Adapters'
@@ -107,7 +114,7 @@ nodes:
     row: 3
 
   AN:
-    label: '29 Analyzers'
+    label: '34 Analyzers'
     theme: iw
     col: 4
     row: 3
@@ -147,7 +154,7 @@ nodes:
 groups:
   IN:
     label: 'Your Infrastructure & Code'
-    nodes: [D, L, S, P, M, T, C]
+    nodes: [D, L, L2, S, P, M, T, C]
     stroke: 'rgba(255,255,255,0.10)'
     labelColor: '#94a3b8'
 
@@ -167,6 +174,7 @@ groups:
 edges:
   - { from: D, to: A }
   - { from: L, to: A }
+  - { from: L2, to: A }
   - { from: S, to: A }
   - { from: P, to: A }
   - { from: M, to: A }
