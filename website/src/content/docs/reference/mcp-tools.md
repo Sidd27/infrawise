@@ -1,9 +1,9 @@
 ---
 title: MCP tools reference
-description: All 16 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
+description: All 20 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
 ---
 
-Infrawise exposes **16 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
+Infrawise exposes **20 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
 
 :::tip
 Start every session with `get_infra_overview`. It costs one tool call and gives you everything you need to know what infrastructure exists before writing any code.
@@ -315,3 +315,69 @@ Per API:
 - Routes — each with HTTP method, path, and the Lambda function name it invokes (`null` when no Lambda integration is configured)
 
 **When to call:** Before writing or reviewing any API handler — call this to confirm which Lambda backs a route and what method/path combination it expects. Also use when auditing API surface area for routes with no Lambda integration.
+
+---
+
+## get_stack_outputs
+
+Returns all stack outputs and cross-stack exports parsed from local IaC files — Terraform `output` blocks and CloudFormation/CDK `Outputs` sections.
+
+No inputs required.
+
+**Returns**
+
+Per output:
+- Name, description, and the raw value expression
+- Export name (CloudFormation/CDK `Export.Name`) when the output is a cross-stack export
+- Source (`terraform`, `cloudformation`, or `cdk`) and file path
+
+**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack.
+
+---
+
+## get_cognito_overview
+
+Returns all Cognito user pools with full app client configuration. Client secret values and user data are **never included**.
+
+No inputs required.
+
+**Returns**
+
+Per user pool:
+- Name, pool ID, and MFA configuration
+- App clients — each with client name/ID, allowed auth flows, OAuth flows/scopes, callback URLs, token validity settings, and whether the client has a secret (`generatesSecret`)
+
+**When to call:** Before writing any Cognito sign-in, sign-up, or token-refresh code — use one of the allowed auth flows, and include `SECRET_HASH` in auth calls when `generatesSecret` is true.
+
+---
+
+## get_stream_details
+
+Returns all Kinesis data streams and Amazon MSK clusters.
+
+No inputs required.
+
+**Returns**
+
+- Streams — name, status, open shard count, retention hours, encryption, and capacity mode (`PROVISIONED` or `ON_DEMAND`)
+- Kafka clusters — name, state, cluster type, Kafka version, and broker count
+
+**When to call:** When writing Kinesis producer or consumer code, checking capacity mode before `PutRecord` calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings extracted from application code, use `get_topic_details` instead.
+
+---
+
+## get_cache_overview
+
+Returns all ElastiCache clusters. Cached data is **never read or included**.
+
+No inputs required.
+
+**Returns**
+
+Per cluster:
+- ID, engine, engine version, node type, and node count
+- In-transit and at-rest encryption status
+- Replication group ID and automatic failover state
+- Related findings (missing transit encryption, single-node with no replication)
+
+**When to call:** Before writing cache client code — TLS is required when transit encryption is on (`rediss://` for Redis) — or when reviewing cache availability and security posture.

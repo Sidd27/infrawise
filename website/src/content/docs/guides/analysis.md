@@ -1,9 +1,9 @@
 ---
 title: Analysis capabilities
-description: What Infrawise's 29 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
+description: What Infrawise's 34 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
 ---
 
-An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 29 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
+An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 34 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
 
 Your AI assistant can query these findings via MCP tools like `get_infra_overview` and `get_graph_summary`, or ask for function-level analysis with `analyze_function`. See the [MCP tools reference](/infrawise/reference/mcp-tools/) for the full tool list.
 
@@ -32,6 +32,10 @@ Use the `--severity` flag on `infrawise analyze` or `infrawise start` to filter 
 | S3 | Missing versioning | Without versioning, accidental deletes or overwrites are unrecoverable. |
 | S3 | Public access not blocked | A bucket with public access not explicitly blocked can expose data if a policy or ACL is misconfigured. |
 | S3 | Missing encryption | Buckets without server-side encryption store objects in plaintext — a compliance and security risk for sensitive data. |
+| ElastiCache | Missing in-transit encryption | Without TLS, credentials and cached data cross the network in plaintext. |
+| ElastiCache | Single node with no replication | A node failure loses all cached data and takes the cache offline until replaced. |
+| Lambda (runtime signals, opt-in) | Recent throttling from CloudWatch metrics | Throttled invocations are rejected or delayed — sync callers see errors, event sources build backlogs. |
+| SQS (runtime signals, opt-in) | Oldest message older than one hour | Stale messages mean consumers are failing, falling behind, or not running — and messages near the retention limit get silently dropped. |
 
 ## Database analyzers
 

@@ -3,7 +3,7 @@ title: Quick start
 description: Go from zero to a working Infrawise + Claude Code setup in under 60 seconds — configure credentials, create infrawise.yaml, and start asking your AI about your infrastructure.
 ---
 
-This guide gets Infrawise connected to Claude Code and talking to your AWS environment in five steps. By the end, your AI assistant can call all 16 Infrawise MCP tools to inspect infrastructure, identify issues, and suggest fixes — without you leaving your editor.
+This guide gets Infrawise connected to Claude Code and talking to your AWS environment in five steps. By the end, your AI assistant can call all 20 Infrawise MCP tools to inspect infrastructure, identify issues, and suggest fixes — without you leaving your editor.
 
 If you haven't installed Infrawise yet, start with the [installation guide](/infrawise/getting-started/installation/).
 
@@ -43,7 +43,7 @@ See the [configuration reference](/infrawise/reference/configuration/) for all a
 infrawise start --claude
 ```
 
-Infrawise scans your infrastructure, runs 29 analyzers, and writes `.mcp.json` to the current directory. Open Claude Code in the same directory — all 16 MCP tools are immediately available.
+Infrawise scans your infrastructure, runs 34 analyzers, and writes `.mcp.json` to the current directory. Open Claude Code in the same directory — all 20 MCP tools are immediately available.
 
 :::tip
 Using Cursor instead? Run `infrawise start --cursor` to write `.cursor/mcp.json` and open Cursor directly.
@@ -75,7 +75,7 @@ Claude Code calls `analyze_function` with `{ "function": "processOrder" }` and r
 
 ### What does "analyzing infrastructure" mean?
 
-Infrawise connects to your configured AWS services using read-only API calls, extracts resource metadata (table definitions, queue configs, Lambda settings, etc.), and runs 29 rule-based analyzers against that metadata. Analyzers check for patterns like missing DLQs, default Lambda memory, disabled secret rotation, and IaC drift. No data — database rows, log messages, secret values — is ever read.
+Infrawise connects to your configured AWS services using read-only API calls, extracts resource metadata (table definitions, queue configs, Lambda settings, etc.), and runs 34 rule-based analyzers against that metadata. Analyzers check for patterns like missing DLQs, default Lambda memory, disabled secret rotation, and IaC drift. No data — database rows, log messages, secret values — is ever read.
 
 ### How long does the first run take?
 
