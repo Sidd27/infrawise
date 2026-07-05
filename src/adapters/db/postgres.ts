@@ -1,11 +1,22 @@
 import { Pool } from 'pg';
-import type { PostgresTableMetadata } from '../../types.js';
+import type { PostgresTableMetadata, ColumnDetail, ForeignKeyMetadata } from '../../types.js';
 import { PostgresConnectionError, logger } from '../../core/index.js';
 
 interface ColumnRow {
   table_schema: string;
   table_name: string;
   column_name: string;
+  data_type: string;
+  is_nullable: string;
+}
+
+interface ForeignKeyRow {
+  table_schema: string;
+  table_name: string;
+  column_name: string;
+  ref_schema: string;
+  ref_table: string;
+  ref_column: string;
 }
 
 interface IndexRow {
@@ -48,7 +59,7 @@ export async function extractPostgresMetadata(
 
       // Get all columns
       const columnsResult = await client.query<ColumnRow>(`
-        SELECT table_schema, table_name, column_name
+        SELECT table_schema, table_name, column_name, data_type, is_nullable
         FROM information_schema.columns
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         ORDER BY table_schema, table_name, ordinal_position
@@ -77,8 +88,30 @@ export async function extractPostgresMetadata(
         ORDER BY tc.table_schema, tc.table_name
       `);
 
-      // Build maps for columns, indexes, primary keys
+      // Get foreign keys
+      const foreignKeysResult = await client.query<ForeignKeyRow>(`
+        SELECT
+          tc.table_schema,
+          tc.table_name,
+          kcu.column_name,
+          ccu.table_schema AS ref_schema,
+          ccu.table_name AS ref_table,
+          ccu.column_name AS ref_column
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON tc.constraint_name = ccu.constraint_name
+          AND tc.table_schema = ccu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY tc.table_schema, tc.table_name
+      `);
+
+      // Build maps for columns, indexes, primary keys, foreign keys
       const columnMap = new Map<string, string[]>();
+      const columnDetailMap = new Map<string, ColumnDetail[]>();
       for (const row of columnsResult.rows) {
         const key = `${row.table_schema}.${row.table_name}`;
         let cols = columnMap.get(key);
@@ -87,6 +120,31 @@ export async function extractPostgresMetadata(
           columnMap.set(key, cols);
         }
         cols.push(row.column_name);
+        let details = columnDetailMap.get(key);
+        if (!details) {
+          details = [];
+          columnDetailMap.set(key, details);
+        }
+        details.push({
+          name: row.column_name,
+          dataType: row.data_type,
+          nullable: row.is_nullable === 'YES',
+        });
+      }
+
+      const fkMap = new Map<string, ForeignKeyMetadata[]>();
+      for (const row of foreignKeysResult.rows) {
+        const key = `${row.table_schema}.${row.table_name}`;
+        let fks = fkMap.get(key);
+        if (!fks) {
+          fks = [];
+          fkMap.set(key, fks);
+        }
+        fks.push({
+          column: row.column_name,
+          referencesTable: `${row.ref_schema}.${row.ref_table}`,
+          referencesColumn: row.ref_column,
+        });
       }
 
       const indexMap = new Map<string, string[]>();
@@ -121,6 +179,8 @@ export async function extractPostgresMetadata(
           columns: columnMap.get(key) ?? [],
           indexes: indexMap.get(key) ?? [],
           primaryKeys: pkMap.get(key) ?? [],
+          columnDetails: columnDetailMap.get(key) ?? [],
+          foreignKeys: fkMap.get(key) ?? [],
         });
       }
 

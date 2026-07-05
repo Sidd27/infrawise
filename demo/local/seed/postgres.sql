@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE TABLE IF NOT EXISTS payments (
   id          SERIAL PRIMARY KEY,
-  order_id    INT NOT NULL,
+  order_id    INT NOT NULL REFERENCES orders(id), -- FK exercises get_table_schema join paths
   amount      NUMERIC(10,2) NOT NULL,
   provider    VARCHAR(50),
   status      VARCHAR(50),

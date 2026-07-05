@@ -1,9 +1,9 @@
 ---
 title: MCP tools reference
-description: All 20 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
+description: All 21 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
 ---
 
-Infrawise exposes **20 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
+Infrawise exposes **21 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
 
 :::tip
 Start every session with `get_infra_overview`. It costs one tool call and gives you everything you need to know what infrastructure exists before writing any code.
@@ -381,3 +381,26 @@ Per cluster:
 - Related findings (missing transit encryption, single-node with no replication)
 
 **When to call:** Before writing cache client code — TLS is required when transit encryption is on (`rediss://` for Redis) — or when reviewing cache availability and security posture.
+
+---
+
+## get_table_schema
+
+Returns column-level schema for specific tables or collections by name. Row data is **never included**.
+
+| Input | Type | Required |
+|---|---|---|
+| `tables` | string[] (1-20) | yes |
+
+**Returns**
+
+Per requested name — a `found` flag and matches (short names like `orders` match `public.orders`, case-insensitive):
+- Columns with data types and nullability (PostgreSQL/MySQL)
+- Primary keys and foreign keys — the join paths a query generator needs
+- Index names
+- DynamoDB partition and sort keys
+- MongoDB estimated document count
+
+Unknown names return up to five suggestions.
+
+**When to call:** After `get_infra_overview`, when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter. This is the progressive-disclosure path for databases with many tables: fetch only the schemas the task needs instead of putting the entire database schema in every prompt.

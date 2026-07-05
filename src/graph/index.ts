@@ -36,7 +36,14 @@ export function buildGraph(
 
   for (const table of dynamoMeta) {
     const nodeId = `table:dynamo:${table.tableName}`;
-    addNode({ id: nodeId, type: 'table', name: table.tableName, databaseType: 'dynamodb' });
+    addNode({
+      id: nodeId,
+      type: 'table',
+      name: table.tableName,
+      databaseType: 'dynamodb',
+      partitionKey: table.partitionKey,
+      sortKey: table.sortKey,
+    });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.tableName}:${indexName}`;
       addNode({ id: indexNodeId, type: 'index', name: indexName });
@@ -51,6 +58,9 @@ export function buildGraph(
       type: 'table',
       name: `${table.schema}.${table.table}`,
       databaseType: 'postgres',
+      columns: table.columnDetails,
+      primaryKeys: table.primaryKeys,
+      foreignKeys: table.foreignKeys,
     });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
@@ -66,6 +76,9 @@ export function buildGraph(
       type: 'table',
       name: `${table.schema}.${table.table}`,
       databaseType: 'mysql',
+      columns: table.columnDetails,
+      primaryKeys: table.primaryKeys,
+      foreignKeys: table.foreignKeys,
     });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
@@ -81,6 +94,7 @@ export function buildGraph(
       type: 'table',
       name: `${coll.database}.${coll.collection}`,
       databaseType: 'mongodb',
+      estimatedCount: coll.estimatedCount,
     });
     for (const idx of coll.indexes) {
       if (idx.name === '_id_') continue;

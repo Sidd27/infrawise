@@ -4,6 +4,12 @@ export type GraphNode =
       type: 'table';
       name: string;
       databaseType: 'dynamodb' | 'postgres' | 'mysql' | 'mongodb';
+      columns?: ColumnDetail[];
+      primaryKeys?: string[];
+      foreignKeys?: ForeignKeyMetadata[];
+      partitionKey?: string;
+      sortKey?: string;
+      estimatedCount?: number;
     }
   | { id: string; type: 'function'; name: string; file: string }
   | { id: string; type: 'index'; name: string }
@@ -194,12 +200,26 @@ export interface DynamoTableMetadata {
   indexes: string[];
 }
 
+export interface ColumnDetail {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+}
+
+export interface ForeignKeyMetadata {
+  column: string;
+  referencesTable: string;
+  referencesColumn: string;
+}
+
 export interface PostgresTableMetadata {
   schema: string;
   table: string;
   columns: string[];
   indexes: string[];
   primaryKeys: string[];
+  columnDetails?: ColumnDetail[];
+  foreignKeys?: ForeignKeyMetadata[];
 }
 
 export interface MySQLTableMetadata {
@@ -209,6 +229,8 @@ export interface MySQLTableMetadata {
   indexes: string[];
   primaryKeys: string[];
   engine: string;
+  columnDetails?: ColumnDetail[];
+  foreignKeys?: ForeignKeyMetadata[];
 }
 
 export interface MongoIndexMetadata {

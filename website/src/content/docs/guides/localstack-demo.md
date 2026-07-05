@@ -58,7 +58,7 @@ To connect Claude Code to the LocalStack demo environment, run this from the `de
 infrawise start --claude --config infrawise.yaml
 ```
 
-This writes `.mcp.json` pointing Infrawise at the LocalStack config. Open Claude Code in the same directory — all 20 MCP tools are immediately available and running against the seeded LocalStack resources. Try asking: "What infrastructure issues should I fix first?"
+This writes `.mcp.json` pointing Infrawise at the LocalStack config. Open Claude Code in the same directory — all 21 MCP tools are immediately available and running against the seeded LocalStack resources. Try asking: "What infrastructure issues should I fix first?"
 
 For Cursor, use `--cursor` instead of `--claude`.
 

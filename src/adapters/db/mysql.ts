@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise';
-import type { MySQLTableMetadata } from '../../types.js';
+import type { MySQLTableMetadata, ColumnDetail, ForeignKeyMetadata } from '../../types.js';
 import { InfrawiseError, logger } from '../../core/index.js';
 
 const SYSTEM_SCHEMAS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
@@ -49,9 +49,22 @@ export async function extractMySQLMetadata(
     // Get all columns
     const [columnRows] = await connection.execute<mysql.RowDataPacket[]>(
       `
-      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME
+      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE
       FROM information_schema.columns
       WHERE TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
+      ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
+    `,
+      [...SYSTEM_SCHEMAS],
+    );
+
+    // Get foreign keys
+    const [fkRows] = await connection.execute<mysql.RowDataPacket[]>(
+      `
+      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME,
+             REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+      FROM information_schema.key_column_usage
+      WHERE REFERENCED_TABLE_NAME IS NOT NULL
+        AND TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
       ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
     `,
       [...SYSTEM_SCHEMAS],
@@ -83,6 +96,7 @@ export async function extractMySQLMetadata(
 
     // Build lookup maps
     const columnMap = new Map<string, string[]>();
+    const columnDetailMap = new Map<string, ColumnDetail[]>();
     for (const row of columnRows) {
       const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
       let cols = columnMap.get(key);
@@ -91,6 +105,31 @@ export async function extractMySQLMetadata(
         columnMap.set(key, cols);
       }
       cols.push(row['COLUMN_NAME'] as string);
+      let details = columnDetailMap.get(key);
+      if (!details) {
+        details = [];
+        columnDetailMap.set(key, details);
+      }
+      details.push({
+        name: row['COLUMN_NAME'] as string,
+        dataType: row['DATA_TYPE'] as string,
+        nullable: row['IS_NULLABLE'] === 'YES',
+      });
+    }
+
+    const fkMap = new Map<string, ForeignKeyMetadata[]>();
+    for (const row of fkRows) {
+      const key = `${row['TABLE_SCHEMA']}.${row['TABLE_NAME']}`;
+      let fks = fkMap.get(key);
+      if (!fks) {
+        fks = [];
+        fkMap.set(key, fks);
+      }
+      fks.push({
+        column: row['COLUMN_NAME'] as string,
+        referencesTable: `${row['REFERENCED_TABLE_SCHEMA']}.${row['REFERENCED_TABLE_NAME']}`,
+        referencesColumn: row['REFERENCED_COLUMN_NAME'] as string,
+      });
     }
 
     const indexMap = new Map<string, string[]>();
@@ -131,6 +170,8 @@ export async function extractMySQLMetadata(
         indexes: indexMap.get(key) ?? [],
         primaryKeys: pkMap.get(key) ?? [],
         engine,
+        columnDetails: columnDetailMap.get(key) ?? [],
+        foreignKeys: fkMap.get(key) ?? [],
       });
     }
 

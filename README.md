@@ -74,7 +74,7 @@ That's it. Infrawise will:
 1. Probe your environment and generate `infrawise.yaml` (first time only — asks which AWS profile to use only if you have several)
 2. Scan your AWS services, databases, and codebase
 3. Write `.mcp.json` so your editor auto-connects on every future launch
-4. Open Claude Code with all 20 MCP tools ready
+4. Open Claude Code with all 21 MCP tools ready
 
 **Every time after:**
 
@@ -117,7 +117,7 @@ Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 20 infrawise tools are available in Cursor's MCP panel.
+Writes `.cursor/mcp.json` and opens Cursor. All 21 infrawise tools are available in Cursor's MCP panel.
 
 ### Any editor (no flag)
 
@@ -153,6 +153,7 @@ Add to your editor's MCP config:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, analysis `freshness` (age + stale flag), `configured` flag |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
+| `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys (no row data)    |
 | `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions  |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |

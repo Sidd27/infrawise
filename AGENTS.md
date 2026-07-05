@@ -18,7 +18,7 @@
 - Messaging: Apache Kafka via `kafkajs` — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
 - IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection, plus stack outputs / cross-stack exports)
 
-**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 20 MCP tools (server mode) that AI assistants call to get precise context before writing code.
+**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 21 MCP tools (server mode) that AI assistants call to get precise context before writing code.
 
 **Strategic bets:**
 - MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). `infrawise check` is the standalone CI/CD gate — runs a fresh analysis and exits non-zero when findings reach `--fail-on` severity (default high), reaching teams not yet using AI editors.
@@ -170,7 +170,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 20 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
+Infrawise exposes 21 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
 ### `get_infra_overview`
 
@@ -193,6 +193,20 @@ No inputs required.
 Returns: all `nodes` (tables, functions, queues, lambdas, etc.), all `edges` (query, scan, publishes_to, etc.), all `findings` with severity/recommendation, summary counts.
 
 **When to call:** When you need the full picture or are tracing relationships across multiple services.
+
+---
+
+### `get_table_schema`
+
+Column-level schema for specific tables or collections, on demand. **Row data is never included.**
+
+| Input | Type | Required |
+|---|---|---|
+| `tables` | string[] (1-20) | yes |
+
+Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes, DynamoDB partitionKey/sortKey, MongoDB estimatedCount. Unknown names return up to 5 `suggestions`.
+
+**When to call:** After `get_infra_overview`, when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables. This is the progressive-disclosure path for large databases — fetch only the schemas you need instead of dumping everything with `get_graph_summary`.
 
 ---
 
@@ -438,6 +452,11 @@ Returns: per-cluster — id, engine, engineVersion, nodeType, numNodes, transitE
 **Before writing an SNS publish call:**
 1. `get_topic_details` → check for filter policies on the target topic
 2. Include all `requiredAttributes` as `MessageAttributes` in the publish call — missing any will silently drop the message for that subscription
+
+**Text-to-SQL / query-writing agents (large databases):**
+1. `get_infra_overview` once per session → compact table inventory (names + database type); it also reports analysis freshness with a 24h stale flag
+2. When the task needs specific tables: `get_table_schema` with just those names → columns, types, PKs, FKs for joins
+3. Never dump the full schema into the prompt — `get_graph_summary` is the escape hatch, not the default
 
 **Before writing Cognito auth code:**
 1. `get_cognito_overview` → check the app client's allowed auth flows

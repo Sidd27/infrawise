@@ -20,6 +20,7 @@ const BOX_W = 52;
 const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_infra_overview' },
   { name: 'get_graph_summary' },
+  { name: 'get_table_schema' },
   { name: 'analyze_function' },
   { name: 'suggest_gsi', service: 'dynamodb' },
   { name: 'postgres_index_suggestions', service: 'postgres' },

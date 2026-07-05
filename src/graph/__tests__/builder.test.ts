@@ -697,6 +697,56 @@ describe('cache_cluster nodes', () => {
   });
 });
 
+describe('table node schema', () => {
+  it('attaches columns, primary keys, and foreign keys to postgres table nodes', () => {
+    const graph = buildGraph(
+      [],
+      [],
+      [
+        {
+          schema: 'public',
+          table: 'orders',
+          columns: ['id', 'user_id'],
+          indexes: ['orders_pkey'],
+          primaryKeys: ['id'],
+          columnDetails: [
+            { name: 'id', dataType: 'uuid', nullable: false },
+            { name: 'user_id', dataType: 'uuid', nullable: false },
+          ],
+          foreignKeys: [
+            { column: 'user_id', referencesTable: 'public.users', referencesColumn: 'id' },
+          ],
+        },
+      ],
+      [],
+      [],
+      {},
+    );
+    const node = graph.nodes.find((n) => n.id === 'table:postgres:public.orders');
+    expect(node).toBeDefined();
+    if (node?.type !== 'table') throw new Error('expected table node');
+    expect(node.columns).toHaveLength(2);
+    expect(node.columns![0].dataType).toBe('uuid');
+    expect(node.primaryKeys).toEqual(['id']);
+    expect(node.foreignKeys![0].referencesTable).toBe('public.users');
+  });
+
+  it('attaches partition and sort keys to dynamo table nodes', () => {
+    const graph = buildGraph(
+      [],
+      [{ tableName: 'Orders', partitionKey: 'orderId', sortKey: 'createdAt', indexes: [] }],
+      [],
+      [],
+      [],
+      {},
+    );
+    const node = graph.nodes.find((n) => n.id === 'table:dynamo:Orders');
+    if (node?.type !== 'table') throw new Error('expected table node');
+    expect(node.partitionKey).toBe('orderId');
+    expect(node.sortKey).toBe('createdAt');
+  });
+});
+
 describe('addStackOutputNodes', () => {
   it('adds stack_output nodes and dedupes by id', () => {
     const graph: SystemGraph = { nodes: [], edges: [] };

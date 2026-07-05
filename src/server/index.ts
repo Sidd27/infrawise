@@ -651,6 +651,65 @@ export function createMcpServer(): McpServer {
   );
 
   mcp.registerTool(
+    'get_table_schema',
+    {
+      description:
+        'Returns the full schema for specific tables or collections by name: columns with data types and nullability, primary keys, foreign keys (join paths), indexes, DynamoDB partition/sort keys, and MongoDB estimated document counts. Accepts short names ("orders" matches "public.orders") and is case-insensitive. Call this after get_infra_overview when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables — instead of pulling every schema with get_graph_summary. Do NOT call for a table inventory; use get_infra_overview for that. Row data is never included.',
+      inputSchema: z.object({
+        tables: z
+          .array(z.string())
+          .min(1)
+          .max(20)
+          .describe('Table or collection names to fetch schemas for'),
+      }),
+    },
+    logged('get_table_schema', async ({ tables }) => {
+      const tableNodes = getTableNodes(currentGraph);
+      const indexNamesFor = (nodeId: string) =>
+        currentGraph.edges
+          .filter((e) => e.from === nodeId && e.type === 'uses_index')
+          .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
+          .filter((n) => n?.type === 'index')
+          .map((n) => n!.name);
+
+      const results = tables.map((requested) => {
+        const lower = requested.toLowerCase();
+        const matches = tableNodes.filter((t) => {
+          const name = t.name.toLowerCase();
+          return name === lower || name.split('.').pop() === lower;
+        });
+        if (matches.length === 0) {
+          const suggestions = tableNodes
+            .filter((t) => t.name.toLowerCase().includes(lower))
+            .map((t) => t.name)
+            .slice(0, 5);
+          return { requested, found: false, ...(suggestions.length ? { suggestions } : {}) };
+        }
+        return {
+          requested,
+          found: true,
+          matches: matches.map((t) => ({
+            name: t.name,
+            databaseType: t.databaseType,
+            ...(t.columns ? { columns: t.columns } : {}),
+            ...(t.primaryKeys?.length ? { primaryKeys: t.primaryKeys } : {}),
+            ...(t.foreignKeys?.length ? { foreignKeys: t.foreignKeys } : {}),
+            ...(t.partitionKey ? { partitionKey: t.partitionKey } : {}),
+            ...(t.sortKey ? { sortKey: t.sortKey } : {}),
+            ...(t.estimatedCount !== undefined ? { estimatedCount: t.estimatedCount } : {}),
+            indexes: indexNamesFor(t.id),
+          })),
+        };
+      });
+
+      return toText({
+        note: 'Row data is never included.',
+        tables: results,
+      });
+    }),
+  );
+
+  mcp.registerTool(
     'get_cache_overview',
     {
       description:
@@ -808,6 +867,7 @@ export function createServer(port = 3000) {
       'get_cognito_overview',
       'get_stream_details',
       'get_cache_overview',
+      'get_table_schema',
     ],
   }));
 

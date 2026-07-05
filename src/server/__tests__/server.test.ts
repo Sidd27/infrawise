@@ -14,6 +14,12 @@ const testGraph: SystemGraph = {
       type: 'table',
       name: 'public.users',
       databaseType: 'postgres',
+      columns: [
+        { name: 'id', dataType: 'uuid', nullable: false },
+        { name: 'email', dataType: 'text', nullable: false },
+      ],
+      primaryKeys: ['id'],
+      foreignKeys: [],
     },
     { id: 'function:handler.ts:getOrder', type: 'function', name: 'getOrder', file: 'handler.ts' },
     {
@@ -76,10 +82,10 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
 }
 
 describe('MCP Server — protocol', () => {
-  it('lists all 20 tools', async () => {
+  it('lists all 21 tools', async () => {
     const client = await makeClient(emptyGraph, []);
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(20);
+    expect(tools).toHaveLength(21);
     const names = tools.map((t) => t.name);
     expect(names).toContain('get_infra_overview');
     expect(names).toContain('get_graph_summary');
@@ -92,6 +98,7 @@ describe('MCP Server — protocol', () => {
     expect(names).toContain('get_cognito_overview');
     expect(names).toContain('get_stream_details');
     expect(names).toContain('get_cache_overview');
+    expect(names).toContain('get_table_schema');
     await client.close();
   });
 
@@ -335,5 +342,40 @@ describe('MCP Server — HTTP endpoints', () => {
     for (const res of responses) {
       expect(res.statusCode).toBe(200);
     }
+  });
+});
+
+describe('get_table_schema', () => {
+  let client: Client;
+
+  beforeEach(async () => {
+    client = await makeClient(testGraph, testFindings);
+  });
+
+  afterEach(async () => {
+    await client.close();
+  });
+
+  it('matches short names case-insensitively and returns column details', async () => {
+    const res = await callTool(client, 'get_table_schema', { tables: ['USERS'] });
+    expect(res.tables[0].found).toBe(true);
+    const match = res.tables[0].matches[0];
+    expect(match.name).toBe('public.users');
+    expect(match.columns).toHaveLength(2);
+    expect(match.columns[0].dataType).toBe('uuid');
+    expect(match.primaryKeys).toEqual(['id']);
+  });
+
+  it('returns found false with suggestions for unknown tables', async () => {
+    const res = await callTool(client, 'get_table_schema', { tables: ['user'] });
+    expect(res.tables[0].found).toBe(false);
+    expect(res.tables[0].suggestions).toContain('public.users');
+  });
+
+  it('handles multiple tables in one call', async () => {
+    const res = await callTool(client, 'get_table_schema', { tables: ['Orders', 'users'] });
+    expect(res.tables).toHaveLength(2);
+    expect(res.tables[0].matches[0].databaseType).toBe('dynamodb');
+    expect(res.tables[1].matches[0].databaseType).toBe('postgres');
   });
 });

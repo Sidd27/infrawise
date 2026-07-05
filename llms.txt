@@ -11,7 +11,7 @@ When an AI coding assistant writes a Lambda handler, it doesn't know:
 - Which secrets are missing rotation or which DLQs are unconfigured
 - Whether the Lambda execution role actually allows the services the function calls
 
-Infrawise answers all of these via 20 MCP tools served over Streamable HTTP.
+Infrawise answers all of these via 21 MCP tools served over Streamable HTTP.
 
 ## Docs
 
@@ -38,10 +38,11 @@ For HTTP transport instead of stdio:
 infrawise serve   # start MCP server at http://localhost:3000/mcp
 ```
 
-## MCP tools (20 total)
+## MCP tools (21 total)
 
 - `get_infra_overview` — full snapshot of all infrastructure plus analysis freshness (age + stale flag), start here
 - `get_graph_summary` — complete graph: all nodes, edges, findings
+- `get_table_schema` — column-level schema for named tables/collections: types, primary keys, foreign keys, indexes, DynamoDB keys (never row data)
 - `analyze_function` — per-function analysis with trigger event shapes and missing IAM permissions
 - `suggest_gsi` — ready-to-use DynamoDB GSI definition
 - `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
