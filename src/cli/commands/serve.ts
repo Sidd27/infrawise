@@ -16,6 +16,7 @@ interface ServeOptions {
 }
 
 const BOX_W = 52;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const TOOL_MAP: Array<{ name: string; service?: string }> = [
   { name: 'get_infra_overview' },
@@ -103,8 +104,8 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   const repoPath = process.cwd();
 
   // Auto-analyze if no cache
-  const cachedGraph = readCache<SystemGraph>('graph');
-  const cachedFindings = readCache<Finding[]>('findings');
+  const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
+  const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
 
   if (cachedGraph && cachedFindings) {
     log.success(

@@ -228,13 +228,13 @@ function buildAnalyzers(
 }
 
 export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
-  printHeader('Running Analysis');
+  if (!options.silent) printHeader('Running Analysis');
 
   let config;
   try {
     config = loadConfig(options.config);
     setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
-    log.success('Config loaded', options.config ?? 'infrawise.yaml');
+    if (!options.silent) log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
     console.error(formatError(err));
     process.exit(1);
@@ -574,7 +574,9 @@ export async function runCodeRefresh(
   graph: ReturnType<typeof buildGraph>;
   findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
 }> {
-  const cached = readCache<CachedMeta>('meta', 60 * 60 * 1000);
+  // Same 24h TTL as the graph cache — a shorter TTL here silently dropped all
+  // AWS/DB metadata from refreshed graphs once a serve/stdio session passed 1h.
+  const cached = readCache<CachedMeta>('meta', 24 * 60 * 60 * 1000);
   const dynamoMeta = cached?.dynamoMeta ?? [];
   const postgresMeta = cached?.postgresMeta ?? [];
   const mysqlMeta = cached?.mysqlMeta ?? [];

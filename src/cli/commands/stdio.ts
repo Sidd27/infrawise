@@ -31,7 +31,8 @@ export async function runStdio(configPath?: string): Promise<void> {
   if (cachedGraph && cachedFindings) {
     setGraphState(cachedGraph, cachedFindings, readCacheTimestamp('graph'));
   } else if (config) {
-    await runAnalyze({ config: configPath });
+    // silent: stdout is reserved for MCP JSON-RPC — report text would corrupt the stream
+    await runAnalyze({ config: configPath, silent: true });
     const graph = readCache<SystemGraph>('graph', CACHE_TTL_MS) ?? { nodes: [], edges: [] };
     const findings = readCache<Finding[]>('findings', CACHE_TTL_MS) ?? [];
     setGraphState(graph, findings, readCacheTimestamp('graph'));
