@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Sidd27/infrawise",
   "title": "Infrawise",
-  "description": "Live AWS, database & Kafka infrastructure context for AI coding, via 16 MCP tools.",
+  "description": "Live AWS, database & Kafka infrastructure context for AI coding assistants via MCP.",
   "repository": {
     "url": "https://github.com/Sidd27/infrawise",
     "source": "github"
