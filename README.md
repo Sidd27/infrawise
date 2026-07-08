@@ -1,12 +1,26 @@
-# Infrawise
+<p align="center">
+  <a href="https://sidd27.github.io/infrawise/">
+    <img src="https://raw.githubusercontent.com/Sidd27/infrawise/main/website/public/logo-400.png" alt="Infrawise logo" width="130" />
+  </a>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/infrawise)](https://www.npmjs.com/package/infrawise)
-[![Publish to npm](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml)
-[![CI](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidd27/infrawise/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![infrawise MCP server](https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg)](https://glama.ai/mcp/servers/Sidd27/infrawise)
+<h1 align="center">Infrawise</h1>
 
-**[sidd27.github.io/infrawise](https://sidd27.github.io/infrawise/) — Understand your infrastructure, not just your code.**
+<p align="center"><b>Your AI coding assistant finally knows your infra.</b></p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/infrawise"><img src="https://img.shields.io/npm/v/infrawise" alt="npm version" /></a>
+  <a href="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg" alt="Publish to npm" /></a>
+  <a href="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://glama.ai/mcp/servers/Sidd27/infrawise"><img src="https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg" alt="infrawise MCP server" /></a>
+</p>
+
+<p align="center">
+  <a href="https://sidd27.github.io/infrawise/">Website</a> ·
+  <a href="https://sidd27.github.io/infrawise/getting-started/installation/">Docs</a> ·
+  <a href="#quick-start">Quick start</a>
+</p>
 
 Infrawise gives AI coding assistants deterministic infrastructure awareness.
 
