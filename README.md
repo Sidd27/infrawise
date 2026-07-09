@@ -13,6 +13,7 @@
   <a href="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/npm-publish.yml/badge.svg" alt="Publish to npm" /></a>
   <a href="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml"><img src="https://github.com/Sidd27/infrawise/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/Sidd27/infrawise"><img src="https://api.securityscorecards.dev/projects/github.com/Sidd27/infrawise/badge" alt="OpenSSF Scorecard" /></a>
   <a href="https://glama.ai/mcp/servers/Sidd27/infrawise"><img src="https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg" alt="infrawise MCP server" /></a>
 </p>
 

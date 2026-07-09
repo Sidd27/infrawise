@@ -4,6 +4,7 @@ packages:
 overrides:
   qs: '>=6.15.2'
   vite: ^7
+  'esbuild@<0.28.1': '>=0.28.1'
 allowedBuildScripts:
   - puppeteer
   - simple-git-hooks
