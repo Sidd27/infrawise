@@ -14,6 +14,7 @@ interface StartOptions {
   config?: string;
   claude?: boolean;
   cursor?: boolean;
+  vscode?: boolean;
   interactive?: boolean;
   rediscover?: boolean;
 }
@@ -46,7 +47,31 @@ function writeCursorMcp(configAbsPath: string): void {
   log.success('Cursor config written', '.cursor/mcp.json');
 }
 
-function launchEditor(editor: 'claude' | 'cursor'): Promise<void> {
+export function writeVscodeMcp(configAbsPath: string): void {
+  const dir = '.vscode';
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'mcp.json');
+  // VS Code's mcp.json commonly holds other servers — merge, never overwrite
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(file)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>;
+    } catch {
+      log.warn('.vscode/mcp.json is not valid JSON — replacing it');
+    }
+  }
+  const servers = (existing['servers'] as Record<string, unknown> | undefined) ?? {};
+  servers['infrawise'] = {
+    type: 'stdio',
+    command: 'infrawise',
+    args: ['serve', '--stdio', '--config', configAbsPath],
+  };
+  existing['servers'] = servers;
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2), 'utf-8');
+  log.success('VS Code config written', '.vscode/mcp.json');
+}
+
+function launchEditor(editor: 'claude' | 'cursor' | 'code'): Promise<void> {
   return new Promise((resolve) => {
     if (editor === 'claude') {
       console.log('');
@@ -137,9 +162,16 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   console.log('');
   writeMcpJson(configAbsPath);
   if (options.cursor) writeCursorMcp(configAbsPath);
+  if (options.vscode) writeVscodeMcp(configAbsPath);
 
   // Launch editor or print instructions
-  const editor = options.claude ? 'claude' : options.cursor ? 'cursor' : null;
+  const editor = options.claude
+    ? 'claude'
+    : options.cursor
+      ? 'cursor'
+      : options.vscode
+        ? 'code'
+        : null;
 
   if (!editor) {
     console.log('');
@@ -147,6 +179,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     console.log('');
     console.log(chalk.dim('  Claude Code:  claude'));
     console.log(chalk.dim('  Cursor:       cursor .'));
+    console.log(chalk.dim('  VS Code:      code .'));
     console.log('');
     console.log(chalk.dim('  Next time just open your editor — no infrawise command needed.'));
     console.log('');

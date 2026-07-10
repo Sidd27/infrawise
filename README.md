@@ -134,6 +134,14 @@ infrawise start --cursor
 
 Writes `.cursor/mcp.json` and opens Cursor. All 21 infrawise tools are available in Cursor's MCP panel.
 
+### VS Code
+
+```bash
+infrawise start --vscode
+```
+
+Writes `.vscode/mcp.json` (merging with any existing MCP servers) and opens VS Code. The tools are available to Copilot agent mode via the MCP servers panel.
+
 ### Any editor (no flag)
 
 ```bash
@@ -197,6 +205,7 @@ Add to your editor's MCP config:
 | `infrawise start`             | **Primary command** — probe env, generate config, analyze, write editor MCP config |
 | `infrawise start --claude`    | Same as above, then opens Claude Code                                             |
 | `infrawise start --cursor`    | Same as above, then opens Cursor                                                  |
+| `infrawise start --vscode`    | Same as above, then opens VS Code (merges into `.vscode/mcp.json`)                |
 | `infrawise start --interactive` | Run the guided setup wizard instead of auto-discovery                           |
 | `infrawise start --rediscover` | Delete `infrawise.yaml` + `.infrawise/`, then re-probe and re-analyze            |
 | `infrawise analyze`           | Force a full re-scan — useful after major infrastructure changes                  |

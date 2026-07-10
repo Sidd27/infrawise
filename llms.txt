@@ -25,6 +25,7 @@ Infrawise answers all of these via 21 MCP tools served over Streamable HTTP.
 npm install -g infrawise
 cd your-project
 infrawise start --claude    # probe env + analyze + write .mcp.json + open Claude Code
+# Also: --cursor (.cursor/mcp.json) or --vscode (.vscode/mcp.json, merges with existing servers)
 # Every session after: just run "claude" — editor manages the rest
 ```
 
@@ -64,7 +65,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 
 ## Works with
 
-Claude Code, Cursor, and any MCP-compatible client.
+Claude Code, Cursor, VS Code (Copilot agent mode), and any MCP-compatible client.
 
 ## What infrawise never does
 

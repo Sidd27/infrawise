@@ -471,8 +471,7 @@ function processCFNResources(
 
       case 'AWS::S3::Bucket': {
         const versioningConfig = props['VersioningConfiguration'] as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         schema.buckets.push({
           name: cfnStr(props, 'BucketName') ?? logicalId,
           versioned: versioningConfig?.['Status'] === 'Enabled',

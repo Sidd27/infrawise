@@ -18,10 +18,11 @@ infrawise start [options]
 | `-c, --config <path>` | `infrawise.yaml` | Path to config file |
 | `--claude` | — | Write `.mcp.json` and open Claude Code |
 | `--cursor` | — | Write `.cursor/mcp.json` and open Cursor |
+| `--vscode` | — | Write `.vscode/mcp.json` (merging with existing servers) and open VS Code |
 | `--interactive` | — | Run the guided setup wizard instead of auto-discovery |
 | `--rediscover` | — | Delete `infrawise.yaml` and the `.infrawise/` directory, then re-probe and re-analyze from scratch |
 
-Running `infrawise start` without `--claude` or `--cursor` writes `.mcp.json` only (no editor is opened). Re-run any time your infrastructure changes to refresh the graph, or use `--rediscover` for a clean slate.
+Running `infrawise start` without an editor flag writes `.mcp.json` only (no editor is opened). Re-run any time your infrastructure changes to refresh the graph, or use `--rediscover` for a clean slate.
 
 ## `infrawise analyze`
 
@@ -78,7 +79,7 @@ infrawise serve [options]
 MCP endpoint (HTTP): `POST http://localhost:<port>/mcp`
 
 :::note
-`infrawise start --claude` and `infrawise start --cursor` write a `.mcp.json` that launches `infrawise serve --stdio` automatically. You rarely need to run `serve` directly. (Configs generated before this rename invoke a hidden `infrawise stdio` alias, which still works.)
+`infrawise start --claude`, `--cursor`, and `--vscode` write an MCP config that launches `infrawise serve --stdio` automatically. You rarely need to run `serve` directly. (Configs generated before this rename invoke a hidden `infrawise stdio` alias, which still works.)
 :::
 
 ## `infrawise doctor`

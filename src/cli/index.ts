@@ -29,6 +29,7 @@ program
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('--claude', 'Write .mcp.json and open Claude Code')
   .option('--cursor', 'Write .cursor/mcp.json and open Cursor')
+  .option('--vscode', 'Write .vscode/mcp.json and open VS Code')
   .option('--interactive', 'Run interactive setup wizard instead of auto-discovery')
   .option('--rediscover', 'Delete existing infrawise.yaml and re-probe the environment')
   .action(async (options) => {
@@ -37,6 +38,7 @@ program
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       claude: options.claude,
       cursor: options.cursor,
+      vscode: options.vscode,
       interactive: options.interactive,
       rediscover: options.rediscover,
     });
