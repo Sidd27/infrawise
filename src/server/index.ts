@@ -669,8 +669,7 @@ export function createMcpServer(): McpServer {
         currentGraph.edges
           .filter((e) => e.from === nodeId && e.type === 'uses_index')
           .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
-          .filter((n) => n?.type === 'index')
-          .map((n) => n!.name);
+          .flatMap((n) => (n?.type === 'index' ? [n.name] : []));
 
       const results = tables.map((requested) => {
         const lower = requested.toLowerCase();

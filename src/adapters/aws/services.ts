@@ -341,7 +341,7 @@ async function extractAllowedServices(
   cfg: AWSConfig,
 ): Promise<string[] | undefined> {
   const client = new IAMClient(clientConfig(cfg));
-  const roleName = roleArn.split('/').pop()!;
+  const roleName = roleArn.split('/').pop() ?? roleArn;
   const services = new Set<string>();
 
   try {
@@ -351,12 +351,13 @@ async function extractAllowedServices(
         new ListAttachedRolePoliciesCommand({ RoleName: roleName, Marker: marker }),
       );
       for (const policy of res.AttachedPolicies ?? []) {
+        if (!policy.PolicyArn) continue;
         try {
           const meta = await client.send(new GetPolicyCommand({ PolicyArn: policy.PolicyArn }));
           const versionId = meta.Policy?.DefaultVersionId;
           if (!versionId) continue;
           const ver = await client.send(
-            new GetPolicyVersionCommand({ PolicyArn: policy.PolicyArn!, VersionId: versionId }),
+            new GetPolicyVersionCommand({ PolicyArn: policy.PolicyArn, VersionId: versionId }),
           );
           const doc = ver.PolicyVersion?.Document;
           if (doc) {

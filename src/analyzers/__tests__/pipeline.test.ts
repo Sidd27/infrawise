@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect } from 'vitest';
 import type { SystemGraph } from '../../types.js';
 import type { IaCLambda } from '../../adapters/iac/terraform.js';
