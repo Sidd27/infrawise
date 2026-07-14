@@ -73,7 +73,7 @@ def notify():
     expect(op?.target).toBe('order-notifications');
   });
 
-  it('detects ssm get_parameter by receiver-name heuristic', async () => {
+  it('detects ssm get_parameter with Name kwarg', async () => {
     writeFixture(
       'ssm_fix.py',
       `
@@ -85,6 +85,21 @@ def load_config(ssm_client):
     const op = ops.find((o) => o.serviceType === 'ssm');
     expect(op?.target).toBe('/app/db-url');
     expect(op?.functionName).toBe('load_config');
+  });
+
+  it('detects ssm by receiver-name heuristic when kwargs not recognized', async () => {
+    writeFixture(
+      'ssm_hint_fix.py',
+      `
+def refresh(ssm_client):
+    ssm_client.get_parameters_by_path()
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.functionName === 'refresh' && o.serviceType === 'ssm');
+    expect(op).toBeDefined();
+    expect(op?.operationType).toBe('get_parameters_by_path');
+    expect(op?.target).toBe('unknown');
   });
 
   it('detects get_secret_value and lambda invoke', async () => {
@@ -140,7 +155,12 @@ def bill():
       'venv/lib/vendored_fix.py',
       `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='vendored-q', MessageBody='x')\n`,
     );
+    writeFixture(
+      'site-packages/pkg/vendored2_fix.py',
+      `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='vendored-q2', MessageBody='x')\n`,
+    );
     const ops = await scanPythonRepository(tmpDir);
     expect(ops.find((o) => o.target === 'vendored-q')).toBeUndefined();
+    expect(ops.find((o) => o.target === 'vendored-q2')).toBeUndefined();
   });
 });
