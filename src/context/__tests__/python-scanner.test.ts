@@ -231,3 +231,67 @@ def list_rows(session):
     ).toHaveLength(0);
   });
 });
+
+describe.skipIf(!hasPython)('scanPythonRepository — SQL', () => {
+  it('detects cursor.execute with literal SQL as postgres', async () => {
+    writeFixture(
+      'pg_fix.py',
+      `
+def fetch_orders(cursor):
+    cursor.execute("SELECT * FROM orders WHERE user_id = %s", (1,))
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'postgres' && o.target === 'orders');
+    expect(op?.operationType).toBe('query');
+    expect(op?.functionName).toBe('fetch_orders');
+  });
+
+  it('classifies mysql by receiver hint', async () => {
+    writeFixture(
+      'mysql_fix.py',
+      `
+def save(mysql_conn):
+    mysql_conn.execute("INSERT INTO invoices (id) VALUES (1)")
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'mysql');
+    expect(op?.target).toBe('invoices');
+  });
+
+  it('resolves SQL from a module constant and f-string', async () => {
+    writeFixture(
+      'sql_const_fix.py',
+      `
+TABLE = 'audit_log'
+QUERY = f"SELECT * FROM {TABLE} WHERE ts > %s"
+
+def read_audit(cur):
+    cur.execute(QUERY)
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.target === 'audit_log');
+    expect(op?.serviceType).toBe('postgres');
+  });
+
+  it('unwraps sqlalchemy text() and falls back to unknown on dynamic SQL', async () => {
+    writeFixture(
+      'sqlalchemy_fix.py',
+      `
+from sqlalchemy import text
+
+def run(session, sql):
+    session.execute(text("UPDATE accounts SET x = 1"))
+    session.execute(sql)
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const targets = ops
+      .filter((o) => o.filePath.endsWith('sqlalchemy_fix.py'))
+      .map((o) => o.target)
+      .sort();
+    expect(targets).toEqual(['accounts', 'unknown']);
+  });
+});

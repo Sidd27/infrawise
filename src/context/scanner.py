@@ -13,6 +13,16 @@ SECRETS_METHODS = {'get_secret_value'}
 LAMBDA_METHODS = {'invoke', 'invoke_async'}
 DYNAMO_METHODS = {'query', 'scan', 'get_item', 'put_item', 'update_item', 'delete_item',
                   'batch_get_item', 'batch_write_item'}
+SQL_METHODS = {'execute', 'executemany'}
+SQL_RECEIVER_HINTS = ('cursor', 'cur', 'conn', 'connection', 'session', 'db', 'pool',
+                      'pg', 'psycopg', 'asyncpg', 'engine', 'mysql', 'pymysql', 'maria')
+MYSQL_HINTS = ('mysql', 'pymysql', 'maria')
+SQL_TABLE_PATTERNS = [
+    re.compile(r'FROM\s+["\']?(\w+)["\']?', re.IGNORECASE),
+    re.compile(r'INTO\s+["\']?(\w+)["\']?', re.IGNORECASE),
+    re.compile(r'UPDATE\s+["\']?(\w+)["\']?', re.IGNORECASE),
+    re.compile(r'JOIN\s+["\']?(\w+)["\']?', re.IGNORECASE),
+]
 
 SERVICE_RULES = [
     ('sqs', SQS_METHODS, ('QueueUrl', 'QueueName'), ('sqs', 'queue')),
@@ -41,6 +51,14 @@ def short_name(val):
     if ':' in val:
         return val.rsplit(':', 1)[-1]
     return val
+
+
+def sql_table(sql):
+    for pattern in SQL_TABLE_PATTERNS:
+        match = pattern.search(sql)
+        if match:
+            return match.group(1)
+    return 'unknown'
 
 
 class Visitor(ast.NodeVisitor):
@@ -138,8 +156,10 @@ class Visitor(ast.NodeVisitor):
             method = node.func.attr
             recv = node.func.value
             recv_text = expr_text(recv).lower()
-            _ = self.detect_dynamo(node, method, recv, recv_text) or self.detect_aws_client(
-                node, method, recv, recv_text
+            _ = (
+                self.detect_dynamo(node, method, recv, recv_text)
+                or self.detect_sql(node, method, recv_text)
+                or self.detect_aws_client(node, method, recv, recv_text)
             )
         self.generic_visit(node)
 
@@ -159,6 +179,26 @@ class Visitor(ast.NodeVisitor):
             self.add(method, 'dynamodb', kw if kw else 'unknown')
             return True
         return False
+
+    def detect_sql(self, node, method, recv_text):
+        if method not in SQL_METHODS:
+            return False
+        if not any(h in recv_text for h in SQL_RECEIVER_HINTS):
+            return False
+        sql = None
+        if node.args:
+            arg = node.args[0]
+            if (
+                isinstance(arg, ast.Call)
+                and isinstance(arg.func, ast.Name)
+                and arg.func.id == 'text'
+                and arg.args
+            ):
+                arg = arg.args[0]
+            sql = self.resolve_string(arg)
+        service = 'mysql' if any(h in recv_text for h in MYSQL_HINTS) else 'postgres'
+        self.add('query', service, sql_table(sql) if sql else 'unknown')
+        return True
 
     def detect_aws_client(self, node, method, recv, recv_text):
         for service, methods, keys, hints in SERVICE_RULES:
