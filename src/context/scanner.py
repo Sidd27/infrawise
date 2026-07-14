@@ -11,6 +11,8 @@ SNS_METHODS = {'publish', 'publish_batch'}
 SSM_METHODS = {'get_parameter', 'get_parameters', 'get_parameters_by_path'}
 SECRETS_METHODS = {'get_secret_value'}
 LAMBDA_METHODS = {'invoke', 'invoke_async'}
+DYNAMO_METHODS = {'query', 'scan', 'get_item', 'put_item', 'update_item', 'delete_item',
+                  'batch_get_item', 'batch_write_item'}
 
 SERVICE_RULES = [
     ('sqs', SQS_METHODS, ('QueueUrl', 'QueueName'), ('sqs', 'queue')),
@@ -48,6 +50,7 @@ class Visitor(ast.NodeVisitor):
         self.stack = []
         self.strings = {}
         self.boto_clients = {}
+        self.dynamo_tables = {}
 
     def function_name(self):
         return self.stack[-1] if self.stack else '<module>'
@@ -105,6 +108,16 @@ class Visitor(ast.NodeVisitor):
             return self.resolve_string(node.args[0])
         return None
 
+    def table_name(self, node):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'Table'
+            and node.args
+        ):
+            return self.resolve_string(node.args[0])
+        return None
+
     def visit_Assign(self, node):
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             name = node.targets[0].id
@@ -113,8 +126,11 @@ class Visitor(ast.NodeVisitor):
                 self.strings[name] = resolved
             else:
                 service = self.boto3_service(node.value)
+                table = self.table_name(node.value)
                 if service is not None:
                     self.boto_clients[name] = service
+                elif table is not None:
+                    self.dynamo_tables[name] = table
         self.generic_visit(node)
 
     def visit_Call(self, node):
@@ -122,8 +138,27 @@ class Visitor(ast.NodeVisitor):
             method = node.func.attr
             recv = node.func.value
             recv_text = expr_text(recv).lower()
-            self.detect_aws_client(node, method, recv, recv_text)
+            _ = self.detect_dynamo(node, method, recv, recv_text) or self.detect_aws_client(
+                node, method, recv, recv_text
+            )
         self.generic_visit(node)
+
+    def detect_dynamo(self, node, method, recv, recv_text):
+        if method not in DYNAMO_METHODS:
+            return False
+        if isinstance(recv, ast.Name) and recv.id in self.dynamo_tables:
+            self.add(method, 'dynamodb', self.dynamo_tables[recv.id])
+            return True
+        inline = self.table_name(recv)
+        if inline is not None:
+            self.add(method, 'dynamodb', inline)
+            return True
+        kw = self.kwarg(node, ('TableName',))
+        tracked = isinstance(recv, ast.Name) and self.boto_clients.get(recv.id) == 'dynamodb'
+        if kw is not None or tracked or 'dynamo' in recv_text or 'ddb' in recv_text:
+            self.add(method, 'dynamodb', kw if kw else 'unknown')
+            return True
+        return False
 
     def detect_aws_client(self, node, method, recv, recv_text):
         for service, methods, keys, hints in SERVICE_RULES:

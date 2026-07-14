@@ -164,3 +164,70 @@ def bill():
     expect(ops.find((o) => o.target === 'vendored-q2')).toBeUndefined();
   });
 });
+
+describe.skipIf(!hasPython)('scanPythonRepository — DynamoDB', () => {
+  it('tracks dynamodb.Table() assignment then table.query()', async () => {
+    writeFixture(
+      'ddb_resource_fix.py',
+      `
+import boto3
+
+dynamodb = boto3.resource('dynamodb')
+orders = dynamodb.Table('Orders')
+
+def get_orders(user_id):
+    return orders.query(KeyConditionExpression='userId = :u')
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'dynamodb' && o.target === 'Orders');
+    expect(op?.operationType).toBe('query');
+    expect(op?.functionName).toBe('get_orders');
+  });
+
+  it('detects inline dynamodb.Table("x").scan()', async () => {
+    writeFixture(
+      'ddb_inline_fix.py',
+      `
+import boto3
+
+def list_users():
+    return boto3.resource('dynamodb').Table('Users').scan()
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'dynamodb' && o.target === 'Users');
+    expect(op?.operationType).toBe('scan');
+  });
+
+  it('detects client-style get_item(TableName=...)', async () => {
+    writeFixture(
+      'ddb_client_fix.py',
+      `
+import boto3
+
+client = boto3.client('dynamodb')
+
+def get_session(sid):
+    return client.get_item(TableName='Sessions', Key={'id': {'S': sid}})
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'dynamodb' && o.target === 'Sessions');
+    expect(op?.operationType).toBe('get_item');
+  });
+
+  it('does not misclassify session.query() as dynamodb', async () => {
+    writeFixture(
+      'orm_fix.py',
+      `
+def list_rows(session):
+    return session.query('anything')
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    expect(
+      ops.filter((o) => o.serviceType === 'dynamodb' && o.filePath.endsWith('orm_fix.py')),
+    ).toHaveLength(0);
+  });
+});
