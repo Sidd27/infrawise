@@ -24,6 +24,14 @@ SQL_TABLE_PATTERNS = [
     re.compile(r'JOIN\s+["\']?(\w+)["\']?', re.IGNORECASE),
 ]
 
+MONGO_METHODS = {'find', 'find_one', 'insert_one', 'insert_many', 'update_one', 'update_many',
+                 'delete_one', 'delete_many', 'aggregate', 'count_documents',
+                 'estimated_document_count'}
+MONGO_SCAN_METHODS = {'find', 'aggregate'}
+MONGO_BASE_HINTS = ('db', 'mongo')
+KAFKA_PRODUCER_METHODS = {'send', 'produce'}
+KAFKA_HINTS = ('kafka', 'producer', 'consumer')
+
 SERVICE_RULES = [
     ('sqs', SQS_METHODS, ('QueueUrl', 'QueueName'), ('sqs', 'queue')),
     ('sns', SNS_METHODS, ('TopicArn', 'TargetArn'), ('sns', 'topic')),
@@ -69,6 +77,7 @@ class Visitor(ast.NodeVisitor):
         self.strings = {}
         self.boto_clients = {}
         self.dynamo_tables = {}
+        self.collections = {}
 
     def function_name(self):
         return self.stack[-1] if self.stack else '<module>'
@@ -136,6 +145,20 @@ class Visitor(ast.NodeVisitor):
             return self.resolve_string(node.args[0])
         return None
 
+    def collection_name(self, node):
+        if isinstance(node, ast.Subscript):
+            base = expr_text(node.value).lower()
+            if any(h in base for h in MONGO_BASE_HINTS):
+                return self.resolve_string(node.slice)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'get_collection'
+            and node.args
+        ):
+            return self.resolve_string(node.args[0])
+        return None
+
     def visit_Assign(self, node):
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             name = node.targets[0].id
@@ -145,10 +168,13 @@ class Visitor(ast.NodeVisitor):
             else:
                 service = self.boto3_service(node.value)
                 table = self.table_name(node.value)
+                collection = self.collection_name(node.value)
                 if service is not None:
                     self.boto_clients[name] = service
                 elif table is not None:
                     self.dynamo_tables[name] = table
+                elif collection is not None:
+                    self.collections[name] = collection
         self.generic_visit(node)
 
     def visit_Call(self, node):
@@ -159,6 +185,8 @@ class Visitor(ast.NodeVisitor):
             _ = (
                 self.detect_dynamo(node, method, recv, recv_text)
                 or self.detect_sql(node, method, recv_text)
+                or self.detect_mongo(node, method, recv, recv_text)
+                or self.detect_kafka(node, method, recv_text)
                 or self.detect_aws_client(node, method, recv, recv_text)
             )
         self.generic_visit(node)
@@ -199,6 +227,49 @@ class Visitor(ast.NodeVisitor):
         service = 'mysql' if any(h in recv_text for h in MYSQL_HINTS) else 'postgres'
         self.add('query', service, sql_table(sql) if sql else 'unknown')
         return True
+
+    def detect_mongo(self, node, method, recv, recv_text):
+        if method not in MONGO_METHODS:
+            return False
+        collection = None
+        if isinstance(recv, ast.Name) and recv.id in self.collections:
+            collection = self.collections[recv.id]
+        elif isinstance(recv, ast.Attribute):
+            base = expr_text(recv.value).lower()
+            if any(h in base for h in MONGO_BASE_HINTS):
+                collection = recv.attr
+        else:
+            collection = self.collection_name(recv)
+        if collection is None and ('collection' in recv_text or 'mongo' in recv_text):
+            collection = 'unknown'
+        if collection is None:
+            return False
+        op_type = 'scan' if method in MONGO_SCAN_METHODS else 'query'
+        self.add(op_type, 'mongodb', collection)
+        return True
+
+    def detect_kafka(self, node, method, recv_text):
+        if not any(h in recv_text for h in KAFKA_HINTS):
+            return False
+        if method in KAFKA_PRODUCER_METHODS:
+            target = self.resolve_string(node.args[0]) if node.args else None
+            self.add(method, 'kafka', target if target else 'unknown')
+            return True
+        if method == 'subscribe':
+            topics = []
+            if node.args and isinstance(node.args[0], (ast.List, ast.Tuple)):
+                for element in node.args[0].elts:
+                    resolved = self.resolve_string(element)
+                    if resolved is not None:
+                        topics.append(resolved)
+            elif node.args:
+                resolved = self.resolve_string(node.args[0])
+                if resolved is not None:
+                    topics.append(resolved)
+            for topic in topics or ['unknown']:
+                self.add('subscribe', 'kafka', topic)
+            return True
+        return False
 
     def detect_aws_client(self, node, method, recv, recv_text):
         for service, methods, keys, hints in SERVICE_RULES:

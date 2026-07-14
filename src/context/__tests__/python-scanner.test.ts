@@ -295,3 +295,66 @@ def run(session, sql):
     expect(targets).toEqual(['accounts', 'unknown']);
   });
 });
+
+describe.skipIf(!hasPython)('scanPythonRepository — MongoDB', () => {
+  it('detects db.users.find_one as attribute collection', async () => {
+    writeFixture(
+      'mongo_attr_fix.py',
+      `
+def get_user(db, uid):
+    return db.users.find_one({'_id': uid})
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'mongodb' && o.target === 'users');
+    expect(op?.operationType).toBe('query');
+    expect(op?.functionName).toBe('get_user');
+  });
+
+  it('detects subscript and tracked collections; find/aggregate are scans', async () => {
+    writeFixture(
+      'mongo_sub_fix.py',
+      `
+def setup(db):
+    events = db['events']
+    events.insert_one({'a': 1})
+    db['metrics'].aggregate([])
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    expect(ops.find((o) => o.target === 'events')?.operationType).toBe('query');
+    expect(ops.find((o) => o.target === 'metrics')?.operationType).toBe('scan');
+  });
+});
+
+describe.skipIf(!hasPython)('scanPythonRepository — Kafka', () => {
+  it('detects kafka-python producer.send and confluent produce', async () => {
+    writeFixture(
+      'kafka_prod_fix.py',
+      `
+def emit(producer):
+    producer.send('order-created', b'payload')
+    producer.produce('order-updated', b'payload')
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    expect(ops.find((o) => o.target === 'order-created')?.serviceType).toBe('kafka');
+    expect(ops.find((o) => o.target === 'order-updated')?.operationType).toBe('produce');
+  });
+
+  it('detects consumer.subscribe with a topic list — one op per topic', async () => {
+    writeFixture(
+      'kafka_cons_fix.py',
+      `
+def listen(consumer):
+    consumer.subscribe(['payments', 'refunds'])
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const topics = ops
+      .filter((o) => o.serviceType === 'kafka' && o.operationType === 'subscribe')
+      .map((o) => o.target)
+      .sort();
+    expect(topics).toEqual(['payments', 'refunds']);
+  });
+});
