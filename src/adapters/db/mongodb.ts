@@ -112,9 +112,15 @@ export async function validateMongoAccess(connectionString: string): Promise<boo
     serverSelectionTimeoutMS: 5000,
     connectTimeoutMS: 5000,
   });
+  // driver can exceed serverSelectionTimeoutMS when SYNs are dropped; hard-cap the probe
+  const deadline = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('validation timeout')), 6000).unref();
+  });
   try {
-    await client.connect();
-    await client.db('admin').command({ ping: 1 });
+    await Promise.race([
+      client.connect().then(() => client.db('admin').command({ ping: 1 })),
+      deadline,
+    ]);
     return true;
   } catch {
     return false;
