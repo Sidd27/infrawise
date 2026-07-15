@@ -427,9 +427,11 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
 
-### Code correlation analysis (TypeScript / JavaScript)
+### Code correlation analysis (TypeScript / JavaScript / Python)
 
 Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions call which tables and how:
+
+Python repositories are scanned with a bundled stdlib-`ast` scanner (requires `python3` on PATH; skipped with a warning otherwise): boto3 clients and `dynamodb.Table()` resources, `cursor.execute` SQL, pymongo collections, and kafka-python/confluent-kafka producers and consumers. Language detection is automatic — TypeScript and Python scans each run only when matching files exist.
 
 | Analyzer                   | Severity | What it detects                               |
 | -------------------------- | -------- | --------------------------------------------- |
@@ -447,7 +449,7 @@ Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions ca
 | Pipeline: repeated table access | Medium / Verify | Same table read by 2+ functions in one service pipeline |
 | Pipeline: missing DLQ hop  | Medium   | Mid-pipeline queue (has producer and consumer) with no Dead Letter Queue |
 
-Non-TypeScript/JavaScript projects still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) is skipped.
+Projects in other languages still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) currently supports TypeScript, JavaScript, and Python.
 
 The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda, and `kafkajs` for Kafka topics (producer/consumer).
 
@@ -498,7 +500,7 @@ src/
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
   analyzers/    34 rule-based analyzers
-  context/      Repository scanner (ts-morph AST)
+  context/      Repository scanner (ts-morph AST + Python stdlib-ast subprocess)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)
 ```
@@ -507,7 +509,7 @@ src/
 
 ## Current limitations
 
-- Code-level correlation supports TypeScript and JavaScript only
+- Code-level correlation supports TypeScript, JavaScript, and Python (Python requires python3 on PATH)
 - Dynamically constructed queries may not always be resolved statically
 - Runtime tracing is not yet implemented
 - Large monorepos may require future incremental analysis optimization

@@ -56,7 +56,7 @@
   },
   "packageManager": "pnpm@10.14.0",
   "scripts": {
-    "build": "tsc --noEmit false --outDir dist",
+    "build": "tsc --noEmit false --outDir dist && cp src/context/scanner.py dist/context/scanner.py",
     "test": "vitest run --passWithNoTests",
     "coverage": "vitest run --coverage",
     "lint": "eslint src",

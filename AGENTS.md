@@ -15,14 +15,15 @@
 **What it covers today:**
 - AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs, Cognito, Kinesis, MSK (clusters), ElastiCache, CloudWatch metrics (opt-in runtime signals)
 - Databases: PostgreSQL, MySQL, MongoDB
-- Messaging: Apache Kafka via `kafkajs` — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
+- Messaging: Apache Kafka via `kafkajs` (TS/JS) and kafka-python/confluent-kafka (Python) — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
 - IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection, plus stack outputs / cross-stack exports)
+- Code scanning: TypeScript/JavaScript (ts-morph) and Python (bundled stdlib-ast scanner run via python3 subprocess, requires python3 on PATH) — auto-detected by file signal, no config. Python detection: boto3 clients and `dynamodb.Table()` resources, `cursor.execute`/SQLAlchemy `text()` SQL, pymongo collections, kafka-python/confluent-kafka
 
 **How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 21 MCP tools (server mode) that AI assistants call to get precise context before writing code.
 
 **Strategic bets:**
 - MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). `infrawise check` is the standalone CI/CD gate — runs a fresh analysis and exits non-zero when findings reach `--fail-on` severity (default high), reaching teams not yet using AI editors.
-- TypeScript/Node is the current runtime; language is a limitation to overcome, not a design choice. The cloud extraction layer is already language-agnostic. AST scanning can expand to Python, Go, etc. over time.
+- TypeScript/Node is the runtime; the cloud extraction layer is language-agnostic. AST scanning covers TypeScript/JavaScript (ts-morph) and Python (stdlib-ast subprocess); Go and others can follow the same subprocess pattern over time.
 - Zero-config fast path is the unlock for adoption. The "aha moment" must happen in under 2 minutes from install — `npx infrawise start` auto-discovers AWS credentials and infra, no infrawise.yaml required. `start` is the entry point; do not add new setup commands (`init`, `doctor`, etc.) that front-load friction.
 - The command surface is deliberately five verbs, one per user need: `start` (onboard), `analyze` (full report), `check` (CI gate), `serve` (MCP server — `--stdio` for editors, HTTP by default), `doctor` (diagnostic escape hatch). `stdio` is a hidden backcompat alias for `serve --stdio` (older `.mcp.json` files invoke it). The interactive wizard lives in `src/cli/interactive-setup.ts` (`runInit`), reachable only via `start --interactive`; it is not its own command. Do not re-add `init`, `auth`, or `dev` as commands — their jobs are subsumed by `start`/`serve`.
 
@@ -158,7 +159,7 @@ src/
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
-  context/    ts-morph AST scanner
+  context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python)
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/        CLI commands
 ```
