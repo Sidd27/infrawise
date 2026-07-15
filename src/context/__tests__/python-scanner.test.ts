@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import { scanPythonRepository } from '../python';
+import { scanRepository } from '../index';
 
 const hasPython = (() => {
   for (const cmd of ['python3', 'python', 'py']) {
@@ -356,5 +357,41 @@ def listen(consumer):
       .map((o) => o.target)
       .sort();
     expect(topics).toEqual(['payments', 'refunds']);
+  });
+});
+
+describe.skipIf(!hasPython)('scanRepository — language auto-detection', () => {
+  it('scans a Python-only repo and a mixed repo', async () => {
+    const mixedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-mixed-'));
+    try {
+      fs.writeFileSync(
+        path.join(mixedDir, 'handler.py'),
+        `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='py-queue', MessageBody='x')\n`,
+      );
+      fs.writeFileSync(
+        path.join(mixedDir, 'handler.ts'),
+        `\nasync function f() {\n  await client.send(new QueryCommand({ TableName: 'TsTable' }));\n}\n`,
+      );
+      const ops = await scanRepository(mixedDir);
+      expect(ops.find((o) => o.target === 'py-queue')).toBeDefined();
+      expect(ops.find((o) => o.target === 'TsTable')).toBeDefined();
+    } finally {
+      fs.rmSync(mixedDir, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores .py files inside excluded dirs for detection', async () => {
+    const venvOnly = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-venvonly-'));
+    try {
+      fs.mkdirSync(path.join(venvOnly, 'venv'));
+      fs.writeFileSync(
+        path.join(venvOnly, 'venv', 'x.py'),
+        `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='hidden-q', MessageBody='x')\n`,
+      );
+      const ops = await scanRepository(venvOnly);
+      expect(ops).toHaveLength(0);
+    } finally {
+      fs.rmSync(venvOnly, { recursive: true, force: true });
+    }
   });
 });

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { Project, SyntaxKind, Node, CallExpression, StringLiteral, SourceFile } from 'ts-morph';
 import type { ExtractedOperation } from '../types.js';
 import { RepositoryScanError, logger } from '../core/index.js';
+import { scanPythonRepository } from './python.js';
 
 const DYNAMO_OPERATIONS = new Set([
   'query',
@@ -650,6 +651,37 @@ function detectAWSServiceOperations(
   return null;
 }
 
+const PROBE_EXCLUDED_DIRS = new Set([
+  'node_modules',
+  'venv',
+  '.venv',
+  'site-packages',
+  '__pycache__',
+  'dist',
+]);
+
+function detectLanguages(root: string): { hasTypeScript: boolean; hasPython: boolean } {
+  let hasTypeScript = fs.existsSync(path.join(root, 'tsconfig.json'));
+  let hasPython = false;
+  const stack = [root];
+  while (stack.length > 0 && !(hasTypeScript && hasPython)) {
+    const dir = stack.pop()!;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (!PROBE_EXCLUDED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+          stack.push(path.join(dir, entry.name));
+        }
+      } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+        hasTypeScript = true;
+      } else if (entry.name.endsWith('.py')) {
+        hasPython = true;
+      }
+      if (hasTypeScript && hasPython) break;
+    }
+  }
+  return { hasTypeScript, hasPython };
+}
+
 export async function scanRepository(repoPath: string): Promise<ExtractedOperation[]> {
   const resolvedPath = path.resolve(repoPath);
 
@@ -657,6 +689,21 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
     throw new RepositoryScanError(`Path does not exist: ${resolvedPath}`);
   }
 
+  const { hasTypeScript, hasPython } = detectLanguages(resolvedPath);
+  const detected = [hasTypeScript && 'TypeScript', hasPython && 'Python'].filter(Boolean);
+  logger.info(`Detected languages: ${detected.length > 0 ? detected.join(', ') : 'none'}`);
+
+  const operations: ExtractedOperation[] = [];
+  if (hasTypeScript) {
+    operations.push(...scanTypeScriptRepository(resolvedPath));
+  }
+  if (hasPython) {
+    operations.push(...(await scanPythonRepository(resolvedPath)));
+  }
+  return operations;
+}
+
+function scanTypeScriptRepository(resolvedPath: string): ExtractedOperation[] {
   const tsconfigPath = path.join(resolvedPath, 'tsconfig.json');
   const hasTsConfig = fs.existsSync(tsconfigPath);
 
