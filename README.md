@@ -518,7 +518,7 @@ src/
 
 ## Roadmap
 
-Feature roadmap is tracked in the [GitHub Project](https://github.com/users/Sidd27/projects/1). Feature requests and upvotes welcome.
+Feature roadmap is tracked in the [Infrawise v1](https://github.com/users/Sidd27/projects/1) project board. Feature requests and upvotes welcome.
 
 ---
 
