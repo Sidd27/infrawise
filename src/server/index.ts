@@ -460,7 +460,7 @@ export function createMcpServer(): McpServer {
     'get_secrets_overview',
     {
       description:
-        'Returns all Secrets Manager secrets with rotation status and rotation interval. Secret values are never returned. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or identifying secrets that lack rotation.',
+        'Returns all Secrets Manager secrets with rotation status, rotation interval, and referencedKeys — key names (e.g. "password", "apiKey") inferred from application code that parses the secret, never the values. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or before writing code that reads a secret so you use the correct key name instead of guessing.',
       inputSchema: z.object({}),
     },
     logged('get_secrets_overview', async () => {
@@ -476,6 +476,7 @@ export function createMcpServer(): McpServer {
           provider: s.provider,
           rotationEnabled: s.rotationEnabled,
           rotationDays: s.rotationDays,
+          referencedKeys: s.referencedKeys ?? [],
           findings: secretFindings
             .filter((f) => (f.metadata as Record<string, unknown>).secretName === s.name)
             .map((f) => ({ severity: f.severity, issue: f.issue })),

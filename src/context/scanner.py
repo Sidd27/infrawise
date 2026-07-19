@@ -69,6 +69,33 @@ def sql_table(sql):
     return 'unknown'
 
 
+def const_str(node):
+    if isinstance(node, ast.Index):  # py3.8 compat
+        node = node.value
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def is_secret_string_ref(node):
+    if isinstance(node, ast.Attribute) and node.attr == 'SecretString':
+        return True
+    if isinstance(node, ast.Subscript):
+        return const_str(node.slice) == 'SecretString'
+    return False
+
+
+def is_json_loads_secret(node):
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'loads'
+        and expr_text(node.func.value) == 'json'
+        and node.args
+        and is_secret_string_ref(node.args[0])
+    )
+
+
 class Visitor(ast.NodeVisitor):
     def __init__(self, file_path):
         self.file_path = file_path
@@ -93,10 +120,53 @@ class Visitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         self.stack.append(node.name)
+        start = len(self.ops)
         self.generic_visit(node)
+        keys = self.find_secret_keys(node)
+        if keys:
+            for op in self.ops[start:]:
+                if op['serviceType'] == 'secretsmanager':
+                    op['keys'] = keys
         self.stack.pop()
 
     visit_AsyncFunctionDef = visit_FunctionDef
+
+    # Finds json.loads(x['SecretString']) usage in this function and collects the key names
+    # accessed on the parsed result (via subscript or .get) — never the secret values.
+    def find_secret_keys(self, func_node):
+        keys = set()
+        tracked_vars = set()
+
+        for n in ast.walk(func_node):
+            if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+                if is_json_loads_secret(n.value):
+                    tracked_vars.add(n.targets[0].id)
+                elif isinstance(n.value, ast.Subscript) and is_json_loads_secret(n.value.value):
+                    key = const_str(n.value.slice)
+                    if key:
+                        keys.add(key)
+
+        if not tracked_vars:
+            return sorted(keys)
+
+        for n in ast.walk(func_node):
+            if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id in tracked_vars:
+                key = const_str(n.slice)
+                if key:
+                    keys.add(key)
+            elif (
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == 'get'
+                and isinstance(n.func.value, ast.Name)
+                and n.func.value.id in tracked_vars
+                and n.args
+            ):
+                key = const_str(n.args[0])
+                if key:
+                    keys.add(key)
+
+        return sorted(keys)
 
     def resolve_string(self, node):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):

@@ -122,6 +122,45 @@ def run():
     expect(ops.find((o) => o.serviceType === 'lambda')?.target).toBe('order-processor');
   });
 
+  it('infers secret key names from json.loads(SecretString) subscript access', async () => {
+    writeFixture(
+      'secret_keys_fix.py',
+      `
+import boto3
+import json
+
+secrets = boto3.client('secretsmanager')
+
+def get_db_creds():
+    response = secrets.get_secret_value(SecretId='prod/db-password')
+    secret = json.loads(response['SecretString'])
+    return secret['username'], secret.get('password')
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find(
+      (o) => o.functionName === 'get_db_creds' && o.serviceType === 'secretsmanager',
+    );
+    expect(op?.keys).toEqual(['password', 'username']);
+  });
+
+  it('leaves keys undefined when the secret value is never parsed', async () => {
+    writeFixture(
+      'secret_nokeys_fix.py',
+      `
+import boto3
+
+secrets = boto3.client('secretsmanager')
+
+def get_raw():
+    secrets.get_secret_value(SecretId='prod/raw')
+`,
+    );
+    const ops = await scanPythonRepository(tmpDir);
+    const op = ops.find((o) => o.functionName === 'get_raw' && o.serviceType === 'secretsmanager');
+    expect(op?.keys).toBeUndefined();
+  });
+
   it('resolves module-level string constants in kwargs', async () => {
     writeFixture(
       'const_fix.py',

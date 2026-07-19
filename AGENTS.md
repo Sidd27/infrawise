@@ -312,13 +312,13 @@ Returns: per-topic — name, provider, subscription count, encryption status, fi
 
 ### `get_secrets_overview`
 
-All Secrets Manager secrets — names and rotation status only. **Values are never included.**
+All Secrets Manager secrets — names, rotation status, and key names inferred from application code. **Values are never included** — infrawise never calls `GetSecretValue`; key names come from static analysis of code that parses the secret (e.g. `JSON.parse(res.SecretString).password` or `json.loads(response['SecretString'])['password']`), not from AWS.
 
 No inputs required.
 
-Returns: per-secret — name, provider, rotation enabled, rotation interval days, findings.
+Returns: per-secret — name, provider, rotation enabled, rotation interval days, `referencedKeys` (key names accessed in code, `[]` if none detected), findings.
 
-**When to call:** When checking which secrets exist or whether rotation is configured.
+**When to call:** When checking which secrets exist, whether rotation is configured, or before writing code that reads a secret — use `referencedKeys` to get the exact key name instead of guessing `secret.password` vs `secret.passwd`.
 
 ---
 

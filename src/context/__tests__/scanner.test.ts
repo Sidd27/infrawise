@@ -219,6 +219,56 @@ describe('scanRepository — AWS services', () => {
     expect(op?.target).toContain('db-password');
   });
 
+  it('infers secret key names from destructured JSON.parse(SecretString)', async () => {
+    writeFixture(
+      'secrets-destructure.ts',
+      `
+      async function getDbCreds() {
+        const res = await client.send(new GetSecretValueCommand({ SecretId: 'prod/db-password' }));
+        const { password, username } = JSON.parse(res.SecretString);
+        return username + password;
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find(
+      (o) => o.functionName === 'getDbCreds' && o.serviceType === 'secretsmanager',
+    );
+    expect(op?.keys).toEqual(['password', 'username']);
+  });
+
+  it('infers secret key names from property access on a JSON.parse(SecretString) variable', async () => {
+    writeFixture(
+      'secrets-propaccess.ts',
+      `
+      async function getStripeKey() {
+        const res = await client.send(new GetSecretValueCommand({ SecretId: 'prod/stripe' }));
+        const secret = JSON.parse(res.SecretString);
+        return secret.apiKey;
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find(
+      (o) => o.functionName === 'getStripeKey' && o.serviceType === 'secretsmanager',
+    );
+    expect(op?.keys).toEqual(['apiKey']);
+  });
+
+  it('leaves keys undefined when the secret value is never parsed', async () => {
+    writeFixture(
+      'secrets-nokeys.ts',
+      `
+      async function getRaw() {
+        await client.send(new GetSecretValueCommand({ SecretId: 'prod/raw' }));
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.functionName === 'getRaw' && o.serviceType === 'secretsmanager');
+    expect(op?.keys).toBeUndefined();
+  });
+
   it('detects Lambda InvokeCommand', async () => {
     writeFixture(
       'lambda.ts',

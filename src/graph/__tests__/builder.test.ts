@@ -339,6 +339,33 @@ describe('buildGraph', () => {
     expect(graph.edges.some((e) => e.type === 'reads_secret')).toBe(true);
   });
 
+  it('merges keys from multiple functions into the secret node referencedKeys', () => {
+    const ops: ExtractedOperation[] = [
+      {
+        functionName: 'getDbCreds',
+        operationType: 'getSecretValue',
+        serviceType: 'secretsmanager',
+        target: 'db-password',
+        filePath: 'src/secrets.ts',
+        keys: ['password'],
+      },
+      {
+        functionName: 'getDbUser',
+        operationType: 'getSecretValue',
+        serviceType: 'secretsmanager',
+        target: 'db-password',
+        filePath: 'src/other.ts',
+        keys: ['username'],
+      },
+    ];
+    const graph = buildGraph(ops, [], []);
+    const secretNode = graph.nodes.find((n) => n.type === 'secret' && n.name === 'db-password');
+    expect(secretNode?.type).toBe('secret');
+    expect(
+      secretNode && 'referencedKeys' in secretNode ? secretNode.referencedKeys : undefined,
+    ).toEqual(['password', 'username']);
+  });
+
   it('creates reads_parameter edge for SSM operation', () => {
     const ops: ExtractedOperation[] = [
       {

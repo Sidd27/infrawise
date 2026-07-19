@@ -431,6 +431,14 @@ export function buildGraph(
         provider: 'aws',
         rotationEnabled: false,
       });
+      if (op.keys && op.keys.length > 0) {
+        const node = nodeMap.get(secretId);
+        if (node && node.type === 'secret') {
+          node.referencedKeys = Array.from(
+            new Set([...(node.referencedKeys ?? []), ...op.keys]),
+          ).sort();
+        }
+      }
       edges.push({ from: funcNodeId, to: secretId, type: 'reads_secret' });
       continue;
     }

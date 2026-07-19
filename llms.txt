@@ -51,7 +51,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `mysql_index_suggestions` — exact ALTER TABLE ADD INDEX SQL
 - `get_queue_details` — SQS queues with DLQ, encryption, FIFO type, and visibility timeout
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
-- `get_secrets_overview` — Secrets Manager rotation status (no values)
+- `get_secrets_overview` — Secrets Manager rotation status + key names inferred from code (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
 - `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions

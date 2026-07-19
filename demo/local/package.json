@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1048.0",
+    "@aws-sdk/client-secrets-manager": "^3.1048.0",
     "kafkajs": "^2.2.4",
     "mongodb": "^7.2.0",
     "mysql2": "^3.9.0",

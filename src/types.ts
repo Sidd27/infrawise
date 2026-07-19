@@ -48,6 +48,8 @@ export type GraphNode =
       provider: string;
       rotationEnabled: boolean;
       rotationDays?: number;
+      // Key NAMES only, inferred from application code accessing the parsed secret (e.g. `secret.password`) — values are never read
+      referencedKeys?: string[];
     }
   | {
       id: string;
@@ -483,6 +485,8 @@ export interface ExtractedOperation {
     | 'kafka';
   target: string;
   filePath: string;
+  // secretsmanager only — key names accessed on the parsed secret value in code, never the values themselves
+  keys?: string[];
 }
 
 // ─── Analysis ───────────────────────────────────────────────────────────────

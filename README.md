@@ -185,7 +185,7 @@ Add to your editor's MCP config:
 | `get_queue_details`          | SQS queues — DLQ status, encryption, FIFO type, visibility timeout, message counts                          |
 | `get_api_routes`             | API Gateway APIs (REST, HTTP, WebSocket) — routes, HTTP methods, paths, and Lambda integrations             |
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
-| `get_secrets_overview`       | Secrets Manager — names and rotation status (values never included)                                         |
+| `get_secrets_overview`       | Secrets Manager — names, rotation status, and key names inferred from code (values never included)          |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
 | `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |

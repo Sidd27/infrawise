@@ -108,7 +108,7 @@ const PRISMA_METHODS = new Set([
   'updateMany',
 ]);
 
-function getEnclosingFunctionName(node: Node): string {
+function getEnclosingFunction(node: Node): Node | undefined {
   let current: Node | undefined = node.getParent();
   while (current) {
     if (
@@ -117,22 +117,69 @@ function getEnclosingFunctionName(node: Node): string {
       Node.isArrowFunction(current) ||
       Node.isMethodDeclaration(current)
     ) {
-      if (Node.isFunctionDeclaration(current) || Node.isMethodDeclaration(current)) {
-        return current.getName() ?? '<anonymous>';
-      }
-      // Arrow function or function expression — check if assigned to a variable
-      const parent = current.getParent();
-      if (parent && Node.isVariableDeclaration(parent)) {
-        return parent.getName();
-      }
-      if (parent && Node.isPropertyAssignment(parent)) {
-        return parent.getName();
-      }
-      return '<anonymous>';
+      return current;
     }
     current = current.getParent();
   }
-  return '<module>';
+  return undefined;
+}
+
+function getEnclosingFunctionName(node: Node): string {
+  const current = getEnclosingFunction(node);
+  if (!current) return '<module>';
+  if (Node.isFunctionDeclaration(current) || Node.isMethodDeclaration(current)) {
+    return current.getName() ?? '<anonymous>';
+  }
+  // Arrow function or function expression — check if assigned to a variable
+  const parent = current.getParent();
+  if (parent && Node.isVariableDeclaration(parent)) {
+    return parent.getName();
+  }
+  if (parent && Node.isPropertyAssignment(parent)) {
+    return parent.getName();
+  }
+  return '<anonymous>';
+}
+
+// Scans the enclosing function for JSON.parse(x.SecretString) usage and collects the property
+// names accessed on the parsed result — never the secret values themselves.
+function extractSecretKeys(func: Node | undefined): string[] | undefined {
+  if (!func) return undefined;
+  const keys = new Set<string>();
+
+  for (const call of func.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const expr = call.getExpression();
+    if (!Node.isPropertyAccessExpression(expr) || expr.getName() !== 'parse') continue;
+    if (expr.getExpression().getText() !== 'JSON') continue;
+    const arg = call.getArguments()[0];
+    if (!arg || !arg.getText().includes('SecretString')) continue;
+
+    const parent = call.getParent();
+    if (Node.isPropertyAccessExpression(parent) && parent.getExpression() === call) {
+      keys.add(parent.getName());
+      continue;
+    }
+    if (Node.isVariableDeclaration(parent)) {
+      const nameNode = parent.getNameNode();
+      if (Node.isObjectBindingPattern(nameNode)) {
+        for (const el of nameNode.getElements()) {
+          const propName = el.getPropertyNameNode();
+          keys.add(propName ? propName.getText() : el.getName());
+        }
+        continue;
+      }
+      if (Node.isIdentifier(nameNode)) {
+        const varName = nameNode.getText();
+        for (const access of func.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+          if (access.getExpression().getText() === varName) {
+            keys.add(access.getName());
+          }
+        }
+      }
+    }
+  }
+
+  return keys.size > 0 ? Array.from(keys).sort() : undefined;
 }
 
 function extractTableNameFromArg(arg: Node): string {
@@ -576,6 +623,7 @@ function detectAWSServiceOperations(
           serviceType: 'secretsmanager',
           target: cmdArgs.length > 0 ? extractArgValue(cmdArgs[0], ...SECRETS_ARG_KEYS) : 'unknown',
           filePath,
+          keys: extractSecretKeys(getEnclosingFunction(callExpr)),
         };
       }
       if (LAMBDA_COMMANDS.has(className)) {
@@ -635,6 +683,7 @@ function detectAWSServiceOperations(
         serviceType: 'secretsmanager',
         target: args.length > 0 ? extractArgValue(args[0], ...SECRETS_ARG_KEYS) : 'unknown',
         filePath,
+        keys: extractSecretKeys(getEnclosingFunction(callExpr)),
       };
     }
     if (LAMBDA_COMMANDS.has(methodName) && (objText.includes('lambda') || objText.includes('fn'))) {
@@ -665,7 +714,8 @@ function detectLanguages(root: string): { hasTypeScript: boolean; hasPython: boo
   let hasPython = false;
   const stack = [root];
   while (stack.length > 0 && !(hasTypeScript && hasPython)) {
-    const dir = stack.pop()!;
+    const dir = stack.pop();
+    if (dir === undefined) break;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
         if (!PROBE_EXCLUDED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
