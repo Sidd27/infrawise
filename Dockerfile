@@ -1,7 +1,7 @@
 # Container image for the Docker MCP Catalog (stdio transport).
 # Mount your project (with infrawise.yaml) at /project and provide AWS
 # credentials via env; serve runs a fresh analysis at boot when no cache exists.
-FROM node:24-alpine AS build
+FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS build
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /app
@@ -12,7 +12,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN pnpm build && pnpm prune --prod --ignore-scripts
 
-FROM node:24-alpine
+FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/dist /app/dist
