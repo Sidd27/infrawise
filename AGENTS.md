@@ -95,6 +95,15 @@ mcp-publisher publish server.json
   - `llms.txt` — quick start commands, tool count, tool list, AWS services description line
 - **Version must be in sync everywhere on every release.** `package.json` is the source of truth. `src/server/index.ts` reads it dynamically — no manual update needed there. `server.json` (MCP Registry manifest, committed) is bumped automatically by the release script.
 
+## Approach
+
+- Read existing files before writing. Don't re-read unless changed.
+- Thorough in reasoning, concise in output.
+- Skip files over 100KB unless required.
+- No sycophantic openers or closing fluff.
+- No emojis or em-dashes.
+- Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
+
 ## Running the LocalStack demo
 
 Validates the full adapter stack against real AWS services emulated locally. No AWS account needed.
