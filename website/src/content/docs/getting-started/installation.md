@@ -3,7 +3,7 @@ title: Installation
 description: Install Infrawise — the open-source MCP server that maps AWS infrastructure for AI coding assistants — and connect it to Claude Code or Cursor in under two minutes.
 ---
 
-Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 34 rule-based analyzers and exposes 21 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
+Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 36 rule-based analyzers and exposes 21 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ infrawise --version
 infrawise start --claude
 ```
 
-Infrawise scans your AWS infrastructure, runs the 34 analyzers, and writes `.mcp.json` to the current directory. Claude Code reads `.mcp.json` automatically on next launch — no plugin, no extension, no manual config editing required. All 21 MCP tools are immediately available.
+Infrawise scans your AWS infrastructure, runs the 36 analyzers, and writes `.mcp.json` to the current directory. Claude Code reads `.mcp.json` automatically on next launch — no plugin, no extension, no manual config editing required. All 21 MCP tools are immediately available.
 
 ## Connect to Cursor
 
@@ -87,7 +87,7 @@ Not directly. Infrawise targets editors with native MCP support: Claude Code and
 
 ### What happens when I run `infrawise start`?
 
-`infrawise start` does the following in sequence: auto-generates `infrawise.yaml` in the current directory if one doesn't exist (by probing your environment), scans the configured AWS services and databases using read-only API calls, runs the 34 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
+`infrawise start` does the following in sequence: auto-generates `infrawise.yaml` in the current directory if one doesn't exist (by probing your environment), scans the configured AWS services and databases using read-only API calls, runs the 36 analyzers to generate findings, writes the MCP config file for your editor (`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor), then exits. The scan typically completes in a few seconds depending on the number of resources in your account.
 
 ### Why do some security scanners flag Infrawise?
 

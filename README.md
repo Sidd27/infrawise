@@ -499,7 +499,7 @@ src/
     aws/        DynamoDB, S3, Lambda, SQS/SNS/SSM/Secrets/EventBridge/RDS/APIGateway, CloudWatch
     db/         PostgreSQL, MySQL, MongoDB
     iac/        Terraform, CDK, CloudFormation (local file parsing)
-  analyzers/    34 rule-based analyzers
+  analyzers/    36 rule-based analyzers
   context/      Repository scanner (ts-morph AST + Python stdlib-ast subprocess)
   server/       Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/          CLI commands (Commander.js)

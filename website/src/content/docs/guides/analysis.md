@@ -1,9 +1,9 @@
 ---
 title: Analysis capabilities
-description: What Infrawise's 34 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
+description: What Infrawise's 36 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
 ---
 
-An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 34 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
+An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 36 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
 
 Your AI assistant can query these findings via MCP tools like `get_infra_overview` and `get_graph_summary`, or ask for function-level analysis with `analyze_function`. See the [MCP tools reference](/infrawise/reference/mcp-tools/) for the full tool list.
 
