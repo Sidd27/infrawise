@@ -19,17 +19,17 @@ pnpm lint && pnpm typecheck && pnpm test
 
 ## How to add a new AWS service adapter
 
-This is the most common contribution. Each adapter extracts metadata from one AWS service and returns typed structs that flow into the graph engine.
+This is the most common contribution. Each adapter extracts metadata from one AWS service and returns typed structs that flow into the graph engine. The walkthrough below uses S3 as the worked example (S3 support is already merged — the pattern is illustrative).
 
 **1. Add your types to `src/types.ts`**
 
 ```ts
 export interface S3BucketMetadata {
   name: string;
-  region: string;
-  versioning: boolean;
-  publicAccess: boolean;
+  arn: string;
+  versioned: boolean;
   encrypted: boolean;
+  publicAccessBlocked: boolean | null;
 }
 ```
 
@@ -143,7 +143,7 @@ Same pattern as AWS adapters but lives in `src/adapters/db/`. See `src/adapters/
 
 Look for issues tagged [`good first issue`](https://github.com/Sidd27/infrawise/labels/good%20first%20issue) on GitHub. These are self-contained changes with clear scope — typically a new analyzer rule, a new config option, or an improvement to an existing extractor.
 
-If you want to add support for a service that isn't listed yet (S3, ECS, API Gateway, Kinesis, MSK), open an issue first to align on the approach before writing code.
+If you want to add support for a service that isn't listed yet (ECS, for example), open an issue first to align on the approach before writing code.
 
 ---
 

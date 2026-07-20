@@ -18,6 +18,7 @@ Infrawise maps these event shapes directly from your Lambda event source mapping
 | S3 | `event.Records[0].s3.object.key` |
 | DynamoDB Streams | `event.Records[0].dynamodb.NewImage` |
 | Kinesis | `event.Records[0].kinesis.data` (base64 encoded) |
+| MSK | `event.records[topic][0].value` (base64 encoded) |
 | EventBridge | rule name and event pattern returned separately |
 
 These shapes are returned by both `analyze_function` and `get_lambda_overview`.

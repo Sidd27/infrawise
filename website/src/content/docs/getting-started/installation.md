@@ -39,6 +39,14 @@ infrawise start --cursor
 
 Writes `.cursor/mcp.json` and opens Cursor. All 21 Infrawise MCP tools appear in Cursor's MCP panel.
 
+## Connect to VS Code
+
+```bash
+infrawise start --vscode
+```
+
+Writes `.vscode/mcp.json` (merging with any existing MCP servers already configured) and opens VS Code. The tools are available to Copilot agent mode via the MCP servers panel.
+
 ## HTTP transport mode
 
 If you prefer HTTP over stdio, or need multiple tools to share one running server instance:
@@ -83,7 +91,7 @@ No. Infrawise runs entirely on your local machine. Infrastructure data is held i
 
 ### Can I use Infrawise with VS Code?
 
-Not directly. Infrawise targets editors with native MCP support: Claude Code and Cursor. For HTTP transport use cases, `infrawise serve` starts a server at `POST http://localhost:3000/mcp` that any MCP-compatible client can connect to.
+Yes. Run `infrawise start --vscode` to write `.vscode/mcp.json` and open VS Code — the tools are available to Copilot agent mode via the MCP servers panel. For any other MCP-capable editor, run `infrawise start` (no flag) to write `.mcp.json`, or use `infrawise serve` for HTTP transport at `POST http://localhost:3000/mcp`.
 
 ### What happens when I run `infrawise start`?
 

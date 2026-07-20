@@ -27,7 +27,7 @@ Infrawise reads local IaC files from your project directory. It supports:
 - **AWS CDK** — synthesized output
 - **CloudFormation** — `.yaml` and `.json` template files
 
-Configure the IaC path in `infrawise.yaml` under the `iac` section.
+Enable it with `terraform.enabled: true` in `infrawise.yaml` (this one key covers Terraform, CDK, and CloudFormation parsing). Infrawise scans the same repository path used for code scanning — the current directory by default, or `--repo <path>` on `analyze`/`check`. There's no separate IaC-path config key.
 
 ## How to use it
 

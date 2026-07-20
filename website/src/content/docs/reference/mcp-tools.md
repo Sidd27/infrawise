@@ -22,6 +22,8 @@ No inputs required.
 - Summary counts: tables, functions, queues, topics, secrets, lambdas, buckets
 - Full list of databases, AWS services, and S3 buckets by name
 - All high-severity findings with actionable recommendations
+- `freshness` — `analyzedAt` (ISO timestamp), `ageSeconds`, and a `stale` flag (true past 24h) with a refresh hint
+- `configured` — false when the server booted without an `infrawise.yaml` (e.g. a remotely hosted instance with no access to your cloud account or code); every tool then returns empty results and a `setupHint` explains how to run Infrawise locally
 
 **When to call:** At the start of any task that touches infrastructure — adding a Lambda, writing a queue consumer, creating a new index, debugging a deployment issue.
 
@@ -38,7 +40,7 @@ No inputs required.
 **Returns**
 
 - All `nodes` — tables, queues, lambdas, topics, buckets, and more
-- All `edges` — typed relationships: `query`, `scan`, `publishes_to`, `triggered_by`, `reads_from`, etc.
+- All `edges` — typed relationships: `query`, `scan`, `joins`, `uses_index`, `publishes_to`, `subscribes_to`, `reads_secret`, `reads_parameter`, `triggers`
 - All `findings` with severity, resource name, and recommendation
 - Summary counts
 
@@ -59,6 +61,7 @@ Analyzes a single Lambda function for infrastructure issues, including the exact
 - File path of the function
 - Every service and table the function accesses, with edge type (`query`, `scan`, `put`, etc.)
 - **Triggers** — the trigger source (SQS, SNS, EventBridge, S3, DynamoDB Streams, etc.) with the exact `event` object shape the handler receives. For SQS: `event.Records[0].body`. For S3: `event.Records[0].s3.object.key`. For EventBridge: rule name and event pattern.
+- **missingPermissions** — AWS service names the function accesses in code but its execution role doesn't allow (e.g. `["dynamodb", "sqs"]`); present only when IAM role data is available
 - Related findings scoped to this function
 - Deduplicated recommendations
 
@@ -163,6 +166,7 @@ Per queue:
 - `visibilityTimeoutSec` — how long a message is hidden after a consumer receives it. Should be at least 6× the consumer Lambda's timeout to prevent duplicate processing.
 - Approximate message count
 - Retention period in days
+- `oldestMessageAgeSec` — age of the oldest message, only when runtime signals are enabled
 - Any associated findings (includes `VisibilityTimeoutMismatch` when visibility timeout < Lambda timeout)
 
 **When to call:** When reviewing messaging architecture, debugging a backlog, checking DLQ coverage before deploying a consumer, verifying retention settings, or confirming FIFO queue requirements before writing a producer.
@@ -201,9 +205,10 @@ Per secret:
 - Name and provider
 - Rotation enabled (true/false)
 - Rotation interval in days
+- `referencedKeys` — key names (e.g. `"password"`, `"apiKey"`) inferred from application code that parses the secret; `[]` if none detected. Values are never read.
 - Any associated findings
 
-**When to call:** When checking which secrets exist before writing code that reads them, or when verifying rotation is configured for compliance. Use this to get the secret name — never hardcode it.
+**When to call:** When checking which secrets exist before writing code that reads them, or when verifying rotation is configured for compliance. Use `referencedKeys` to get the exact key name instead of guessing `secret.password` vs `secret.passwd`.
 
 ---
 
@@ -235,7 +240,10 @@ No inputs required.
 Per function:
 - Name, runtime, memory (MB), timeout (seconds)
 - Environment variable key names (values never included)
+- `roleArn` — the execution role ARN
 - **Triggers** — source type, source name, and the correct handler event shape. S3-triggered Lambdas show `event.Records[0].s3.object.key`. Includes all trigger types: SQS, SNS, DynamoDB Streams, Kinesis, MSK, EventBridge, S3.
+- `recentThrottles` / `recentErrors` — CloudWatch counts for the analysis window, only when runtime signals are enabled
+- `costSignal` — present when memory is 3008 MB+ and runtime signals are off (not enough evidence for a finding, so it's advisory only); when signals are on and throttles are 0, this becomes a low-severity finding instead — no billing API involved, this is a config-level heuristic
 - Any associated findings
 
 **When to call:** When reviewing Lambda configuration for default memory (128 MB flags a finding), high timeouts, or checking what triggers a function before writing its handler. Also use this as a quick scan when `get_infra_overview` flags Lambda findings.
@@ -378,6 +386,7 @@ Per cluster:
 - ID, engine, engine version, node type, and node count
 - In-transit and at-rest encryption status
 - Replication group ID and automatic failover state
+- `costSignal` — present when a cluster has more than 3 nodes (no billing API, just a node-count heuristic)
 - Related findings (missing transit encryption, single-node with no replication)
 
 **When to call:** Before writing cache client code — TLS is required when transit encryption is on (`rediss://` for Redis) — or when reviewing cache availability and security posture.
@@ -398,8 +407,9 @@ Per requested name — a `found` flag and matches (short names like `orders` mat
 - Columns with data types and nullability (PostgreSQL/MySQL)
 - Primary keys and foreign keys — the join paths a query generator needs
 - Index names
-- DynamoDB partition and sort keys
+- DynamoDB partition and sort keys, billing mode (`PROVISIONED` / `PAY_PER_REQUEST`), and provisioned throughput when applicable
 - MongoDB estimated document count
+- `costSignal` — present on DynamoDB matches with `billingMode: "PROVISIONED"` (advisory, no billing API involved)
 
 Unknown names return up to five suggestions.
 

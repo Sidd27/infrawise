@@ -22,17 +22,15 @@ infrawise start
 Infrawise detects your AWS credentials, region, and any local databases, then writes `infrawise.yaml` for you. If you want to answer the questions yourself instead of relying on auto-discovery, pass `--interactive`. Or create `infrawise.yaml` manually:
 
 ```yaml
-services:
-  aws:
-    region: us-east-1
-    # profile: my-profile   # optional — uses default credential chain if omitted
-  databases:
-    postgres:
-      - host: localhost
-        port: 5432
-        database: myapp
-        user: postgres
-        password: ${POSTGRES_PASSWORD}
+project: my-service
+aws:
+  region: us-east-1
+  # profile: my-profile   # optional — uses default credential chain if omitted
+dynamodb:
+  enabled: true
+postgres:
+  enabled: true
+  connectionString: postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/myapp
 ```
 
 See the [configuration reference](/infrawise/reference/configuration/) for all available options.

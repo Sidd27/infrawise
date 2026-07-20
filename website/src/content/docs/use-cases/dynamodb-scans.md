@@ -59,7 +59,7 @@ With Infrawise running, `analyze_function` gives the AI the exact query patterns
 
 ### Does Infrawise detect DynamoDB scans in all languages?
 
-Infrawise analyzes TypeScript and JavaScript source files via AST scanning. It detects `scan` and `query` call patterns in code that uses the AWS SDK.
+Infrawise analyzes TypeScript, JavaScript, and Python source files via AST scanning. It detects `scan` and `query` call patterns in code that uses the AWS SDK (`boto3`/`dynamodb.Table()` in Python).
 
 ### What is the difference between the scan finding and the missing GSI finding?
 
