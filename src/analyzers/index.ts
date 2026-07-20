@@ -33,6 +33,13 @@ export {
   RDSNoDeletionProtectionAnalyzer,
   RDSNoMultiAZAnalyzer,
 } from './rds.js';
+export {
+  LambdaHighMemoryAnalyzer,
+  RDSMultiAZNonProdAnalyzer,
+  lambdaCostSignal,
+  dynamoCostSignal,
+  cacheCostSignal,
+} from './cost-signals.js';
 
 export async function runAllAnalyzers(
   graph: SystemGraph,

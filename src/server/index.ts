@@ -11,7 +11,12 @@ import { logger } from '../core/index.js';
 const { version } = JSON.parse(
   readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
 ) as { version: string };
-import { summarizeFindings } from '../analyzers/index.js';
+import {
+  summarizeFindings,
+  lambdaCostSignal,
+  dynamoCostSignal,
+  cacheCostSignal,
+} from '../analyzers/index.js';
 import {
   getTableNodes,
   getFunctionNodes,
@@ -511,7 +516,7 @@ export function createMcpServer(): McpServer {
     'get_lambda_overview',
     {
       description:
-        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window.',
+        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic.',
       inputSchema: z.object({}),
     },
     logged('get_lambda_overview', async () => {
@@ -522,26 +527,30 @@ export function createMcpServer(): McpServer {
       return toText({
         total: lambdas.length,
         note: 'Environment variable values are never included.',
-        lambdas: lambdas.map((l) => ({
-          name: l.name,
-          runtime: l.runtime,
-          memoryMB: l.memoryMB,
-          timeoutSec: l.timeoutSec,
-          envVarCount: l.envVarKeys?.length ?? 0,
-          envVarKeys: l.envVarKeys,
-          roleArn: l.roleArn,
-          recentThrottles: l.recentThrottles,
-          recentErrors: l.recentErrors,
-          triggers: (l.triggers ?? []).map((t) => ({
-            type: t.type,
-            source: t.sourceName,
-            eventShape: t.eventShape,
-            state: t.state,
-          })),
-          findings: lambdaFindings
-            .filter((f) => (f.metadata as Record<string, unknown>).functionName === l.name)
-            .map((f) => ({ severity: f.severity, issue: f.issue })),
-        })),
+        lambdas: lambdas.map((l) => {
+          const costSignal = lambdaCostSignal(l);
+          return {
+            name: l.name,
+            runtime: l.runtime,
+            memoryMB: l.memoryMB,
+            timeoutSec: l.timeoutSec,
+            envVarCount: l.envVarKeys?.length ?? 0,
+            envVarKeys: l.envVarKeys,
+            roleArn: l.roleArn,
+            recentThrottles: l.recentThrottles,
+            recentErrors: l.recentErrors,
+            ...(costSignal ? { costSignal } : {}),
+            triggers: (l.triggers ?? []).map((t) => ({
+              type: t.type,
+              source: t.sourceName,
+              eventShape: t.eventShape,
+              state: t.state,
+            })),
+            findings: lambdaFindings
+              .filter((f) => (f.metadata as Record<string, unknown>).functionName === l.name)
+              .map((f) => ({ severity: f.severity, issue: f.issue })),
+          };
+        }),
       });
     }),
   );
@@ -655,7 +664,7 @@ export function createMcpServer(): McpServer {
     'get_table_schema',
     {
       description:
-        'Returns the full schema for specific tables or collections by name: columns with data types and nullability, primary keys, foreign keys (join paths), indexes, DynamoDB partition/sort keys, and MongoDB estimated document counts. Accepts short names ("orders" matches "public.orders") and is case-insensitive. Call this after get_infra_overview when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables — instead of pulling every schema with get_graph_summary. Do NOT call for a table inventory; use get_infra_overview for that. Row data is never included.',
+        'Returns the full schema for specific tables or collections by name: columns with data types and nullability, primary keys, foreign keys (join paths), indexes, DynamoDB partition/sort keys and billing mode, and MongoDB estimated document counts. Accepts short names ("orders" matches "public.orders") and is case-insensitive. Call this after get_infra_overview when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables — instead of pulling every schema with get_graph_summary. Do NOT call for a table inventory; use get_infra_overview for that. Row data is never included. DynamoDB matches include a costSignal note for provisioned-capacity tables.',
       inputSchema: z.object({
         tables: z
           .array(z.string())
@@ -688,17 +697,25 @@ export function createMcpServer(): McpServer {
         return {
           requested,
           found: true,
-          matches: matches.map((t) => ({
-            name: t.name,
-            databaseType: t.databaseType,
-            ...(t.columns ? { columns: t.columns } : {}),
-            ...(t.primaryKeys?.length ? { primaryKeys: t.primaryKeys } : {}),
-            ...(t.foreignKeys?.length ? { foreignKeys: t.foreignKeys } : {}),
-            ...(t.partitionKey ? { partitionKey: t.partitionKey } : {}),
-            ...(t.sortKey ? { sortKey: t.sortKey } : {}),
-            ...(t.estimatedCount !== undefined ? { estimatedCount: t.estimatedCount } : {}),
-            indexes: indexNamesFor(t.id),
-          })),
+          matches: matches.map((t) => {
+            const costSignal = t.databaseType === 'dynamodb' ? dynamoCostSignal(t) : undefined;
+            return {
+              name: t.name,
+              databaseType: t.databaseType,
+              ...(t.columns ? { columns: t.columns } : {}),
+              ...(t.primaryKeys?.length ? { primaryKeys: t.primaryKeys } : {}),
+              ...(t.foreignKeys?.length ? { foreignKeys: t.foreignKeys } : {}),
+              ...(t.partitionKey ? { partitionKey: t.partitionKey } : {}),
+              ...(t.sortKey ? { sortKey: t.sortKey } : {}),
+              ...(t.estimatedCount !== undefined ? { estimatedCount: t.estimatedCount } : {}),
+              ...(t.billingMode ? { billingMode: t.billingMode } : {}),
+              ...(t.provisionedThroughput
+                ? { provisionedThroughput: t.provisionedThroughput }
+                : {}),
+              ...(costSignal ? { costSignal } : {}),
+              indexes: indexNamesFor(t.id),
+            };
+          }),
         };
       });
 
@@ -713,7 +730,7 @@ export function createMcpServer(): McpServer {
     'get_cache_overview',
     {
       description:
-        'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included.',
+        'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included. A costSignal note appears on clusters with more than 3 nodes.',
       inputSchema: z.object({}),
     },
     logged('get_cache_overview', async () => {
@@ -724,20 +741,24 @@ export function createMcpServer(): McpServer {
       return toText({
         total: caches.length,
         note: 'Cached data is never included.',
-        caches: caches.map((c) => ({
-          id: c.name,
-          engine: c.engine,
-          engineVersion: c.engineVersion,
-          nodeType: c.nodeType,
-          numNodes: c.numNodes,
-          transitEncryption: c.transitEncryption,
-          atRestEncryption: c.atRestEncryption,
-          replicationGroupId: c.replicationGroupId,
-          automaticFailover: c.automaticFailover,
-          findings: cacheFindings
-            .filter((f) => (f.metadata as Record<string, unknown>).cacheClusterId === c.name)
-            .map((f) => ({ severity: f.severity, issue: f.issue })),
-        })),
+        caches: caches.map((c) => {
+          const costSignal = cacheCostSignal(c);
+          return {
+            id: c.name,
+            engine: c.engine,
+            engineVersion: c.engineVersion,
+            nodeType: c.nodeType,
+            numNodes: c.numNodes,
+            transitEncryption: c.transitEncryption,
+            atRestEncryption: c.atRestEncryption,
+            replicationGroupId: c.replicationGroupId,
+            automaticFailover: c.automaticFailover,
+            ...(costSignal ? { costSignal } : {}),
+            findings: cacheFindings
+              .filter((f) => (f.metadata as Record<string, unknown>).cacheClusterId === c.name)
+              .map((f) => ({ severity: f.severity, issue: f.issue })),
+          };
+        }),
       });
     }),
   );

@@ -10,6 +10,8 @@ export type GraphNode =
       partitionKey?: string;
       sortKey?: string;
       estimatedCount?: number;
+      billingMode?: 'PROVISIONED' | 'PAY_PER_REQUEST';
+      provisionedThroughput?: { readCapacityUnits: number; writeCapacityUnits: number };
     }
   | { id: string; type: 'function'; name: string; file: string }
   | { id: string; type: 'index'; name: string }
@@ -200,6 +202,8 @@ export interface DynamoTableMetadata {
   partitionKey?: string;
   sortKey?: string;
   indexes: string[];
+  billingMode?: 'PROVISIONED' | 'PAY_PER_REQUEST';
+  provisionedThroughput?: { readCapacityUnits: number; writeCapacityUnits: number };
 }
 
 export interface ColumnDetail {

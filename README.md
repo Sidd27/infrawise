@@ -176,7 +176,7 @@ Add to your editor's MCP config:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, analysis `freshness` (age + stale flag), `configured` flag |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
-| `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys (no row data)    |
+| `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys/billing mode, cost signal (no row data) |
 | `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions  |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
@@ -187,14 +187,14 @@ Add to your editor's MCP config:
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names, rotation status, and key names inferred from code (values never included)          |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
-| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names, cost signal |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
 | `get_stack_outputs`          | Stack outputs and cross-stack exports parsed from local IaC files (Terraform outputs, CFN/CDK Outputs)      |
 | `get_cognito_overview`       | Cognito user pools — MFA config, app client auth flows, OAuth settings, token validity (secrets never included) |
 | `get_stream_details`         | Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)          |
-| `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover (data never read)  |
+| `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover, cost signal (data never read) |
 
 ---
 
@@ -408,22 +408,22 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 
 | Service                          | What it checks                                                                                                     |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| DynamoDB schema                  | Tables, GSIs, partition keys                                                                                       |
+| DynamoDB schema                  | Tables, GSIs, partition keys, billing mode, cost signal (provisioned capacity)                                     |
 | PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
 | MongoDB schema                   | Collections, indexes                                                                                               |
 | SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout vs Lambda timeout mismatch    |
 | SNS                              | Subscription filter policies — required message attributes per subscription                                        |
 | Apache Kafka (kafkajs)           | Producer/consumer topic mapping from code — any broker (self-hosted, Confluent, Redpanda, MSK); distinct from the MSK Lambda trigger |
 | Secrets Manager                  | Missing secret rotation                                                                                            |
-| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source |
+| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source, cost signal (high memory with no throttling evidence) |
 | S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
 | EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
 | API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
-| RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ                                    |
+| RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ, cost signal (Multi-AZ on a non-production-looking instance) |
 | CloudWatch Logs                  | Log groups with no retention policy                                                                                |
 | Cognito                          | User pools and app client config — auth flows, OAuth settings, token validity, client secret presence              |
 | Kinesis / MSK                    | Streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)                        |
-| ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication                                            |
+| ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication, cost signal (more than 3 nodes)           |
 | Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
 

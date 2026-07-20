@@ -63,6 +63,8 @@ import {
   CacheSingleNodeAnalyzer,
   LambdaThrottlingAnalyzer,
   StaleQueueMessagesAnalyzer,
+  LambdaHighMemoryAnalyzer,
+  RDSMultiAZNonProdAnalyzer,
 } from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import type {
@@ -198,6 +200,7 @@ function buildAnalyzers(
           new LambdaHighTimeoutAnalyzer(),
           new LambdaMissingTriggerDLQAnalyzer(),
           new LambdaMissingIAMPermissionsAnalyzer(),
+          new LambdaHighMemoryAnalyzer(),
         ]
       : []),
     ...(config.rds?.enabled === true
@@ -207,6 +210,7 @@ function buildAnalyzers(
           new RDSUnencryptedAnalyzer(),
           new RDSNoDeletionProtectionAnalyzer(),
           new RDSNoMultiAZAnalyzer(),
+          new RDSMultiAZNonProdAnalyzer(),
         ]
       : []),
     ...(config.s3?.enabled === true

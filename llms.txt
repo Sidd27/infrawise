@@ -43,7 +43,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 
 - `get_infra_overview` — full snapshot of all infrastructure plus analysis freshness (age + stale flag), start here
 - `get_graph_summary` — complete graph: all nodes, edges, findings
-- `get_table_schema` — column-level schema for named tables/collections: types, primary keys, foreign keys, indexes, DynamoDB keys (never row data)
+- `get_table_schema` — column-level schema for named tables/collections: types, primary keys, foreign keys, indexes, DynamoDB keys/billing mode/cost signal (never row data)
 - `analyze_function` — per-function analysis with trigger event shapes and missing IAM permissions
 - `suggest_gsi` — ready-to-use DynamoDB GSI definition
 - `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
@@ -53,7 +53,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status + key names inferred from code (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
-- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes
+- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — CloudWatch error patterns (never raw log messages)
@@ -61,7 +61,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `get_stack_outputs` — stack outputs and cross-stack exports from local IaC files (Terraform outputs, CFN/CDK Outputs)
 - `get_cognito_overview` — Cognito user pools and app client config: auth flows, OAuth settings, token validity (secrets never included)
 - `get_stream_details` — Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)
-- `get_cache_overview` — ElastiCache clusters: engine, encryption, replication, failover (cached data never read)
+- `get_cache_overview` — ElastiCache clusters: engine, encryption, replication, failover, cost signal (cached data never read)
 
 ## Works with
 

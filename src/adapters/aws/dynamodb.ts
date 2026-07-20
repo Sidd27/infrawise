@@ -41,7 +41,17 @@ function parseTableDescription(desc: TableDescription): DynamoTableMetadata {
     }
   }
 
-  return { tableName, partitionKey, sortKey, indexes };
+  const billingMode = desc.BillingModeSummary?.BillingMode;
+  const provisionedThroughput =
+    desc.ProvisionedThroughput?.ReadCapacityUnits !== undefined &&
+    desc.ProvisionedThroughput?.WriteCapacityUnits !== undefined
+      ? {
+          readCapacityUnits: desc.ProvisionedThroughput.ReadCapacityUnits,
+          writeCapacityUnits: desc.ProvisionedThroughput.WriteCapacityUnits,
+        }
+      : undefined;
+
+  return { tableName, partitionKey, sortKey, indexes, billingMode, provisionedThroughput };
 }
 
 async function listAllTables(client: DynamoDBClient): Promise<string[]> {

@@ -206,7 +206,7 @@ Column-level schema for specific tables or collections, on demand. **Row data is
 |---|---|---|
 | `tables` | string[] (1-20) | yes |
 
-Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes, DynamoDB partitionKey/sortKey, MongoDB estimatedCount. Unknown names return up to 5 `suggestions`.
+Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes, DynamoDB partitionKey/sortKey/billingMode/provisionedThroughput, MongoDB estimatedCount. DynamoDB matches include a `costSignal` string when `billingMode` is `PROVISIONED` (no billing API — a config-level heuristic, not real utilization data). Unknown names return up to 5 `suggestions`.
 
 **When to call:** After `get_infra_overview`, when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables. This is the progressive-disclosure path for large databases — fetch only the schemas you need instead of dumping everything with `get_graph_summary`.
 
@@ -340,7 +340,7 @@ All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), recentThrottles/recentErrors (only when runtime signals are enabled), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), recentThrottles/recentErrors (only when runtime signals are enabled), `costSignal` (present when memory is 3008 MB+ and runtime signals are off — not enough evidence for a Finding, so it's advisory only; when signals are on and throttles are 0, this becomes a low-severity Finding instead, see `findings`), findings.
 
 **When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler. S3-triggered Lambdas show `event.Records[0].s3.object.key` as the event shape.
 
@@ -438,7 +438,7 @@ All ElastiCache clusters. **Cached data is never read or included.**
 
 No inputs required.
 
-Returns: per-cluster — id, engine, engineVersion, nodeType, numNodes, transitEncryption, atRestEncryption, replicationGroupId, automaticFailover, findings.
+Returns: per-cluster — id, engine, engineVersion, nodeType, numNodes, transitEncryption, atRestEncryption, replicationGroupId, automaticFailover, `costSignal` (present when numNodes > 3 — no billing API, just a node-count heuristic), findings.
 
 **When to call:** Before writing cache client code (TLS required when transit encryption is on — `rediss://` for Redis) or when reviewing cache availability and security posture.
 

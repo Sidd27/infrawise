@@ -43,6 +43,8 @@ export function buildGraph(
       databaseType: 'dynamodb',
       partitionKey: table.partitionKey,
       sortKey: table.sortKey,
+      billingMode: table.billingMode,
+      provisionedThroughput: table.provisionedThroughput,
     });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.tableName}:${indexName}`;
