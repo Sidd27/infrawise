@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1632 656" role="img" aria-label="Infrawise architecture diagram">
-  <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 27 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
+  <title>Infrawise architecture: Your Infrastructure &amp; Code → Adapters → Graph Engine → 36 Analyzers → Cache → MCP Server → AI Coding Assistants</title>
   
 <defs>
   
@@ -139,7 +139,7 @@
   <g class="arch-node" data-id="AN">
     <rect x="716" y="288" width="180" height="44" rx="6" ry="6"
       fill="rgba(13,17,23,0.90)" stroke="#818cf8" stroke-width="1.5" />
-    <text x="806" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">34 ANALYZERS</text>
+    <text x="806" y="312" text-anchor="middle" dominant-baseline="auto" fill="#c7d2fe" font-size="12" font-weight="600" letter-spacing="0.06em" font-family="system-ui,sans-serif">36 ANALYZERS</text>
   </g>
   <g class="arch-node" data-id="CA">
     <rect x="948" y="288" width="180" height="44" rx="6" ry="6"

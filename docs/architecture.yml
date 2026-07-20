@@ -114,7 +114,7 @@ nodes:
     row: 3
 
   AN:
-    label: '34 Analyzers'
+    label: '36 Analyzers'
     theme: iw
     col: 4
     row: 3
