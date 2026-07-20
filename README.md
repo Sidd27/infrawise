@@ -362,7 +362,7 @@ analysis:
 
 ### AWS setup
 
-Infrawise is **read-only**. Minimum IAM policy required:
+Infrawise is **read-only**. Minimum IAM policy for DynamoDB:
 
 ```json
 {
@@ -376,6 +376,8 @@ Infrawise is **read-only**. Minimum IAM policy required:
   ]
 }
 ```
+
+For the full policy across all supported services, how to scope it to only the services you enable, and using a session policy for temporary scoped credentials, see the [AWS setup guide](https://sidd27.github.io/infrawise/getting-started/aws-setup/).
 
 For SSO profiles, log in before running infrawise:
 
