@@ -223,6 +223,7 @@ export function createMcpServer(): McpServer {
       }
 
       const outEdges = funcNode ? getOutgoingEdges(currentGraph, funcNode.id) : [];
+      const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
       const relatedFindings = currentFindings.filter((f) => {
         const meta = f.metadata as Record<string, unknown> | undefined;
         return (
@@ -238,7 +239,6 @@ export function createMcpServer(): McpServer {
         lambdaNode?.type === 'lambda' ? lambdaNode.allowedServices : undefined;
       let missingPermissions: string[] | undefined;
       if (allowedServices && !allowedServices.includes('*') && funcNode) {
-        const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
         const needed = new Set<string>();
         for (const edge of outEdges) {
           const target = nodeMap.get(edge.to);
@@ -268,7 +268,7 @@ export function createMcpServer(): McpServer {
           ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
         })),
         accesses: outEdges.map((e) => {
-          const target = currentGraph.nodes.find((n) => n.id === e.to);
+          const target = nodeMap.get(e.to);
           return {
             targetId: e.to,
             edgeType: e.type,
@@ -564,6 +564,7 @@ export function createMcpServer(): McpServer {
     },
     logged('get_eventbridge_details', async () => {
       const rules = getEventBridgeRuleNodes(currentGraph);
+      const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
       return toText({
         total: rules.length,
         rules: rules.map((r) => ({
@@ -573,7 +574,7 @@ export function createMcpServer(): McpServer {
           eventPattern: r.eventPattern,
           targets: currentGraph.edges
             .filter((e) => e.from === r.id && e.type === 'triggers')
-            .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
+            .map((e) => nodeMap.get(e.to))
             .filter(Boolean)
             .map((n) => (n && 'name' in n ? n.name : '')),
         })),

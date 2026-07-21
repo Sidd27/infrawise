@@ -131,26 +131,23 @@ function mkSpinner(text: string) {
   return ora({ text: chalk.dim(text), color: 'cyan' }).start();
 }
 
-// Runs one extractor behind a spinner: succeeds with a count summary, or warns and
-// returns undefined on failure so a single service never aborts the whole analysis.
+// Runs one extractor, printing a static completion line (never a spinner, so many
+// can run concurrently without corrupting each other's output). Warns and returns
+// undefined on failure so a single service never aborts the whole analysis, and
+// never rejects — safe to pass straight into Promise.all.
 async function extract<T>(
   enabled: boolean | undefined,
-  spinnerText: string,
   label: string,
   fn: () => Promise<T>,
   summarize: (result: T) => string,
 ): Promise<T | undefined> {
   if (!enabled) return undefined;
-  const s = mkSpinner(spinnerText);
   try {
     const result = await fn();
-    s.succeed(chalk.green(label) + chalk.dim(`  ${summarize(result)}`));
+    log.success(label, summarize(result));
     return result;
   } catch (err) {
-    s.warn(
-      chalk.yellow(`${label} skipped`) +
-        chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-    );
+    log.warn(`${label} skipped`, err instanceof Error ? err.message : String(err));
     return undefined;
   }
 }
@@ -253,162 +250,222 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 
   const servicesMeta: ServicesMeta = {};
 
-  const dynamoMeta =
-    (await extract(
+  const pgConn = config.postgres?.enabled ? config.postgres.connectionString : undefined;
+  const mysqlConn = config.mysql?.enabled ? config.mysql.connectionString : undefined;
+  const mongoConn = config.mongodb?.enabled ? config.mongodb.connectionString : undefined;
+  const cwLogs = config.cloudwatchLogs;
+
+  // IaC schema and the repo scan are local work (no AWS calls) — run them
+  // concurrently with the AWS/DB extractors so wall-clock is bounded by the
+  // slowest single task, not the sum of all of them. Each task catches its own
+  // errors and never rejects, so Promise.all below can't be aborted by one.
+  const iacTask = (async () => {
+    try {
+      const iacSchema = await extractIaCSchema(repoPath);
+      const total =
+        iacSchema.dynamoTables.length +
+        iacSchema.rdsInstances.length +
+        iacSchema.mongoClusters.length +
+        iacSchema.queues.length +
+        iacSchema.topics.length +
+        iacSchema.lambdas.length +
+        iacSchema.buckets.length +
+        iacSchema.parameters.length +
+        iacSchema.secrets.length +
+        iacSchema.apiGateways.length +
+        iacSchema.outputs.length;
+      const drift = new IaCDriftAnalyzer();
+      drift.setIaCSchema(iacSchema);
+      log.success('IaC schema', `${total} resource(s) across TF/CFN/CDK`);
+      return {
+        drift: drift as IaCDriftAnalyzer | undefined,
+        lambdas: iacSchema.lambdas,
+        outputs: iacSchema.outputs,
+      };
+    } catch (err) {
+      log.warn('IaC scan skipped', err instanceof Error ? err.message : String(err));
+      return {
+        drift: undefined as IaCDriftAnalyzer | undefined,
+        lambdas: [] as IaCLambda[],
+        outputs: [] as IaCOutput[],
+      };
+    }
+  })();
+
+  const repoTask = (async () => {
+    try {
+      const ops = await scanRepository(repoPath);
+      log.success('Repository scanned', `${ops.length} service operation(s) found`);
+      return ops;
+    } catch (err) {
+      log.warn('Repository scan failed', err instanceof Error ? err.message : String(err));
+      return [] as ExtractedOperation[];
+    }
+  })();
+
+  if (!options.silent) log.info('Extracting infrastructure in parallel...');
+
+  const [
+    dynamoRes,
+    postgresRes,
+    mysqlRes,
+    mongoRes,
+    sqsRes,
+    snsRes,
+    ssmRes,
+    secretsRes,
+    lambdaRes,
+    eventbridgeRes,
+    rdsRes,
+    s3Res,
+    apiGatewayRes,
+    cognitoRes,
+    kinesisRes,
+    mskRes,
+    elasticacheRes,
+    logsRes,
+    iac,
+    operations,
+  ] = await Promise.all([
+    extract(
       config.dynamodb?.enabled === true,
-      'Extracting DynamoDB tables...',
       'DynamoDB',
       () => extractDynamoMetadata(config),
       (r) => `${r.length} table(s)`,
-    )) ?? [];
-
-  const pgConn = config.postgres?.enabled ? config.postgres.connectionString : undefined;
-  const postgresMeta =
-    (await extract(
+    ),
+    extract(
       !!pgConn,
-      'Extracting PostgreSQL schema...',
       'PostgreSQL',
       () => extractPostgresMetadata(pgConn ?? ''),
       (r) => `${r.length} table(s)`,
-    )) ?? [];
-
-  const mysqlConn = config.mysql?.enabled ? config.mysql.connectionString : undefined;
-  const mysqlMeta =
-    (await extract(
+    ),
+    extract(
       !!mysqlConn,
-      'Extracting MySQL schema...',
       'MySQL',
       () => extractMySQLMetadata(mysqlConn ?? ''),
       (r) => `${r.length} table(s)`,
-    )) ?? [];
-
-  const mongoConn = config.mongodb?.enabled ? config.mongodb.connectionString : undefined;
-  const mongoMeta =
-    (await extract(
+    ),
+    extract(
       !!mongoConn,
-      'Extracting MongoDB schema...',
       'MongoDB',
       () => extractMongoMetadata(mongoConn ?? '', config.mongodb?.databases),
       (r) => `${r.length} collection(s)`,
-    )) ?? [];
+    ),
+    extract(
+      config.sqs?.enabled === true,
+      'SQS',
+      () => extractSQSMetadata(awsCfg),
+      (r) => `${r.length} queue(s)`,
+    ),
+    extract(
+      config.sns?.enabled === true,
+      'SNS',
+      () => extractSNSMetadata(awsCfg),
+      (r) => `${r.length} topic(s)`,
+    ),
+    extract(
+      config.ssm?.enabled === true,
+      'SSM',
+      () => extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths }),
+      (r) => `${r.length} parameter(s)  (metadata only, no values)`,
+    ),
+    extract(
+      config.secretsManager?.enabled === true,
+      'Secrets Manager',
+      () => extractSecretsMetadata(awsCfg),
+      (r) => `${r.length} secret(s)  (names/rotation only, no values)`,
+    ),
+    extract(
+      config.lambda?.enabled === true,
+      'Lambda',
+      () => extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions),
+      (r) => `${r.length} function(s)`,
+    ),
+    extract(
+      config.eventbridge?.enabled === true,
+      'EventBridge',
+      () => extractEventBridgeMetadata(awsCfg),
+      (r) => `${r.length} rule(s)`,
+    ),
+    extract(
+      config.rds?.enabled === true,
+      'RDS',
+      () => extractRDSMetadata(awsCfg),
+      (r) => `${r.length} instance(s)`,
+    ),
+    extract(
+      config.s3?.enabled === true,
+      'S3',
+      () => extractS3Metadata(awsCfg),
+      (r) => `${r.length} bucket(s)`,
+    ),
+    extract(
+      config.apiGateway?.enabled === true,
+      'API Gateway',
+      () => extractAPIGatewayMetadata(awsCfg),
+      (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
+    ),
+    extract(
+      config.cognito?.enabled === true,
+      'Cognito',
+      () => extractCognitoMetadata(awsCfg),
+      (r) => `${r.length} user pool(s)`,
+    ),
+    extract(
+      config.kinesis?.enabled === true,
+      'Kinesis',
+      () => extractKinesisMetadata(awsCfg),
+      (r) => `${r.length} stream(s)`,
+    ),
+    extract(
+      config.msk?.enabled === true,
+      'MSK',
+      () => extractMSKMetadata(awsCfg),
+      (r) => `${r.length} cluster(s)`,
+    ),
+    extract(
+      config.elasticache?.enabled === true,
+      'ElastiCache',
+      () => extractElastiCacheMetadata(awsCfg),
+      (r) => `${r.length} cluster(s)`,
+    ),
+    extract(
+      cwLogs?.enabled,
+      'CloudWatch Logs',
+      () =>
+        extractLogsMetadata({
+          ...awsCfg,
+          logGroupPrefixes: cwLogs?.logGroupPrefixes,
+          windowHours: cwLogs?.windowHours,
+        }),
+      (r) => `${r.length} group(s), ${r.filter((lg) => lg.errorCount > 0).length} with errors`,
+    ),
+    iacTask,
+    repoTask,
+  ]);
 
-  servicesMeta.sqs = await extract(
-    config.sqs?.enabled === true,
-    'Extracting SQS queues...',
-    'SQS',
-    () => extractSQSMetadata(awsCfg),
-    (r) => `${r.length} queue(s)`,
-  );
+  const dynamoMeta = dynamoRes ?? [];
+  const postgresMeta = postgresRes ?? [];
+  const mysqlMeta = mysqlRes ?? [];
+  const mongoMeta = mongoRes ?? [];
+  servicesMeta.sqs = sqsRes;
+  servicesMeta.sns = snsRes;
+  servicesMeta.ssm = ssmRes;
+  servicesMeta.secrets = secretsRes;
+  servicesMeta.lambda = lambdaRes;
+  servicesMeta.eventbridge = eventbridgeRes;
+  servicesMeta.rds = rdsRes;
+  servicesMeta.s3 = s3Res;
+  servicesMeta.apiGateway = apiGatewayRes;
+  servicesMeta.cognito = cognitoRes;
+  servicesMeta.kinesis = kinesisRes;
+  servicesMeta.msk = mskRes;
+  servicesMeta.elasticache = elasticacheRes;
+  servicesMeta.logs = logsRes;
 
-  servicesMeta.sns = await extract(
-    config.sns?.enabled === true,
-    'Extracting SNS topics...',
-    'SNS',
-    () => extractSNSMetadata(awsCfg),
-    (r) => `${r.length} topic(s)`,
-  );
-
-  servicesMeta.ssm = await extract(
-    config.ssm?.enabled === true,
-    'Extracting SSM parameters...',
-    'SSM',
-    () => extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths }),
-    (r) => `${r.length} parameter(s)  (metadata only, no values)`,
-  );
-
-  servicesMeta.secrets = await extract(
-    config.secretsManager?.enabled === true,
-    'Extracting Secrets Manager metadata...',
-    'Secrets Manager',
-    () => extractSecretsMetadata(awsCfg),
-    (r) => `${r.length} secret(s)  (names/rotation only, no values)`,
-  );
-
-  servicesMeta.lambda = await extract(
-    config.lambda?.enabled === true,
-    'Extracting Lambda functions...',
-    'Lambda',
-    () => extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions),
-    (r) => `${r.length} function(s)`,
-  );
-
-  servicesMeta.eventbridge = await extract(
-    config.eventbridge?.enabled === true,
-    'Extracting EventBridge rules...',
-    'EventBridge',
-    () => extractEventBridgeMetadata(awsCfg),
-    (r) => `${r.length} rule(s)`,
-  );
-
-  servicesMeta.rds = await extract(
-    config.rds?.enabled === true,
-    'Extracting RDS instances...',
-    'RDS',
-    () => extractRDSMetadata(awsCfg),
-    (r) => `${r.length} instance(s)`,
-  );
-
-  servicesMeta.s3 = await extract(
-    config.s3?.enabled === true,
-    'Extracting S3 buckets...',
-    'S3',
-    () => extractS3Metadata(awsCfg),
-    (r) => `${r.length} bucket(s)`,
-  );
-
-  servicesMeta.apiGateway = await extract(
-    config.apiGateway?.enabled === true,
-    'Extracting API Gateway routes...',
-    'API Gateway',
-    () => extractAPIGatewayMetadata(awsCfg),
-    (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
-  );
-
-  servicesMeta.cognito = await extract(
-    config.cognito?.enabled === true,
-    'Extracting Cognito user pools...',
-    'Cognito',
-    () => extractCognitoMetadata(awsCfg),
-    (r) => `${r.length} user pool(s)`,
-  );
-
-  servicesMeta.kinesis = await extract(
-    config.kinesis?.enabled === true,
-    'Extracting Kinesis streams...',
-    'Kinesis',
-    () => extractKinesisMetadata(awsCfg),
-    (r) => `${r.length} stream(s)`,
-  );
-
-  servicesMeta.msk = await extract(
-    config.msk?.enabled === true,
-    'Extracting MSK clusters...',
-    'MSK',
-    () => extractMSKMetadata(awsCfg),
-    (r) => `${r.length} cluster(s)`,
-  );
-
-  servicesMeta.elasticache = await extract(
-    config.elasticache?.enabled === true,
-    'Extracting ElastiCache clusters...',
-    'ElastiCache',
-    () => extractElastiCacheMetadata(awsCfg),
-    (r) => `${r.length} cluster(s)`,
-  );
-
-  const cwLogs = config.cloudwatchLogs;
-  servicesMeta.logs = await extract(
-    cwLogs?.enabled,
-    'Sampling CloudWatch Logs (errors only, max 50 groups)...',
-    'CloudWatch Logs',
-    () =>
-      extractLogsMetadata({
-        ...awsCfg,
-        logGroupPrefixes: cwLogs?.logGroupPrefixes,
-        windowHours: cwLogs?.windowHours,
-      }),
-    (r) => `${r.length} group(s), ${r.filter((lg) => lg.errorCount > 0).length} with errors`,
-  );
+  const iacDriftAnalyzer = iac.drift;
+  const iacLambdas = iac.lambdas;
+  const iacOutputs = iac.outputs;
 
   if (config.runtimeSignals?.enabled && (servicesMeta.lambda?.length || servicesMeta.sqs?.length)) {
     const s = mkSpinner('Fetching runtime signals (CloudWatch metrics)...');
@@ -439,58 +496,6 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         chalk.yellow('Runtime signals skipped') +
           chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
       );
-    }
-  }
-
-  // ── IaC schema (Terraform / CloudFormation / CDK) ────────────────────────────
-  let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
-  let iacLambdas: IaCLambda[] = [];
-  let iacOutputs: IaCOutput[] = [];
-  {
-    const s = mkSpinner('Extracting IaC schema (Terraform / CloudFormation / CDK)...');
-    try {
-      const iacSchema = await extractIaCSchema(repoPath);
-      const total =
-        iacSchema.dynamoTables.length +
-        iacSchema.rdsInstances.length +
-        iacSchema.mongoClusters.length +
-        iacSchema.queues.length +
-        iacSchema.topics.length +
-        iacSchema.lambdas.length +
-        iacSchema.buckets.length +
-        iacSchema.parameters.length +
-        iacSchema.secrets.length +
-        iacSchema.apiGateways.length +
-        iacSchema.outputs.length;
-      iacDriftAnalyzer = new IaCDriftAnalyzer();
-      iacDriftAnalyzer.setIaCSchema(iacSchema);
-      iacLambdas = iacSchema.lambdas;
-      iacOutputs = iacSchema.outputs;
-      s.succeed(chalk.green('IaC schema') + chalk.dim(`  ${total} resource(s) across TF/CFN/CDK`));
-    } catch (err) {
-      s.warn(
-        chalk.yellow('IaC scan skipped') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-    }
-  }
-
-  // ── Repository scan ──────────────────────────────────────────────────────────
-  let operations: ExtractedOperation[];
-  {
-    const s = mkSpinner(`Scanning ${path.basename(repoPath)} for service usage...`);
-    try {
-      operations = await scanRepository(repoPath);
-      s.succeed(
-        chalk.green('Repository scanned') +
-          chalk.dim(`  ${operations.length} service operation(s) found`),
-      );
-    } catch (err) {
-      s.warn(
-        chalk.yellow('Repository scan failed') +
-          chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
-      );
-      operations = [];
     }
   }
 

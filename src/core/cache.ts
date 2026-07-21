@@ -23,7 +23,7 @@ export function writeCache<T>(key: string, data: T): void {
     version: CACHE_VERSION,
   };
   const filePath = path.join(cacheDir, `${key}.json`);
-  fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(entry), 'utf-8');
 }
 
 export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
