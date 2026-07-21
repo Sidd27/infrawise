@@ -3,8 +3,9 @@ packages:
   - 'website'
 overrides:
   qs: '>=6.15.2'
-  vite: ^7
+  vite: ^8
   'esbuild@<0.28.1': '>=0.28.1'
+  body-parser: '>=2.3.0'
 allowedBuildScripts:
   - puppeteer
   - simple-git-hooks
