@@ -118,7 +118,7 @@
     "eslint": "^10.7.0",
     "prettier": "^3.9.6",
     "simple-git-hooks": "^2.13.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.9"
   },
   "files": [
