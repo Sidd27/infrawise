@@ -354,7 +354,6 @@ cloudwatchLogs:
   windowHours: 24
 
 analysis:
-  sampleSize: 100
   hotPartitionThreshold: 5
   hotPartitionThresholds:
     high-traffic-table: 12
@@ -413,7 +412,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | DynamoDB schema                  | Tables, GSIs, partition keys, billing mode, cost signal (provisioned capacity)                                     |
 | PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
 | MongoDB schema                   | Collections, indexes                                                                                               |
-| SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout vs Lambda timeout mismatch    |
+| SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout below the consumer Lambda timeout (high) or below AWS's recommended 6× (medium) |
 | SNS                              | Subscription filter policies — required message attributes per subscription                                        |
 | Apache Kafka (kafkajs)           | Producer/consumer topic mapping from code — any broker (self-hosted, Confluent, Redpanda, MSK); distinct from the MSK Lambda trigger |
 | Secrets Manager                  | Missing secret rotation                                                                                            |

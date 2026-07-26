@@ -528,8 +528,12 @@ function extractArgValue(arg: Node, ...keys: string[]): string {
       if (Node.isPropertyAssignment(prop) && keys.includes(prop.getName())) {
         const init = prop.getInitializer();
         if (init && Node.isStringLiteral(init)) {
-          // For ARNs, extract the last segment as a readable name
           const val = (init as StringLiteral).getLiteralValue();
+          // Queue/topic URLs end in the resource name; ARNs end in the last
+          // colon segment. Reduce both to the bare name so the node merges with
+          // the extracted one. Leave plain values alone — SSM parameter names
+          // are slash-delimited paths, not URLs.
+          if (val.includes('://')) return val.split('/').pop() ?? val;
           return val.includes(':') ? (val.split(':').pop() ?? val) : val;
         }
       }

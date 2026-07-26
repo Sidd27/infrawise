@@ -78,7 +78,6 @@ export const InfrawiseConfigSchema = z.object({
     .optional(),
   analysis: z
     .object({
-      sampleSize: z.number().int().positive().optional().default(100),
       hotPartitionThreshold: z.number().int().positive().optional().default(5),
       hotPartitionThresholds: z
         .record(z.string(), z.number().int().positive())
@@ -227,7 +226,6 @@ export function generateDefaultConfig(
       windowHours: options?.cloudwatchLogs?.windowHours ?? 24,
     },
     analysis: {
-      sampleSize: options?.analysis?.sampleSize ?? 100,
       hotPartitionThreshold: options?.analysis?.hotPartitionThreshold ?? 5,
     },
   };

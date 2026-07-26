@@ -26,7 +26,7 @@ export class IaCDriftAnalyzer implements Analyzer {
       graph.nodes
         .filter(
           (n): n is Extract<GraphNode, { type: 'table' }> =>
-            n.type === 'table' && n.databaseType === 'dynamodb',
+            n.type === 'table' && n.databaseType === 'dynamodb' && !n.placeholder,
         )
         .map((n) => n.name),
     );
@@ -65,7 +65,10 @@ export class IaCDriftAnalyzer implements Analyzer {
     // ── Queue drift ───────────────────────────────────────────────────────────
 
     const deployedQueues = new Set(
-      graph.nodes.filter((n) => n.type === 'queue').map((n) => n.name),
+      graph.nodes
+        .filter((n) => !n.placeholder)
+        .filter((n) => n.type === 'queue')
+        .map((n) => n.name),
     );
     const iacQueues = new Map(iac.queues.map((q) => [q.name, q.filePath]));
 
@@ -100,7 +103,10 @@ export class IaCDriftAnalyzer implements Analyzer {
     // ── Lambda drift ──────────────────────────────────────────────────────────
 
     const deployedLambdas = new Set(
-      graph.nodes.filter((n) => n.type === 'lambda').map((n) => n.name),
+      graph.nodes
+        .filter((n) => !n.placeholder)
+        .filter((n) => n.type === 'lambda')
+        .map((n) => n.name),
     );
     const iacLambdas = new Map(iac.lambdas.map((l) => [l.name, l.filePath]));
 

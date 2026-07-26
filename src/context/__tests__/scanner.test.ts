@@ -189,6 +189,39 @@ describe('scanRepository — AWS services', () => {
     expect(op?.functionName).toBe('enqueue');
   });
 
+  it('reduces a full queue URL to the queue name', async () => {
+    writeFixture(
+      'sqs-url.ts',
+      `
+      async function enqueueByUrl(body: string) {
+        await client.send(
+          new SendMessageCommand({
+            QueueUrl: 'https://sqs.us-east-1.amazonaws.com/000000000000/billing-queue',
+            MessageBody: body,
+          }),
+        );
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'sqs' && o.functionName === 'enqueueByUrl');
+    expect(op?.target).toBe('billing-queue');
+  });
+
+  it('keeps slash-delimited SSM parameter paths intact', async () => {
+    writeFixture(
+      'ssm-path.ts',
+      `
+      async function loadConfig() {
+        await client.send(new GetParameterCommand({ Name: '/app/prod/db-url' }));
+      }
+    `,
+    );
+    const ops = await scanRepository(tmpDir);
+    const op = ops.find((o) => o.serviceType === 'ssm' && o.functionName === 'loadConfig');
+    expect(op?.target).toBe('/app/prod/db-url');
+  });
+
   it('detects SNS PublishCommand', async () => {
     writeFixture(
       'sns.ts',

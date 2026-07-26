@@ -3,6 +3,7 @@ import {
   MissingDLQAnalyzer,
   UnencryptedQueueAnalyzer,
   LargeQueueBacklogAnalyzer,
+  VisibilityTimeoutMismatchAnalyzer,
   MissingSecretRotationAnalyzer,
   MissingLogRetentionAnalyzer,
   LambdaDefaultMemoryAnalyzer,
@@ -39,6 +40,50 @@ describe('MissingDLQAnalyzer', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('orders');
+  });
+
+  it("does not flag a queue that is itself another queue's DLQ target", async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          dlqArn: 'arn:aws:sqs:us-east-1:000000000000:orders-dlq',
+          encrypted: true,
+        },
+        {
+          id: 'queue:aws:orders-dlq',
+          type: 'queue',
+          name: 'orders-dlq',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+        },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('does not flag a placeholder queue that was never extracted', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'queue:aws:unknown',
+          type: 'queue',
+          name: 'unknown',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: false,
+          placeholder: true,
+        },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
   });
 
   it('does not flag queue that has a DLQ', async () => {
@@ -217,6 +262,44 @@ describe('LargeQueueBacklogAnalyzer', () => {
   });
 });
 
+describe('VisibilityTimeoutMismatchAnalyzer', () => {
+  const analyzer = new VisibilityTimeoutMismatchAnalyzer();
+
+  const graphWith = (visibilityTimeoutSec: number): SystemGraph => ({
+    nodes: [
+      {
+        id: 'queue:aws:orders',
+        type: 'queue',
+        name: 'orders',
+        provider: 'aws',
+        hasDLQ: true,
+        encrypted: true,
+        visibilityTimeoutSec,
+      },
+      { id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders', timeoutSec: 30 },
+    ],
+    edges: [{ from: 'queue:aws:orders', to: 'lambda:aws:processOrders', type: 'triggers' }],
+  });
+
+  it('flags high when visibility timeout is below the Lambda timeout', async () => {
+    const findings = await analyzer.analyze(graphWith(10));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('high');
+    expect(findings[0].metadata?.recommendedVisibilityTimeoutSec).toBe(180);
+  });
+
+  it('flags medium when visibility timeout is between 1x and 6x the Lambda timeout', async () => {
+    const findings = await analyzer.analyze(graphWith(60));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('medium');
+    expect(findings[0].issue).toContain('less than 6×');
+  });
+
+  it('does not flag when visibility timeout is at least 6x the Lambda timeout', async () => {
+    expect(await analyzer.analyze(graphWith(180))).toHaveLength(0);
+  });
+});
+
 describe('MissingSecretRotationAnalyzer', () => {
   const analyzer = new MissingSecretRotationAnalyzer();
 
@@ -237,6 +320,23 @@ describe('MissingSecretRotationAnalyzer', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('db-password');
+  });
+
+  it('does not flag a placeholder secret that was never extracted', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'secret:aws:unknown',
+          type: 'secret',
+          name: 'unknown',
+          provider: 'aws',
+          rotationEnabled: false,
+          placeholder: true,
+        },
+      ],
+      edges: [],
+    };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
   });
 
   it('does not flag secret with rotation enabled', async () => {

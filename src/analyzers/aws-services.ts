@@ -7,8 +7,17 @@ export class MissingDLQAnalyzer implements Analyzer {
 
   async analyze(graph: SystemGraph): Promise<Finding[]> {
     const findings: Finding[] = [];
+
+    // A queue that is another queue's dead-letter target is itself the DLQ —
+    // it is not supposed to have one.
+    const dlqTargets = new Set<string>();
     for (const node of graph.nodes) {
-      if (node.type !== 'queue') continue;
+      if (node.type === 'queue' && node.dlqArn) dlqTargets.add(node.dlqArn.split(':').pop() ?? '');
+    }
+
+    for (const node of graph.nodes) {
+      if (node.type !== 'queue' || node.placeholder) continue;
+      if (dlqTargets.has(node.name)) continue;
       if (!node.hasDLQ) {
         findings.push({
           severity: 'high',
@@ -29,7 +38,7 @@ export class UnencryptedQueueAnalyzer implements Analyzer {
   async analyze(graph: SystemGraph): Promise<Finding[]> {
     const findings: Finding[] = [];
     for (const node of graph.nodes) {
-      if (node.type !== 'queue') continue;
+      if (node.type !== 'queue' || node.placeholder) continue;
       if (!node.encrypted) {
         findings.push({
           severity: 'low',
@@ -92,20 +101,43 @@ export class VisibilityTimeoutMismatchAnalyzer implements Analyzer {
       if (!triggeringEdge) continue;
       const lambdaName = triggeringEdge.to.replace('lambda:aws:', '');
       const lambdaTimeout = lambdaTimeouts.get(lambdaName);
-      if (lambdaTimeout && node.visibilityTimeoutSec < lambdaTimeout) {
-        findings.push({
-          severity: 'high',
-          issue: `Queue "${node.name}" visibility timeout (${node.visibilityTimeoutSec}s) is less than Lambda "${lambdaName}" timeout (${lambdaTimeout}s)`,
-          description: `If the Lambda takes longer than the visibility timeout, SQS will re-deliver the message to another consumer while the original invocation is still running, causing duplicate processing.`,
-          recommendation: `Set the visibility timeout for "${node.name}" to at least ${lambdaTimeout * 6}s (6× the Lambda timeout of ${lambdaTimeout}s), per AWS best practice.`,
-          metadata: {
-            queueName: node.name,
-            visibilityTimeoutSec: node.visibilityTimeoutSec,
-            lambdaName,
-            lambdaTimeoutSec: lambdaTimeout,
-          },
-        });
+      if (!lambdaTimeout) continue;
+
+      // Below 1× the messages are guaranteed to be redelivered mid-invocation;
+      // between 1× and AWS's recommended 6× a retry burst can still overlap a
+      // running invocation, which is a risk rather than a certainty.
+      if (node.visibilityTimeoutSec >= lambdaTimeout) {
+        if (node.visibilityTimeoutSec < lambdaTimeout * 6) {
+          findings.push({
+            severity: 'medium',
+            issue: `Queue "${node.name}" visibility timeout (${node.visibilityTimeoutSec}s) is less than 6× Lambda "${lambdaName}" timeout (${lambdaTimeout}s)`,
+            description: `AWS recommends a visibility timeout of at least 6× the consumer function timeout so retries never overlap an in-flight invocation. At ${node.visibilityTimeoutSec}s a slow invocation plus a retry can process the same message twice.`,
+            recommendation: `Set the visibility timeout for "${node.name}" to ${lambdaTimeout * 6}s or more, and make the handler idempotent.`,
+            metadata: {
+              queueName: node.name,
+              visibilityTimeoutSec: node.visibilityTimeoutSec,
+              lambdaName,
+              lambdaTimeoutSec: lambdaTimeout,
+              recommendedVisibilityTimeoutSec: lambdaTimeout * 6,
+            },
+          });
+        }
+        continue;
       }
+
+      findings.push({
+        severity: 'high',
+        issue: `Queue "${node.name}" visibility timeout (${node.visibilityTimeoutSec}s) is less than Lambda "${lambdaName}" timeout (${lambdaTimeout}s)`,
+        description: `If the Lambda takes longer than the visibility timeout, SQS will re-deliver the message to another consumer while the original invocation is still running, causing duplicate processing.`,
+        recommendation: `Set the visibility timeout for "${node.name}" to at least ${lambdaTimeout * 6}s (6× the Lambda timeout of ${lambdaTimeout}s), per AWS best practice.`,
+        metadata: {
+          queueName: node.name,
+          visibilityTimeoutSec: node.visibilityTimeoutSec,
+          lambdaName,
+          lambdaTimeoutSec: lambdaTimeout,
+          recommendedVisibilityTimeoutSec: lambdaTimeout * 6,
+        },
+      });
     }
     return findings;
   }
@@ -119,7 +151,7 @@ export class MissingSecretRotationAnalyzer implements Analyzer {
   async analyze(graph: SystemGraph): Promise<Finding[]> {
     const findings: Finding[] = [];
     for (const node of graph.nodes) {
-      if (node.type !== 'secret') continue;
+      if (node.type !== 'secret' || node.placeholder) continue;
       if (!node.rotationEnabled) {
         findings.push({
           severity: 'medium',
@@ -203,7 +235,12 @@ export class LambdaMissingTriggerDLQAnalyzer implements Analyzer {
         const sourceQueue = graph.nodes.find(
           (n) => n.type === 'queue' && n.name === trigger.sourceName,
         );
-        if (sourceQueue && sourceQueue.type === 'queue' && !sourceQueue.hasDLQ) {
+        if (
+          sourceQueue &&
+          sourceQueue.type === 'queue' &&
+          !sourceQueue.placeholder &&
+          !sourceQueue.hasDLQ
+        ) {
           findings.push({
             severity: 'high',
             issue: `Lambda "${node.name}" is triggered by "${trigger.sourceName}" which has no DLQ`,

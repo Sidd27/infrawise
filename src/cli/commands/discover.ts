@@ -221,7 +221,7 @@ function writeYaml(
     elasticache: { enabled: false },
     runtimeSignals: { enabled: false, windowHours: 24 },
     cloudwatchLogs: { enabled: false, logGroupPrefixes: [], windowHours: 24 },
-    analysis: { sampleSize: 100 },
+    analysis: { hotPartitionThreshold: 5 },
   };
   fs.writeFileSync(
     path.join(cwd, 'infrawise.yaml'),

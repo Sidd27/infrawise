@@ -230,7 +230,12 @@ describe('buildGraph', () => {
     expect(names).not.toContain('default.orders');
     expect(names).toContain('app.users');
     expect(names).not.toContain('default.users');
-    expect(names).toContain('default.audit');
+    // Unresolvable refs stay in the graph as placeholders but are excluded from
+    // the extracted-resource selectors.
+    expect(names).not.toContain('default.audit');
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({ name: 'default.audit', placeholder: true }),
+    );
     expect(graph.edges).toContainEqual({
       from: 'function:src/shop.ts:listOrders',
       to: 'table:mysql:shop.orders',

@@ -12,7 +12,7 @@ export class MissingMongoIndexAnalyzer implements Analyzer {
 
     const mongoCollections = graph.nodes.filter(
       (n): n is Extract<GraphNode, { type: 'table' }> =>
-        n.type === 'table' && n.databaseType === 'mongodb',
+        n.type === 'table' && n.databaseType === 'mongodb' && !n.placeholder,
     );
 
     for (const coll of mongoCollections) {

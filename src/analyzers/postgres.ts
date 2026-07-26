@@ -12,7 +12,7 @@ export class MissingIndexAnalyzer implements Analyzer {
 
     const postgresTables = graph.nodes.filter(
       (n): n is Extract<GraphNode, { type: 'table' }> =>
-        n.type === 'table' && n.databaseType === 'postgres',
+        n.type === 'table' && n.databaseType === 'postgres' && !n.placeholder,
     );
 
     for (const table of postgresTables) {

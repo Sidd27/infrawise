@@ -20,7 +20,7 @@ describe('InfrawiseConfigSchema', () => {
       aws: { profile: 'default', region: 'ap-south-1' },
       dynamodb: { includeTables: ['Orders', 'Payments'] },
       postgres: { enabled: true, connectionString: 'postgresql://localhost:5432/db' },
-      analysis: { sampleSize: 100 },
+      analysis: { hotPartitionThreshold: 8 },
     };
     const result = InfrawiseConfigSchema.safeParse(input);
     expect(result.success).toBe(true);
@@ -29,7 +29,7 @@ describe('InfrawiseConfigSchema', () => {
       expect(result.data.aws?.region).toBe('ap-south-1');
       expect(result.data.dynamodb?.includeTables).toContain('Orders');
       expect(result.data.postgres?.enabled).toBe(true);
-      expect(result.data.analysis?.sampleSize).toBe(100);
+      expect(result.data.analysis?.hotPartitionThreshold).toBe(8);
     }
   });
 
@@ -52,10 +52,10 @@ describe('InfrawiseConfigSchema', () => {
     }
   });
 
-  it('rejects negative sampleSize', () => {
+  it('rejects negative hotPartitionThreshold', () => {
     const result = InfrawiseConfigSchema.safeParse({
       project: 'test',
-      analysis: { sampleSize: -10 },
+      analysis: { hotPartitionThreshold: -10 },
     });
     expect(result.success).toBe(false);
   });

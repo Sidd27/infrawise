@@ -115,6 +115,7 @@ export function buildGraph(
       name: q.name,
       provider: 'aws',
       hasDLQ: q.hasDLQ,
+      dlqArn: q.dlqArn,
       encrypted: q.encrypted,
       isFifo: q.isFifo,
       visibilityTimeoutSec: q.visibilityTimeoutSec,
@@ -244,6 +245,7 @@ export function buildGraph(
           provider: 'aws',
           hasDLQ: false,
           encrypted: false,
+          placeholder: true,
         });
       } else if (trigger.type === 'dynamodb') {
         sourceId = `table:dynamo:${trigger.sourceName}`;
@@ -252,10 +254,17 @@ export function buildGraph(
           type: 'table',
           name: trigger.sourceName,
           databaseType: 'dynamodb',
+          placeholder: true,
         });
       } else if (trigger.type === 'kinesis') {
         sourceId = `stream:aws:${trigger.sourceName}`;
-        addNode({ id: sourceId, type: 'stream', name: trigger.sourceName, provider: 'aws' });
+        addNode({
+          id: sourceId,
+          type: 'stream',
+          name: trigger.sourceName,
+          provider: 'aws',
+          placeholder: true,
+        });
       } else {
         continue;
       }
@@ -410,6 +419,7 @@ export function buildGraph(
         provider: 'aws',
         hasDLQ: false,
         encrypted: false,
+        placeholder: true,
       });
       edges.push({ from: funcNodeId, to: queueId, type: 'publishes_to' });
       continue;
@@ -417,7 +427,14 @@ export function buildGraph(
 
     if (op.serviceType === 'sns') {
       const topicId = `topic:aws:${op.target}`;
-      addNode({ id: topicId, type: 'topic', name: op.target, provider: 'aws', encrypted: false });
+      addNode({
+        id: topicId,
+        type: 'topic',
+        name: op.target,
+        provider: 'aws',
+        encrypted: false,
+        placeholder: true,
+      });
       edges.push({ from: funcNodeId, to: topicId, type: 'publishes_to' });
       continue;
     }
@@ -439,6 +456,7 @@ export function buildGraph(
         provider: 'aws',
         paramType: 'String',
         tier: 'Standard',
+        placeholder: true,
       });
       edges.push({ from: funcNodeId, to: paramId, type: 'reads_parameter' });
       continue;
@@ -452,6 +470,7 @@ export function buildGraph(
         name: op.target,
         provider: 'aws',
         rotationEnabled: false,
+        placeholder: true,
       });
       if (op.keys && op.keys.length > 0) {
         const node = nodeMap.get(secretId);
@@ -467,7 +486,7 @@ export function buildGraph(
 
     if (op.serviceType === 'lambda') {
       const lambdaId = `lambda:aws:${op.target}`;
-      addNode({ id: lambdaId, type: 'lambda', name: op.target });
+      addNode({ id: lambdaId, type: 'lambda', name: op.target, placeholder: true });
       edges.push({ from: funcNodeId, to: lambdaId, type: 'triggers' });
       continue;
     }
@@ -476,20 +495,44 @@ export function buildGraph(
     let tableNodeId: string;
     if (op.serviceType === 'dynamodb') {
       tableNodeId = `table:dynamo:${op.target}`;
-      addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
+      addNode({
+        id: tableNodeId,
+        type: 'table',
+        name: op.target,
+        databaseType: 'dynamodb',
+        placeholder: true,
+      });
     } else if (op.serviceType === 'mysql') {
       const q = qualify('mysql', op.target, 'default');
       tableNodeId = `table:mysql:${q}`;
-      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
+      addNode({
+        id: tableNodeId,
+        type: 'table',
+        name: q,
+        databaseType: 'mysql',
+        placeholder: true,
+      });
     } else if (op.serviceType === 'mongodb') {
       const q = qualify('mongodb', op.target, 'default');
       tableNodeId = `table:mongodb:${q}`;
-      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });
+      addNode({
+        id: tableNodeId,
+        type: 'table',
+        name: q,
+        databaseType: 'mongodb',
+        placeholder: true,
+      });
     } else {
       // postgres
       const q = qualify('postgres', op.target, 'public');
       tableNodeId = `table:postgres:${q}`;
-      addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'postgres' });
+      addNode({
+        id: tableNodeId,
+        type: 'table',
+        name: q,
+        databaseType: 'postgres',
+        placeholder: true,
+      });
     }
 
     const edgeType = resolveEdgeType(op.operationType);
@@ -543,24 +586,31 @@ export function getNodes<T extends GraphNode>(graph: SystemGraph, type: T['type'
   return graph.nodes.filter((n): n is T => n.type === type);
 }
 
+// Resource listings must report what was actually extracted. Placeholder nodes
+// (a code reference or trigger ARN we never resolved to a live resource) carry
+// default config values, so listing them would present invented facts.
+function getExtractedNodes<T extends GraphNode>(graph: SystemGraph, type: T['type']): T[] {
+  return graph.nodes.filter((n): n is T => n.type === type && !n.placeholder);
+}
+
 export const getTableNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'table' }>>(g, 'table');
+  getExtractedNodes<Extract<GraphNode, { type: 'table' }>>(g, 'table');
 export const getFunctionNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'function' }>>(g, 'function');
 export const getIndexNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'index' }>>(g, 'index');
 export const getQueueNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'queue' }>>(g, 'queue');
+  getExtractedNodes<Extract<GraphNode, { type: 'queue' }>>(g, 'queue');
 export const getTopicNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'topic' }>>(g, 'topic');
+  getExtractedNodes<Extract<GraphNode, { type: 'topic' }>>(g, 'topic');
 export const getSecretNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'secret' }>>(g, 'secret');
+  getExtractedNodes<Extract<GraphNode, { type: 'secret' }>>(g, 'secret');
 export const getParameterNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'parameter' }>>(g, 'parameter');
+  getExtractedNodes<Extract<GraphNode, { type: 'parameter' }>>(g, 'parameter');
 export const getLogGroupNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'log_group' }>>(g, 'log_group');
 export const getLambdaNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'lambda' }>>(g, 'lambda');
+  getExtractedNodes<Extract<GraphNode, { type: 'lambda' }>>(g, 'lambda');
 export const getEventBridgeRuleNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'eventbridge_rule' }>>(g, 'eventbridge_rule');
 export const getBucketNodes = (g: SystemGraph) =>

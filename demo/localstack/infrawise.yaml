@@ -51,4 +51,4 @@ cloudwatchLogs:
   logGroupPrefixes: []
   windowHours: 24
 analysis:
-  sampleSize: 100
+  hotPartitionThreshold: 5

@@ -260,6 +260,13 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // slowest single task, not the sum of all of them. Each task catches its own
   // errors and never rejects, so Promise.all below can't be aborted by one.
   const iacTask = (async () => {
+    if (config.terraform?.enabled === false) {
+      return {
+        drift: undefined as IaCDriftAnalyzer | undefined,
+        lambdas: [] as IaCLambda[],
+        outputs: [] as IaCOutput[],
+      };
+    }
     try {
       const iacSchema = await extractIaCSchema(repoPath);
       const total =
@@ -597,11 +604,13 @@ export async function runCodeRefresh(
   let iacLambdas: IaCLambda[] = [];
   let iacOutputs: IaCOutput[] = [];
   try {
-    const iacSchema = await extractIaCSchema(repoPath);
-    iacDriftAnalyzer = new IaCDriftAnalyzer();
-    iacDriftAnalyzer.setIaCSchema(iacSchema);
-    iacLambdas = iacSchema.lambdas;
-    iacOutputs = iacSchema.outputs;
+    const iacSchema = config.terraform?.enabled === false ? null : await extractIaCSchema(repoPath);
+    if (iacSchema) {
+      iacDriftAnalyzer = new IaCDriftAnalyzer();
+      iacDriftAnalyzer.setIaCSchema(iacSchema);
+      iacLambdas = iacSchema.lambdas;
+      iacOutputs = iacSchema.outputs;
+    }
   } catch {
     // IaC scan is best-effort
   }

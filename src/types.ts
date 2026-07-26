@@ -1,4 +1,9 @@
-export type GraphNode =
+// `placeholder` marks a node synthesized from a code reference or a trigger ARN
+// rather than from a live extraction of that resource: its config fields are
+// defaults, not observed values. Analyzers that report on absent configuration
+// (no DLQ, not encrypted, no rotation, no indexes) must skip these, or they
+// invent findings about resources they never read.
+export type GraphNode = (
   | {
       id: string;
       type: 'table';
@@ -22,6 +27,7 @@ export type GraphNode =
       name: string;
       provider: string;
       hasDLQ: boolean;
+      dlqArn?: string;
       encrypted: boolean;
       isFifo?: boolean;
       visibilityTimeoutSec?: number;
@@ -177,7 +183,8 @@ export type GraphNode =
       backupRetentionDays: number;
       deletionProtection: boolean;
       multiAZ: boolean;
-    };
+    }
+) & { placeholder?: true };
 
 export type GraphEdge =
   | { from: string; to: string; type: 'query' }
@@ -587,7 +594,6 @@ export interface InfrawiseConfig {
     windowHours?: number;
   };
   analysis?: {
-    sampleSize?: number;
     hotPartitionThreshold?: number;
     hotPartitionThresholds?: Record<string, number>;
   };

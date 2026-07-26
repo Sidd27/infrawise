@@ -123,7 +123,7 @@ source .env                 # sets AWS_PROFILE=localstack — required every ses
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 35+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Against Floci (see demo README) Cognito (1 user pool), Kinesis (1 stream), and ElastiCache (1 cluster, transit encryption finding) also extract — 38 findings total. Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders).
+Expected: 34+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Against Floci (see demo README) Cognito (1 user pool), Kinesis (1 stream), and ElastiCache (1 cluster, transit encryption finding) also extract — 37 findings total. Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
 
 To start the MCP server against LocalStack:
 
@@ -182,6 +182,8 @@ Test: `pnpm test` → vitest
 ## MCP tool reference
 
 Infrawise exposes 21 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
+
+Resource listings and findings cover resources that were actually extracted from your account. A queue, secret, or table that appears only as a code reference (for example `QueueUrl: process.env.QUEUE_URL`, which has no resolvable name) is kept in `get_graph_summary` with `placeholder: true` and excluded everywhere else — infrawise will not report "no DLQ" or "no rotation" for a resource whose configuration it never read.
 
 ### `get_infra_overview`
 

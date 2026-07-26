@@ -100,7 +100,6 @@ cloudwatchLogs:
   windowHours: 24
 
 analysis:
-  sampleSize: 100
   hotPartitionThreshold: 5
   hotPartitionThresholds: # per-table overrides
     high-traffic-table: 12
@@ -118,7 +117,7 @@ analysis:
 
 **`runtimeSignals`** (opt-in) fetches CloudWatch metrics for the analysis window: Lambda throttle and error counts, and the age of the oldest message per SQS queue. Powers the throttling and stale-queue findings.
 
-**`analysis`** tunes code-correlation analysis: `sampleSize` for schema sampling, `hotPartitionThreshold` for how many distinct code paths on one table trigger the hot-partition finding (overridable per table).
+**`analysis`** tunes code-correlation analysis: `hotPartitionThreshold` sets how many distinct code paths on one table trigger the hot-partition finding (overridable per table via `hotPartitionThresholds`).
 
 ## Environment variable substitution
 

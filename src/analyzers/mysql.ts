@@ -12,7 +12,7 @@ export class MissingMySQLIndexAnalyzer implements Analyzer {
 
     const mysqlTables = graph.nodes.filter(
       (n): n is Extract<GraphNode, { type: 'table' }> =>
-        n.type === 'table' && n.databaseType === 'mysql',
+        n.type === 'table' && n.databaseType === 'mysql' && !n.placeholder,
     );
 
     for (const table of mysqlTables) {
