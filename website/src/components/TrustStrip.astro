@@ -104,13 +104,20 @@
 <script>
   function fmt(n: number) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
 
+  // All-time downloads: npm has no total endpoint, but a date range from the
+  // first publish covers it in one request.
+  // ponytail: npm caps a range at 18 months, so this reads as a true total
+  // until ~Nov 2027, then silently becomes "last 18 months" — sum two ranges
+  // when that matters.
+  const since = `2026-05-07:${new Date().toISOString().slice(0, 10)}`
+
   Promise.all([
-    fetch('https://api.npmjs.org/downloads/point/last-month/infrawise').then(r => r.json()),
+    fetch(`https://api.npmjs.org/downloads/point/${since}/infrawise`).then(r => r.json()),
     fetch('https://api.github.com/repos/Sidd27/infrawise').then(r => r.json()),
   ]).then(([npm, gh]) => {
     const dl = document.getElementById('trust-downloads')
     const st = document.getElementById('trust-stars')
-    if (dl) dl.textContent = `${fmt(npm.downloads)} downloads / mo`
+    if (dl) dl.textContent = `${fmt(npm.downloads)} downloads`
     if (st) st.textContent = `★ ${gh.stargazers_count} stars`
   }).catch(() => {})
 </script>
