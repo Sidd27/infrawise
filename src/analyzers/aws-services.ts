@@ -22,7 +22,7 @@ export class MissingDLQAnalyzer implements Analyzer {
         findings.push({
           severity: 'high',
           issue: `Queue "${node.name}" has no Dead Letter Queue`,
-          description: `SQS queue "${node.name}" has no DLQ configured. Failed messages will be discarded after maxReceiveCount retries, causing silent data loss.`,
+          description: `SQS queue "${node.name}" has no redrive policy, so no DLQ captures failures. maxReceiveCount only exists as part of a redrive policy: without one, a message the consumer cannot process becomes visible again after the visibility timeout and is retried until the retention period (${node.retentionDays ?? 4} days) expires, then deleted with no record of it.`,
           recommendation: `Add a Dead Letter Queue to "${node.name}". Set maxReceiveCount to 3–5 retries before routing to DLQ. Alert on DLQ depth.`,
           metadata: { queueName: node.name, provider: node.provider },
         });
