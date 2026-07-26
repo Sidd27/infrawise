@@ -188,6 +188,56 @@ describe('buildGraph', () => {
     expect(getIndexNodes(graph).some((n) => n.name === 'idx_status')).toBe(true);
   });
 
+  it('links unqualified code table refs to the extracted schema-qualified node', () => {
+    const mysqlMeta: MySQLTableMetadata[] = [
+      {
+        schema: 'shop',
+        table: 'orders',
+        columns: ['id'],
+        indexes: [],
+        primaryKeys: ['id'],
+      },
+    ];
+    const mongoMeta: MongoCollectionMetadata[] = [
+      { database: 'app', collection: 'users', indexes: [{ name: 'idx_email' }] },
+    ];
+    const ops: ExtractedOperation[] = [
+      {
+        functionName: 'listOrders',
+        operationType: 'query',
+        serviceType: 'mysql',
+        target: 'orders',
+        filePath: 'src/shop.ts',
+      },
+      {
+        functionName: 'getUser',
+        operationType: 'query',
+        serviceType: 'mongodb',
+        target: 'users',
+        filePath: 'src/users.ts',
+      },
+      {
+        functionName: 'getAudit',
+        operationType: 'query',
+        serviceType: 'mongodb',
+        target: 'audit',
+        filePath: 'src/audit.ts',
+      },
+    ];
+    const graph = buildGraph(ops, [], [], mysqlMeta, mongoMeta);
+    const names = getTableNodes(graph).map((n) => n.name);
+    expect(names).toContain('shop.orders');
+    expect(names).not.toContain('default.orders');
+    expect(names).toContain('app.users');
+    expect(names).not.toContain('default.users');
+    expect(names).toContain('default.audit');
+    expect(graph.edges).toContainEqual({
+      from: 'function:src/shop.ts:listOrders',
+      to: 'table:mysql:shop.orders',
+      type: 'query',
+    });
+  });
+
   it('creates MongoDB collection and index nodes from metadata, skipping _id_', () => {
     const mongoMeta: MongoCollectionMetadata[] = [
       { database: 'app', collection: 'users', indexes: [{ name: '_id_' }, { name: 'idx_email' }] },

@@ -16,6 +16,10 @@ export class IaCDriftAnalyzer implements Analyzer {
 
     const iac = this.iacSchema;
 
+    // A repo with no IaC files at all isn't drifting — reporting every live
+    // resource as "not in IaC" is noise, not a finding.
+    if (Object.values(iac).every((list) => list.length === 0)) return findings;
+
     // ── DynamoDB drift ───────────────────────────────────────────────────────
 
     const deployedDynamo = new Set(

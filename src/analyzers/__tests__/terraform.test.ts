@@ -18,10 +18,40 @@ function makeEmptyIaC(): IaCSchema {
   };
 }
 
+// The drift analyzer no-ops when the repo has zero IaC resources, so
+// "deployed but not in IaC" cases need at least one unrelated IaC resource.
+function makeIaCWithFiles(): IaCSchema {
+  const iac = makeEmptyIaC();
+  iac.buckets = [
+    { name: 'unrelated-bucket', versioned: true, source: 'terraform', filePath: 'main.tf' },
+  ];
+  return iac;
+}
+
 describe('IaCDriftAnalyzer', () => {
   it('returns empty findings when no IaC schema is set', async () => {
     const analyzer = new IaCDriftAnalyzer();
     const graph: SystemGraph = { nodes: [], edges: [] };
+    expect(await analyzer.analyze(graph)).toHaveLength(0);
+  });
+
+  it('returns empty findings when the repo has no IaC files at all', async () => {
+    const analyzer = new IaCDriftAnalyzer();
+    analyzer.setIaCSchema(makeEmptyIaC());
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+        {
+          id: 'queue:aws:orders-queue',
+          type: 'queue',
+          name: 'orders-queue',
+          provider: 'aws',
+          hasDLQ: true,
+          encrypted: true,
+        },
+      ],
+      edges: [],
+    };
     expect(await analyzer.analyze(graph)).toHaveLength(0);
   });
 
@@ -78,7 +108,7 @@ describe('IaCDriftAnalyzer', () => {
 
     it('flags DynamoDB table deployed but not in IaC', async () => {
       const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeEmptyIaC());
+      analyzer.setIaCSchema(makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [
@@ -117,7 +147,7 @@ describe('IaCDriftAnalyzer', () => {
 
     it('flags queue deployed but not in IaC', async () => {
       const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeEmptyIaC());
+      analyzer.setIaCSchema(makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [
@@ -155,7 +185,7 @@ describe('IaCDriftAnalyzer', () => {
 
     it('flags Lambda deployed but not in IaC', async () => {
       const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeEmptyIaC());
+      analyzer.setIaCSchema(makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders' }],

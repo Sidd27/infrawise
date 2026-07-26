@@ -376,6 +376,26 @@ export function buildGraph(
 
   // ── Code operations (functions + edges) ───────────────────────────────────
 
+  // SQL text and `db.collection('x')` calls name tables unqualified, while
+  // extracted nodes are schema-qualified. Resolve short names against the
+  // extracted schema so code edges land on the real table instead of creating a
+  // second, metadata-less node. Ambiguous names (same table in two databases)
+  // fall back to the placeholder schema.
+  const qualifiedByShortName = new Map<string, string>();
+  for (const n of nodes) {
+    if (n.type !== 'table' || !n.name.includes('.')) continue;
+    const short = n.name.slice(n.name.lastIndexOf('.') + 1).toLowerCase();
+    const key = `${n.databaseType}:${short}`;
+    qualifiedByShortName.set(key, qualifiedByShortName.has(key) ? '' : n.name);
+  }
+  function qualify(databaseType: string, target: string, fallbackSchema: string): string {
+    if (target.includes('.')) return target;
+    return (
+      qualifiedByShortName.get(`${databaseType}:${target.toLowerCase()}`) ||
+      `${fallbackSchema}.${target}`
+    );
+  }
+
   for (const op of operations) {
     const funcNodeId = `function:${op.filePath}:${op.functionName}`;
     addNode({ id: funcNodeId, type: 'function', name: op.functionName, file: op.filePath });
@@ -458,16 +478,16 @@ export function buildGraph(
       tableNodeId = `table:dynamo:${op.target}`;
       addNode({ id: tableNodeId, type: 'table', name: op.target, databaseType: 'dynamodb' });
     } else if (op.serviceType === 'mysql') {
-      const q = op.target.includes('.') ? op.target : `default.${op.target}`;
+      const q = qualify('mysql', op.target, 'default');
       tableNodeId = `table:mysql:${q}`;
       addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mysql' });
     } else if (op.serviceType === 'mongodb') {
-      const q = op.target.includes('.') ? op.target : `default.${op.target}`;
+      const q = qualify('mongodb', op.target, 'default');
       tableNodeId = `table:mongodb:${q}`;
       addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'mongodb' });
     } else {
       // postgres
-      const q = op.target.includes('.') ? op.target : `public.${op.target}`;
+      const q = qualify('postgres', op.target, 'public');
       tableNodeId = `table:postgres:${q}`;
       addNode({ id: tableNodeId, type: 'table', name: q, databaseType: 'postgres' });
     }
