@@ -83,8 +83,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       chalk:
-        specifier: ^5.6.2
-        version: 5.6.2
+        specifier: ^6.0.0
+        version: 6.0.0
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -352,6 +352,7 @@ packages:
   '@aws-sdk/core@3.977.0':
     resolution: {integrity: sha512-w+iANjPGOj4fHxWeyjfRt+xeRX8BIOVStqdTcMebfeIJicTiBTMAbQurQuVfAxHpUfsoV+fWaEQvGpO6IWifLQ==}
     engines: {node: '>=20.0.0'}
+    deprecated: Deprecated due to a bug in JSON exponent notation (e.g. ECS timestamps). Upgrade to @aws-sdk/core@3.977.1. https://github.com/aws/aws-sdk-js-v3/issues/8224
 
   '@aws-sdk/credential-provider-cognito-identity@3.972.60':
     resolution: {integrity: sha512-16Fxa3veKIO6nHJr+vN76z3BkSU7725lzruc5S2SQSTUTbK4TXtmi8033WQljZj4k1+383UsMaNOHN6B76fK5A==}
@@ -1779,6 +1780,10 @@ packages:
     resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
+  chalk@6.0.0:
+    resolution: {integrity: sha512-2uNTXIuTTxk7ciZgAU1BQcgnchcG0xXnrs6jzkQfj9SsRa9M2s5zE8WT96hS6KmG4MzWHSrvH43DF1m4XRkrFg==}
+    engines: {node: '>=22'}
+
   character-entities-html4@2.1.0:
     resolution: {integrity: sha512-1v7fgQRj6hnSwFpq1Eu0ynr/CDEw0rXo2B61qXrLNdHZmPKgb7fqS1a2JwF0rISo9q77jDI8VMEHoApn8qDoZA==}
 
@@ -2427,6 +2432,10 @@ packages:
 
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
+    engines: {node: '>= 12'}
+
+  ip-address@10.3.1:
+    resolution: {integrity: sha512-1e9d3kb97NHJTIJDZW9rKqW2h6+dFa50Dy0fpPSMQp2ADje5gvKsXmdiK6dwY5t76TaTt5+P5N1Y/LoToIxP6g==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -5792,6 +5801,8 @@ snapshots:
 
   chalk@5.6.2: {}
 
+  chalk@6.0.0: {}
+
   character-entities-html4@2.1.0: {}
 
   character-entities-legacy@3.0.0: {}
@@ -6600,6 +6611,9 @@ snapshots:
       '@types/node': 26.1.1
 
   ip-address@10.2.0: {}
+
+  ip-address@10.3.1:
+    optional: true
 
   ipaddr.js@1.9.1: {}
 
@@ -8029,7 +8043,7 @@ snapshots:
 
   socks@2.8.9:
     dependencies:
-      ip-address: 10.2.0
+      ip-address: 10.3.1
       smart-buffer: 4.2.0
     optional: true
 
