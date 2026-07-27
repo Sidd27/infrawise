@@ -11,3 +11,11 @@ updates:
       dev-dependencies:
         dependency-type: "development"
 
+  # The Dockerfile pins its base image by digest for reproducibility and for
+  # Scorecard's Pinned-Dependencies check, which means the pin only picks up
+  # base image patches when something bumps it. This is that something.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
