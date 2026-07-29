@@ -94,7 +94,7 @@
     "@aws-sdk/client-ssm": "^3.1095.0",
     "@aws-sdk/credential-providers": "^3.1095.0",
     "@fastify/cors": "^11.2.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "fastify": "^5.8.5",
