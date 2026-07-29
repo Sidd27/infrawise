@@ -18,7 +18,7 @@ RUN pnpm build && pnpm prune --prod --ignore-scripts
 # Same major as the build stage, so node_modules is never installed under one
 # runtime and executed under another. Node 26 becomes LTS on 2026-10-28. tsc
 # emits per tsconfig target, so this never narrows what the package supports:
-# engines stays >=20.
+# engines stays >=22.
 FROM node:26-alpine@sha256:e88a35be04478413b7c71c455cd9865de9b9360e1f43456be5951032d7ac1a66
 ENV NODE_ENV=production
 # The entrypoint runs `node` only. npm and corepack ship with the official image
