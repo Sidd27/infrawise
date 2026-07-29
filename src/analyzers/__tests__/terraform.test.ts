@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { IaCDriftAnalyzer } from '../terraform';
-import type { SystemGraph } from '../../types';
-import type { IaCSchema } from '../../adapters/iac/terraform';
+import { IaCDriftAnalyzer } from '../terraform.js';
+import type { SystemGraph } from '../../types.js';
+import type { IaCSchema } from '../../adapters/iac/terraform.js';
 
 function makeEmptyIaC(): IaCSchema {
   return {
@@ -9,6 +9,7 @@ function makeEmptyIaC(): IaCSchema {
     rdsInstances: [],
     mongoClusters: [],
     queues: [],
+    outputs: [],
     topics: [],
     lambdas: [],
     buckets: [],

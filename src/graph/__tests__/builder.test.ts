@@ -17,7 +17,7 @@ import {
   getOutgoingEdges,
   getIncomingEdges,
   addStackOutputNodes,
-} from '../index';
+} from '../index.js';
 import type {
   SystemGraph,
   ExtractedOperation,
@@ -26,7 +26,7 @@ import type {
   MySQLTableMetadata,
   MongoCollectionMetadata,
   ServicesMeta,
-} from '../../types';
+} from '../../types.js';
 
 const mockDynamoMeta: DynamoTableMetadata[] = [
   {
@@ -180,6 +180,7 @@ describe('buildGraph', () => {
         columns: ['id', 'status'],
         indexes: ['idx_status'],
         primaryKeys: ['id'],
+        engine: 'InnoDB',
       },
     ];
     const graph = buildGraph([], [], [], mysqlMeta);
@@ -196,10 +197,16 @@ describe('buildGraph', () => {
         columns: ['id'],
         indexes: [],
         primaryKeys: ['id'],
+        engine: 'InnoDB',
       },
     ];
     const mongoMeta: MongoCollectionMetadata[] = [
-      { database: 'app', collection: 'users', indexes: [{ name: 'idx_email' }] },
+      {
+        database: 'app',
+        collection: 'users',
+        indexes: [{ name: 'idx_email', keys: { email: 1 }, unique: false, sparse: false }],
+        estimatedCount: 0,
+      },
     ];
     const ops: ExtractedOperation[] = [
       {
@@ -245,7 +252,15 @@ describe('buildGraph', () => {
 
   it('creates MongoDB collection and index nodes from metadata, skipping _id_', () => {
     const mongoMeta: MongoCollectionMetadata[] = [
-      { database: 'app', collection: 'users', indexes: [{ name: '_id_' }, { name: 'idx_email' }] },
+      {
+        database: 'app',
+        collection: 'users',
+        indexes: [
+          { name: '_id_', keys: { _id: 1 }, unique: true, sparse: false },
+          { name: 'idx_email', keys: { email: 1 }, unique: false, sparse: false },
+        ],
+        estimatedCount: 0,
+      },
     ];
     const graph = buildGraph([], [], [], [], mongoMeta);
     const tables = getTableNodes(graph);
@@ -257,7 +272,20 @@ describe('buildGraph', () => {
 
   it('creates SQS queue nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      sqs: [{ name: 'orders-queue', hasDLQ: true, encrypted: true, approximateMessages: 0 }],
+      sqs: [
+        {
+          name: 'orders-queue',
+          url: 'https://sqs.us-east-1.amazonaws.com/123/orders-queue',
+          arn: 'arn:aws:sqs:us-east-1:123:orders-queue',
+          hasDLQ: true,
+          encrypted: true,
+          isFifo: false,
+          visibilityTimeoutSec: 30,
+          retentionDays: 4,
+          approximateMessages: 0,
+          approximateInflight: 0,
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const queues = getQueueNodes(graph);
@@ -268,7 +296,16 @@ describe('buildGraph', () => {
 
   it('creates SNS topic nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      sns: [{ name: 'order-events', subscriptionCount: 2, encrypted: true, filterPolicies: [] }],
+      sns: [
+        {
+          name: 'order-events',
+          arn: 'arn:aws:sns:us-east-1:123:order-events',
+          subscriptionCount: 2,
+          subscriptionProtocols: ['sqs', 'lambda'],
+          encrypted: true,
+          filterPolicies: [],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const topics = getTopicNodes(graph);
@@ -281,7 +318,9 @@ describe('buildGraph', () => {
       sns: [
         {
           name: 'payments',
+          arn: 'arn:aws:sns:us-east-1:123:payments',
           subscriptionCount: 1,
+          subscriptionProtocols: ['sqs'],
           encrypted: false,
           filterPolicies: [
             {
@@ -305,10 +344,13 @@ describe('buildGraph', () => {
       lambda: [
         {
           name: 'processOrders',
+          arn: 'arn:aws:lambda:us-east-1:123:function:processOrders',
           runtime: 'nodejs22.x',
           memoryMB: 512,
           timeoutSec: 30,
           envVarKeys: [],
+          layers: [],
+          triggers: [],
         },
       ],
     };
@@ -320,7 +362,13 @@ describe('buildGraph', () => {
 
   it('creates secret nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      secrets: [{ name: 'db-password', rotationEnabled: false }],
+      secrets: [
+        {
+          name: 'db-password',
+          arn: 'arn:aws:secretsmanager:us-east-1:123:secret:db-password',
+          rotationEnabled: false,
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const secrets = getSecretNodes(graph);
@@ -340,7 +388,15 @@ describe('buildGraph', () => {
 
   it('creates log group nodes from servicesMeta', () => {
     const services: ServicesMeta = {
-      logs: [{ logGroupName: '/app/api', retentionDays: 90, errorCount: 0, topErrorPatterns: [] }],
+      logs: [
+        {
+          logGroupName: '/app/api',
+          retentionDays: 90,
+          errorCount: 0,
+          warnCount: 0,
+          topErrorPatterns: [],
+        },
+      ],
     };
     const graph = buildGraph([], [], [], [], [], services);
     const logGroups = getLogGroupNodes(graph);
@@ -474,6 +530,7 @@ describe('buildGraph', () => {
       lambda: [
         {
           name: 'generateReport',
+          arn: 'arn:aws:lambda:us-east-1:123:function:generateReport',
           runtime: 'nodejs22.x',
           memoryMB: 512,
           timeoutSec: 30,
@@ -507,7 +564,20 @@ describe('buildGraph', () => {
 
   it('does not duplicate service nodes when operation target already exists in servicesMeta', () => {
     const services: ServicesMeta = {
-      sqs: [{ name: 'orders-queue', hasDLQ: true, encrypted: true, approximateMessages: 0 }],
+      sqs: [
+        {
+          name: 'orders-queue',
+          url: 'https://sqs.us-east-1.amazonaws.com/123/orders-queue',
+          arn: 'arn:aws:sqs:us-east-1:123:orders-queue',
+          hasDLQ: true,
+          encrypted: true,
+          isFifo: false,
+          visibilityTimeoutSec: 30,
+          retentionDays: 4,
+          approximateMessages: 0,
+          approximateInflight: 0,
+        },
+      ],
     };
     const ops: ExtractedOperation[] = [
       {
@@ -550,9 +620,11 @@ describe('buildGraph', () => {
       lambda: [
         {
           name: 'processUpload',
+          arn: 'arn:aws:lambda:us-east-1:123:function:processUpload',
           runtime: 'nodejs22.x',
           memoryMB: 512,
           timeoutSec: 30,
+          layers: [],
           envVarKeys: [],
           triggers: [],
         },

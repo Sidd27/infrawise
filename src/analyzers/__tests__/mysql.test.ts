@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from '../mysql';
-import type { SystemGraph } from '../../types';
+import { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from '../mysql.js';
+import type { SystemGraph } from '../../types.js';
 
 function makeMySQLQueryGraph(withIndex = false): SystemGraph {
   const nodes: SystemGraph['nodes'] = [

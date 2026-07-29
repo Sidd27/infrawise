@@ -7,7 +7,7 @@ import {
   extractCloudFormationSchema,
   extractCDKSchema,
   extractIaCSchema,
-} from '../terraform';
+} from '../terraform.js';
 
 function tmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-iac-'));

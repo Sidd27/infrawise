@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { MySQLConnectionError } from '../mysql';
-import { MongoConnectionError } from '../mongodb';
-import { validatePostgresAccess } from '../postgres';
-import { validateMySQLAccess } from '../mysql';
-import { validateMongoAccess } from '../mongodb';
+import { MySQLConnectionError } from '../mysql.js';
+import { MongoConnectionError } from '../mongodb.js';
+import { validatePostgresAccess } from '../postgres.js';
+import { validateMySQLAccess } from '../mysql.js';
+import { validateMongoAccess } from '../mongodb.js';
 
 const UNREACHABLE = 'localhost:19999';
 

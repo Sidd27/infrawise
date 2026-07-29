@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from '../postgres';
-import type { SystemGraph } from '../../types';
+import { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from '../postgres.js';
+import type { SystemGraph } from '../../types.js';
 
 function makePostgresQueryGraph(withIndex = false): SystemGraph {
   const nodes: SystemGraph['nodes'] = [

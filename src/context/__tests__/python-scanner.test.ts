@@ -3,8 +3,8 @@ import { execFileSync } from 'child_process';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import { scanPythonRepository } from '../python';
-import { scanRepository } from '../index';
+import { scanPythonRepository } from '../python.js';
+import { scanRepository } from '../index.js';
 
 const hasPython = (() => {
   for (const cmd of ['python3', 'python', 'py']) {

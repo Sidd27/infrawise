@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import { scanRepository } from '../index';
+import { scanRepository } from '../index.js';
 
 let tmpDir: string;
 

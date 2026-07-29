@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY website/package.json ./website/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts --filter infrawise
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN pnpm build && pnpm prune --prod --ignore-scripts
 

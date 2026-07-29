@@ -16,8 +16,8 @@ import {
   CacheSingleNodeAnalyzer,
   LambdaThrottlingAnalyzer,
   StaleQueueMessagesAnalyzer,
-} from '../aws-services';
-import type { SystemGraph } from '../../types';
+} from '../aws-services.js';
+import type { SystemGraph } from '../../types.js';
 
 describe('MissingDLQAnalyzer', () => {
   const analyzer = new MissingDLQAnalyzer();

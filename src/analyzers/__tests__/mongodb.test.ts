@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from '../mongodb';
-import type { SystemGraph } from '../../types';
+import { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from '../mongodb.js';
+import type { SystemGraph } from '../../types.js';
 
 function makeMongoQueryGraph(withIndex = false): SystemGraph {
   const nodes: SystemGraph['nodes'] = [

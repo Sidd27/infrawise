@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from '../dynamodb';
-import type { SystemGraph } from '../../types';
+import { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from '../dynamodb.js';
+import type { SystemGraph } from '../../types.js';
 
 // Helper: build a minimal graph with DynamoDB scan
 function makeScanGraph(): SystemGraph {

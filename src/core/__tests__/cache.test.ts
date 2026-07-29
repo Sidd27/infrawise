@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeCache, readCache, clearCache } from '../cache';
+import { writeCache, readCache, clearCache } from '../cache.js';
 
 const CACHE_DIR = path.join(process.cwd(), '.infrawise', 'cache');
 

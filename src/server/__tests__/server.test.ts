@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer, createMcpServer, setGraphState } from '../index';
-import type { SystemGraph, Finding } from '../../types';
+import { createServer, createMcpServer, setGraphState } from '../index.js';
+import type { SystemGraph, Finding } from '../../types.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
 
@@ -77,8 +77,10 @@ async function makeClient(graph: SystemGraph, findings: Finding[]) {
 }
 
 async function callTool(client: Client, name: string, args: Record<string, unknown> = {}) {
-  const result = await client.callTool({ name, arguments: args });
-  return JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+  const result = (await client.callTool({ name, arguments: args })) as {
+    content: { type: 'text'; text: string }[];
+  };
+  return JSON.parse(result.content[0].text);
 }
 
 describe('MCP Server — protocol', () => {

@@ -5,8 +5,8 @@ import {
   RDSUnencryptedAnalyzer,
   RDSNoDeletionProtectionAnalyzer,
   RDSNoMultiAZAnalyzer,
-} from '../rds';
-import type { SystemGraph } from '../../types';
+} from '../rds.js';
+import type { SystemGraph } from '../../types.js';
 
 function makeGraph(
   instances: Array<{

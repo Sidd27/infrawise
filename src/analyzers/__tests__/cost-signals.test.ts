@@ -5,8 +5,8 @@ import {
   lambdaCostSignal,
   dynamoCostSignal,
   cacheCostSignal,
-} from '../cost-signals';
-import type { SystemGraph, GraphNode } from '../../types';
+} from '../cost-signals.js';
+import type { SystemGraph, GraphNode } from '../../types.js';
 
 function lambdaNode(
   overrides: Partial<Extract<GraphNode, { type: 'lambda' }>> = {},
