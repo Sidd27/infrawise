@@ -10,6 +10,18 @@ updates:
           - "@aws-sdk/*"
       dev-dependencies:
         dependency-type: "development"
+    ignore:
+      # typescript-eslint hard-errors on TS 7 (typescript-eslint#10940), so a
+      # major typescript bump takes lint down with it. Drop this once upstream
+      # ships TS 7 support.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # website/ pins js-yaml 4 on purpose: @astrojs/starlight ships .ts sources
+      # that do `import yaml from 'js-yaml'`, Vite resolves those from the
+      # website root, and js-yaml 5 dropped the default export. A major bump
+      # here builds fine in src/ and breaks `astro build`.
+      - dependency-name: "js-yaml"
+        update-types: ["version-update:semver-major"]
 
   # The Dockerfile pins its base image by digest for reproducibility and for
   # Scorecard's Pinned-Dependencies check, which means the pin only picks up
