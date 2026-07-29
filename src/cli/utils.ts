@@ -114,41 +114,45 @@ export function printFinding(finding: Finding, index: number): void {
   console.log(`       ${chalk.green('→')} ${finding.recommendation}`);
 }
 
+const BOX_WIDTH = 29;
+
+// Pads on the uncolored text — chalk's escape codes make .length useless here.
+function boxRow(plain: string, styled: string): string {
+  return (
+    chalk.dim('  │') +
+    styled +
+    ' '.repeat(Math.max(0, BOX_WIDTH - [...plain].length)) +
+    chalk.dim('│')
+  );
+}
+
 export function printSummaryBox(findings: Finding[]): void {
-  const high = findings.filter((f) => f.severity === 'high').length;
-  const medium = findings.filter((f) => f.severity === 'medium').length;
-  const low = findings.filter((f) => f.severity === 'low').length;
-  const verify = findings.filter((f) => f.severity === 'verify').length;
+  const count = (severity: Finding['severity']): string =>
+    String(findings.filter((f) => f.severity === severity).length).padStart(3);
+
+  const severityRow = (
+    label: string,
+    n: string,
+    color: (s: string) => string,
+    boldColor: (s: string) => string,
+  ): string => boxRow(`  ● ${label}${n}`, `  ${color('●')} ${label}${boldColor(n)}`);
+
+  const rule = (l: string, r: string): string => chalk.dim(`  ${l}${'─'.repeat(BOX_WIDTH)}${r}`);
 
   console.log('');
-  console.log(chalk.dim('  ┌─────────────────────────────┐'));
-  console.log(chalk.dim('  │') + chalk.bold('  Analysis Summary             ') + chalk.dim('│'));
-  console.log(chalk.dim('  ├─────────────────────────────┤'));
+  console.log(rule('┌', '┐'));
+  console.log(boxRow('  Analysis Summary', chalk.bold('  Analysis Summary')));
+  console.log(rule('├', '┤'));
+  console.log(severityRow('High     ', count('high'), chalk.red, chalk.red.bold));
+  console.log(severityRow('Medium   ', count('medium'), chalk.yellow, chalk.yellow.bold));
+  console.log(severityRow('Low      ', count('low'), chalk.cyan, chalk.cyan.bold));
+  console.log(severityRow('Verify   ', count('verify'), chalk.blue, chalk.blue.bold));
+  console.log(rule('├', '┤'));
   console.log(
-    chalk.dim('  │') +
-      `  ${chalk.red('●')} High     ${chalk.red.bold(String(high).padStart(3))}                 ` +
-      chalk.dim('│'),
+    boxRow(
+      `  Total      ${String(findings.length).padStart(3)}`,
+      `  Total      ${chalk.bold(String(findings.length).padStart(3))}`,
+    ),
   );
-  console.log(
-    chalk.dim('  │') +
-      `  ${chalk.yellow('●')} Medium   ${chalk.yellow.bold(String(medium).padStart(3))}                 ` +
-      chalk.dim('│'),
-  );
-  console.log(
-    chalk.dim('  │') +
-      `  ${chalk.cyan('●')} Low      ${chalk.cyan.bold(String(low).padStart(3))}                 ` +
-      chalk.dim('│'),
-  );
-  console.log(
-    chalk.dim('  │') +
-      `  ${chalk.blue('●')} Verify   ${chalk.blue.bold(String(verify).padStart(3))}                 ` +
-      chalk.dim('│'),
-  );
-  console.log(chalk.dim('  ├─────────────────────────────┤'));
-  console.log(
-    chalk.dim('  │') +
-      `  Total    ${chalk.bold(String(findings.length).padStart(3))}                 ` +
-      chalk.dim('│'),
-  );
-  console.log(chalk.dim('  └─────────────────────────────┘'));
+  console.log(rule('└', '┘'));
 }
