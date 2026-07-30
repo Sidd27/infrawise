@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { stripVTControlCharacters } from 'util';
 import chalk from 'chalk';
 import type { Finding } from '../types.js';
 
@@ -116,43 +117,34 @@ export function printFinding(finding: Finding, index: number): void {
 
 const BOX_WIDTH = 29;
 
-// Pads on the uncolored text — chalk's escape codes make .length useless here.
-function boxRow(plain: string, styled: string): string {
-  return (
-    chalk.dim('  │') +
-    styled +
-    ' '.repeat(Math.max(0, BOX_WIDTH - [...plain].length)) +
-    chalk.dim('│')
-  );
-}
+const SEVERITIES = [
+  ['High', 'high', chalk.red],
+  ['Medium', 'medium', chalk.yellow],
+  ['Low', 'low', chalk.cyan],
+  ['Verify', 'verify', chalk.blue],
+] as const;
+
+// Pads on the uncolored width — chalk's escape codes make .length useless here.
+const boxRow = (s: string): string =>
+  chalk.dim('  │') +
+  s +
+  ' '.repeat(Math.max(0, BOX_WIDTH - stripVTControlCharacters(s).length)) +
+  chalk.dim('│');
+
+const rule = (l: string, r: string): string => chalk.dim(`  ${l}${'─'.repeat(BOX_WIDTH)}${r}`);
 
 export function printSummaryBox(findings: Finding[]): void {
-  const count = (severity: Finding['severity']): string =>
-    String(findings.filter((f) => f.severity === severity).length).padStart(3);
-
-  const severityRow = (
-    label: string,
-    n: string,
-    color: (s: string) => string,
-    boldColor: (s: string) => string,
-  ): string => boxRow(`  ● ${label}${n}`, `  ${color('●')} ${label}${boldColor(n)}`);
-
-  const rule = (l: string, r: string): string => chalk.dim(`  ${l}${'─'.repeat(BOX_WIDTH)}${r}`);
+  const pad = (n: number): string => String(n).padStart(3);
 
   console.log('');
   console.log(rule('┌', '┐'));
-  console.log(boxRow('  Analysis Summary', chalk.bold('  Analysis Summary')));
+  console.log(boxRow(chalk.bold('  Analysis Summary')));
   console.log(rule('├', '┤'));
-  console.log(severityRow('High     ', count('high'), chalk.red, chalk.red.bold));
-  console.log(severityRow('Medium   ', count('medium'), chalk.yellow, chalk.yellow.bold));
-  console.log(severityRow('Low      ', count('low'), chalk.cyan, chalk.cyan.bold));
-  console.log(severityRow('Verify   ', count('verify'), chalk.blue, chalk.blue.bold));
+  for (const [label, severity, color] of SEVERITIES) {
+    const n = findings.filter((f) => f.severity === severity).length;
+    console.log(boxRow(`  ${color('●')} ${label.padEnd(9)}${color.bold(pad(n))}`));
+  }
   console.log(rule('├', '┤'));
-  console.log(
-    boxRow(
-      `  Total      ${String(findings.length).padStart(3)}`,
-      `  Total      ${chalk.bold(String(findings.length).padStart(3))}`,
-    ),
-  );
+  console.log(boxRow(`  Total      ${chalk.bold(pad(findings.length))}`));
   console.log(rule('└', '┘'));
 }
