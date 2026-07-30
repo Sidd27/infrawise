@@ -22,6 +22,7 @@ Infrawise answers all of these via 21 MCP tools served over Streamable HTTP.
 ## Quick start
 
 ```bash
+# requires Node.js 22 or later
 npm install -g infrawise
 cd your-project
 infrawise start --claude    # probe env + analyze + write .mcp.json + open Claude Code

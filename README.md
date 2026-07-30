@@ -65,6 +65,8 @@ It is a deterministic infrastructure intelligence layer for AI-assisted developm
 
 ## Installation
 
+Requires **Node.js 22 or later** (`node --version`).
+
 ```bash
 npm install -g infrawise
 ```
