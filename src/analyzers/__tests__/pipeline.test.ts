@@ -67,9 +67,8 @@ describe('PipelineAnalyzer — scan in pipeline', () => {
         filePath: 'main.tf',
       },
     ];
-    const analyzer = new PipelineAnalyzer();
-    analyzer.setIaCLambdas(iac);
-    const findings = await analyzer.analyze(graph);
+    const analyzer = (g: SystemGraph) => PipelineAnalyzer(g, iac);
+    const findings = await analyzer(graph);
     const scan = findings.filter((f) => f.issue.includes('Full scan runs inside'));
     expect(scan).toHaveLength(1);
     expect(scan[0]!.severity).toBe('high');
@@ -82,8 +81,8 @@ describe('PipelineAnalyzer — scan in pipeline', () => {
       consumerFnFile: 'src/fulfill.ts',
       dlq: true,
     });
-    const analyzer = new PipelineAnalyzer();
-    const findings = await analyzer.analyze(graph);
+    const analyzer = PipelineAnalyzer;
+    const findings = await analyzer(graph);
     const scan = findings.filter((f) => f.issue.includes('Full scan runs inside'));
     expect(scan).toHaveLength(1);
     expect(scan[0]!.severity).toBe('verify');
@@ -96,8 +95,8 @@ describe('PipelineAnalyzer — scan in pipeline', () => {
       consumerFnFile: 'src/beta.ts',
       dlq: true,
     });
-    const analyzer = new PipelineAnalyzer();
-    const findings = await analyzer.analyze(graph);
+    const analyzer = PipelineAnalyzer;
+    const findings = await analyzer(graph);
     expect(findings.filter((f) => f.issue.includes('Full scan runs inside'))).toHaveLength(0);
   });
 });
@@ -110,7 +109,7 @@ describe('PipelineAnalyzer — missing DLQ hop', () => {
       consumerFnFile: 'src/beta.ts',
       dlq: false,
     });
-    const findings = await new PipelineAnalyzer().analyze(graph);
+    const findings = await PipelineAnalyzer(graph);
     const dlq = findings.filter((f) => f.issue.includes('mid-pipeline'));
     expect(dlq).toHaveLength(1);
     expect(dlq[0]!.severity).toBe('medium');
@@ -123,7 +122,7 @@ describe('PipelineAnalyzer — missing DLQ hop', () => {
       consumerFnFile: 'src/beta.ts',
       dlq: true,
     });
-    const findings = await new PipelineAnalyzer().analyze(graph);
+    const findings = await PipelineAnalyzer(graph);
     expect(findings.filter((f) => f.issue.includes('mid-pipeline'))).toHaveLength(0);
   });
 });
@@ -162,16 +161,16 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
         { from: 'function:src/consume.ts:handler', to: 'table:dynamo:Orders', type: 'query' },
       ],
     };
-    const analyzer = new PipelineAnalyzer();
-    analyzer.setIaCLambdas([
-      {
-        name: 'consume-prod',
-        handler: 'src/consume.handler',
-        source: 'terraform',
-        filePath: 'm.tf',
-      },
-    ]);
-    const findings = await analyzer.analyze(graph);
+    const analyzer = (g: SystemGraph) =>
+      PipelineAnalyzer(g, [
+        {
+          name: 'consume-prod',
+          handler: 'src/consume.handler',
+          source: 'terraform',
+          filePath: 'm.tf',
+        },
+      ]);
+    const findings = await analyzer(graph);
     const repeated = findings.filter((f) => f.issue.includes('multiple stages'));
     expect(repeated).toHaveLength(1);
     expect(repeated[0]!.severity).toBe('medium');
@@ -222,11 +221,11 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
         },
       ],
     };
-    const analyzer = new PipelineAnalyzer();
-    analyzer.setIaCLambdas([
-      { name: 'consume-prod', handler: 'consume.handler', source: 'terraform', filePath: 'm.tf' },
-    ]);
-    const findings = await analyzer.analyze(graph);
+    const analyzer = (g: SystemGraph) =>
+      PipelineAnalyzer(g, [
+        { name: 'consume-prod', handler: 'consume.handler', source: 'terraform', filePath: 'm.tf' },
+      ]);
+    const findings = await analyzer(graph);
     expect(findings.filter((f) => f.issue.includes('multiple stages'))).toHaveLength(1);
   });
 
@@ -237,16 +236,16 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
       consumerFnFile: 'src/consume.ts',
       dlq: true,
     });
-    const analyzer = new PipelineAnalyzer();
-    analyzer.setIaCLambdas([
-      {
-        name: 'consume-prod',
-        handler: 'src/consume.handler',
-        source: 'terraform',
-        filePath: 'm.tf',
-      },
-    ]);
-    const findings = await analyzer.analyze(graph);
+    const analyzer = (g: SystemGraph) =>
+      PipelineAnalyzer(g, [
+        {
+          name: 'consume-prod',
+          handler: 'src/consume.handler',
+          source: 'terraform',
+          filePath: 'm.tf',
+        },
+      ]);
+    const findings = await analyzer(graph);
     expect(findings.filter((f) => f.issue.includes('multiple stages'))).toHaveLength(0);
   });
 
@@ -284,7 +283,7 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
       ],
     };
     // no setIaCLambdas -> only the heuristic linker can connect lambda:consume to function consume
-    const findings = await new PipelineAnalyzer().analyze(graph);
+    const findings = await PipelineAnalyzer(graph);
     const repeated = findings.filter((f) => f.issue.includes('multiple stages'));
     expect(repeated).toHaveLength(1);
     expect(repeated[0]!.severity).toBe('verify');

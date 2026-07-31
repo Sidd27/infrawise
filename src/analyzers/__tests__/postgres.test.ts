@@ -29,11 +29,11 @@ function makePostgresQueryGraph(withIndex = false): SystemGraph {
 }
 
 describe('MissingIndexAnalyzer', () => {
-  const analyzer = new MissingIndexAnalyzer();
+  const analyzer = MissingIndexAnalyzer;
 
   it('flags postgres table with queries but no index', async () => {
     const graph = makePostgresQueryGraph(false);
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('payments');
@@ -41,7 +41,7 @@ describe('MissingIndexAnalyzer', () => {
 
   it('does not flag table that has indexes', async () => {
     const graph = makePostgresQueryGraph(true);
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
@@ -53,18 +53,18 @@ describe('MissingIndexAnalyzer', () => {
       ],
       edges: [{ from: 'fn:getOrder', to: 'table:dynamo:Orders', type: 'query' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
   it('returns empty findings for empty graph', async () => {
-    const findings = await analyzer.analyze({ nodes: [], edges: [] });
+    const findings = await analyzer({ nodes: [], edges: [] });
     expect(findings).toHaveLength(0);
   });
 });
 
 describe('NplusOneAnalyzer', () => {
-  const analyzer = new NplusOneAnalyzer();
+  const analyzer = NplusOneAnalyzer;
 
   it('detects N+1 when same function queries same table multiple times', async () => {
     const graph: SystemGraph = {
@@ -82,7 +82,7 @@ describe('NplusOneAnalyzer', () => {
         { from: 'fn:processOrders', to: 'table:pg:public.payments', type: 'query' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('processOrders');
@@ -102,7 +102,7 @@ describe('NplusOneAnalyzer', () => {
       ],
       edges: [{ from: 'fn:getPayment', to: 'table:pg:public.payments', type: 'query' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
@@ -117,13 +117,13 @@ describe('NplusOneAnalyzer', () => {
         { from: 'fn:fn1', to: 'table:dynamo:Orders', type: 'query' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 });
 
 describe('LargeSelectAnalyzer', () => {
-  const analyzer = new LargeSelectAnalyzer();
+  const analyzer = LargeSelectAnalyzer;
 
   it('flags sequential scan on postgres table', async () => {
     const graph: SystemGraph = {
@@ -138,7 +138,7 @@ describe('LargeSelectAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings.length).toBeGreaterThan(0);
     expect(findings[0].severity).toBe('medium');
   });
@@ -148,7 +148,7 @@ describe('LargeSelectAnalyzer', () => {
       nodes: [{ id: 'query:1', type: 'query', operation: 'SELECT * FROM orders' }],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings.some((f) => f.issue.includes('SELECT *'))).toBe(true);
   });
 
@@ -165,7 +165,7 @@ describe('LargeSelectAnalyzer', () => {
       ],
       edges: [{ from: 'fn:getOne', to: 'table:pg:public.orders', type: 'query' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 });

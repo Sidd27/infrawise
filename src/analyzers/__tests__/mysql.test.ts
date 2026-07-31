@@ -22,17 +22,17 @@ function makeMySQLQueryGraph(withIndex = false): SystemGraph {
 }
 
 describe('MissingMySQLIndexAnalyzer', () => {
-  const analyzer = new MissingMySQLIndexAnalyzer();
+  const analyzer = MissingMySQLIndexAnalyzer;
 
   it('flags MySQL table queried without indexes', async () => {
-    const findings = await analyzer.analyze(makeMySQLQueryGraph(false));
+    const findings = await analyzer(makeMySQLQueryGraph(false));
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('shop.orders');
   });
 
   it('does not flag table that has indexes', async () => {
-    expect(await analyzer.analyze(makeMySQLQueryGraph(true))).toHaveLength(0);
+    expect(await analyzer(makeMySQLQueryGraph(true))).toHaveLength(0);
   });
 
   it('ignores non-mysql tables', async () => {
@@ -48,15 +48,15 @@ describe('MissingMySQLIndexAnalyzer', () => {
       ],
       edges: [{ from: 'fn:fn1', to: 'table:pg:public.orders', type: 'query' }],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('returns empty findings for empty graph', async () => {
-    expect(await analyzer.analyze({ nodes: [], edges: [] })).toHaveLength(0);
+    expect(await analyzer({ nodes: [], edges: [] })).toHaveLength(0);
   });
 
   it('includes caller function names and query count in metadata', async () => {
-    const findings = await analyzer.analyze(makeMySQLQueryGraph(false));
+    const findings = await analyzer(makeMySQLQueryGraph(false));
     expect(findings[0].metadata?.callerFunctions).toContain('getOrder');
     expect(findings[0].metadata?.queryCount).toBe(1);
   });
@@ -78,14 +78,14 @@ describe('MissingMySQLIndexAnalyzer', () => {
         { from: 'fn:fn2', to: 'table:mysql:shop.orders', type: 'scan' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].metadata?.queryCount).toBe(2);
   });
 });
 
 describe('MySQLFullTableScanAnalyzer', () => {
-  const analyzer = new MySQLFullTableScanAnalyzer();
+  const analyzer = MySQLFullTableScanAnalyzer;
 
   it('detects a full table scan on a MySQL table', async () => {
     const graph: SystemGraph = {
@@ -100,14 +100,14 @@ describe('MySQLFullTableScanAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mysql:shop.orders', type: 'scan' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('shop.orders');
   });
 
   it('returns no findings when no scans exist', async () => {
-    expect(await analyzer.analyze(makeMySQLQueryGraph(false))).toHaveLength(0);
+    expect(await analyzer(makeMySQLQueryGraph(false))).toHaveLength(0);
   });
 
   it('does not flag non-mysql tables on scan', async () => {
@@ -118,7 +118,7 @@ describe('MySQLFullTableScanAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:dynamo:Orders', type: 'scan' }],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('emits one finding per table with correct scan count', async () => {
@@ -138,12 +138,12 @@ describe('MySQLFullTableScanAnalyzer', () => {
         { from: 'fn:b', to: 'table:mysql:shop.orders', type: 'scan' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].metadata?.scanCount).toBe(2);
   });
 
   it('returns empty findings for empty graph', async () => {
-    expect(await analyzer.analyze({ nodes: [], edges: [] })).toHaveLength(0);
+    expect(await analyzer({ nodes: [], edges: [] })).toHaveLength(0);
   });
 });

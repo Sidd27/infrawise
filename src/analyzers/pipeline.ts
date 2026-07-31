@@ -1,26 +1,20 @@
-import type { Analyzer, Finding, SystemGraph, GraphNode } from '../types.js';
+import type { Finding, SystemGraph, GraphNode } from '../types.js';
 import type { IaCLambda } from '../adapters/iac/terraform.js';
 import { type LambdaCodeLink, compositeLink } from './linkers.js';
 
 const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 
-export class PipelineAnalyzer implements Analyzer {
-  name = 'PipelineAnalyzer';
-  private iacLambdas: IaCLambda[] = [];
-
-  setIaCLambdas(lambdas: IaCLambda[]): void {
-    this.iacLambdas = lambdas;
-  }
-
-  async analyze(graph: SystemGraph): Promise<Finding[]> {
-    const links = compositeLink(this.iacLambdas, graph);
-    const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
-    return [
-      ...detectMissingDlqHop(graph),
-      ...detectScanInPipeline(graph, links, nodeById),
-      ...detectRepeatedTableAccess(graph, links, nodeById),
-    ];
-  }
+export async function PipelineAnalyzer(
+  graph: SystemGraph,
+  iacLambdas: IaCLambda[] = [],
+): Promise<Finding[]> {
+  const links = compositeLink(iacLambdas, graph);
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
+  return [
+    ...detectMissingDlqHop(graph),
+    ...detectScanInPipeline(graph, links, nodeById),
+    ...detectRepeatedTableAccess(graph, links, nodeById),
+  ];
 }
 
 class UnionFind {

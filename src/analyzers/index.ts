@@ -1,45 +1,15 @@
-import type { Analyzer, SystemGraph, Finding } from '../types.js';
+import { SEVERITY_ORDER, type Analyzer, type SystemGraph, type Finding } from '../types.js';
 import { logger } from '../core/index.js';
 
-export { FullTableScanAnalyzer, MissingGSIAnalyzer, HotPartitionAnalyzer } from './dynamodb.js';
-export { MissingIndexAnalyzer, NplusOneAnalyzer, LargeSelectAnalyzer } from './postgres.js';
-export { MissingMySQLIndexAnalyzer, MySQLFullTableScanAnalyzer } from './mysql.js';
-export { MissingMongoIndexAnalyzer, MongoCollectionScanAnalyzer } from './mongodb.js';
-export { IaCDriftAnalyzer } from './terraform.js';
-export { PipelineAnalyzer } from './pipeline.js';
-export {
-  MissingDLQAnalyzer,
-  UnencryptedQueueAnalyzer,
-  LargeQueueBacklogAnalyzer,
-  VisibilityTimeoutMismatchAnalyzer,
-  MissingSecretRotationAnalyzer,
-  MissingLogRetentionAnalyzer,
-  LambdaDefaultMemoryAnalyzer,
-  LambdaHighTimeoutAnalyzer,
-  LambdaMissingTriggerDLQAnalyzer,
-  LambdaMissingIAMPermissionsAnalyzer,
-  S3PublicAccessAnalyzer,
-  S3MissingVersioningAnalyzer,
-  S3UnencryptedAnalyzer,
-  CacheTransitEncryptionAnalyzer,
-  CacheSingleNodeAnalyzer,
-  LambdaThrottlingAnalyzer,
-  StaleQueueMessagesAnalyzer,
-} from './aws-services.js';
-export {
-  RDSPubliclyAccessibleAnalyzer,
-  RDSNoBackupAnalyzer,
-  RDSUnencryptedAnalyzer,
-  RDSNoDeletionProtectionAnalyzer,
-  RDSNoMultiAZAnalyzer,
-} from './rds.js';
-export {
-  LambdaHighMemoryAnalyzer,
-  RDSMultiAZNonProdAnalyzer,
-  lambdaCostSignal,
-  dynamoCostSignal,
-  cacheCostSignal,
-} from './cost-signals.js';
+export * from './dynamodb.js';
+export * from './postgres.js';
+export * from './mysql.js';
+export * from './mongodb.js';
+export * from './terraform.js';
+export * from './pipeline.js';
+export * from './aws-services.js';
+export * from './rds.js';
+export * from './cost-signals.js';
 
 export async function runAllAnalyzers(
   graph: SystemGraph,
@@ -50,7 +20,7 @@ export async function runAllAnalyzers(
   for (const analyzer of analyzers) {
     try {
       logger.debug(`Running analyzer: ${analyzer.name}`);
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       logger.debug(`[${analyzer.name}] found ${findings.length} issue(s)`);
       allFindings.push(...findings);
     } catch (err) {
@@ -60,8 +30,7 @@ export async function runAllAnalyzers(
     }
   }
 
-  const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2, verify: 3 };
-  allFindings.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  allFindings.sort((a, b) => SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity]);
   return allFindings;
 }
 

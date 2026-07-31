@@ -510,10 +510,10 @@ export interface Finding {
   metadata?: Record<string, unknown>;
 }
 
-export interface Analyzer {
-  name: string;
-  analyze(graph: SystemGraph): Promise<Finding[]>;
-}
+export type Analyzer = (graph: SystemGraph) => Promise<Finding[]>;
+
+// Higher is more severe. Sort descending for "worst first".
+export const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1, verify: 0 };
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 

@@ -7,7 +7,12 @@ import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
 import { extractMongoMetadata } from '../../adapters/db/mongodb.js';
-import { extractIaCSchema, type IaCLambda, type IaCOutput } from '../../adapters/iac/terraform.js';
+import {
+  extractIaCSchema,
+  type IaCSchema,
+  type IaCLambda,
+  type IaCOutput,
+} from '../../adapters/iac/terraform.js';
 import {
   extractSQSMetadata,
   extractSNSMetadata,
@@ -27,48 +32,12 @@ import { extractRuntimeSignals } from '../../adapters/aws/metrics.js';
 import { extractS3Metadata } from '../../adapters/aws/s3.js';
 import { scanRepository } from '../../context/index.js';
 import { buildGraph, addStackOutputNodes } from '../../graph/index.js';
-import {
-  runAllAnalyzers,
-  IaCDriftAnalyzer,
-  PipelineAnalyzer,
-  FullTableScanAnalyzer,
-  MissingGSIAnalyzer,
-  HotPartitionAnalyzer,
-  MissingIndexAnalyzer,
-  NplusOneAnalyzer,
-  LargeSelectAnalyzer,
-  MissingMySQLIndexAnalyzer,
-  MySQLFullTableScanAnalyzer,
-  MissingMongoIndexAnalyzer,
-  MongoCollectionScanAnalyzer,
-  MissingDLQAnalyzer,
-  UnencryptedQueueAnalyzer,
-  LargeQueueBacklogAnalyzer,
-  VisibilityTimeoutMismatchAnalyzer,
-  MissingSecretRotationAnalyzer,
-  MissingLogRetentionAnalyzer,
-  LambdaDefaultMemoryAnalyzer,
-  LambdaHighTimeoutAnalyzer,
-  LambdaMissingTriggerDLQAnalyzer,
-  LambdaMissingIAMPermissionsAnalyzer,
-  RDSPubliclyAccessibleAnalyzer,
-  RDSNoBackupAnalyzer,
-  RDSUnencryptedAnalyzer,
-  RDSNoDeletionProtectionAnalyzer,
-  RDSNoMultiAZAnalyzer,
-  S3PublicAccessAnalyzer,
-  S3MissingVersioningAnalyzer,
-  S3UnencryptedAnalyzer,
-  CacheTransitEncryptionAnalyzer,
-  CacheSingleNodeAnalyzer,
-  LambdaThrottlingAnalyzer,
-  StaleQueueMessagesAnalyzer,
-  LambdaHighMemoryAnalyzer,
-  RDSMultiAZNonProdAnalyzer,
-} from '../../analyzers/index.js';
+import * as A from '../../analyzers/index.js';
 import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
+import { SEVERITY_ORDER } from '../../types.js';
 import type {
   Analyzer,
+  SystemGraph,
   Finding,
   ServicesMeta,
   ExtractedOperation,
@@ -95,8 +64,6 @@ interface AnalyzeOptions {
   severity?: 'high' | 'medium' | 'low';
   silent?: boolean;
 }
-
-const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1, verify: 0 };
 
 function buildMarkdownReport(findings: Finding[], projectName: string): string {
   const date = new Date().toISOString().split('T')[0];
@@ -156,75 +123,69 @@ async function extract<T>(
 // full `runAnalyze` and the cache-backed `runCodeRefresh` so the two never drift.
 function buildAnalyzers(
   config: InfrawiseConfig,
-  iacDriftAnalyzer: IaCDriftAnalyzer | undefined,
+  iacSchema: IaCSchema | undefined,
   iacLambdas: IaCLambda[],
 ): Analyzer[] {
-  const pipelineAnalyzer = new PipelineAnalyzer();
-  pipelineAnalyzer.setIaCLambdas(iacLambdas);
   return [
     ...(config.dynamodb?.enabled === true
       ? [
-          new FullTableScanAnalyzer(),
-          new MissingGSIAnalyzer(),
-          new HotPartitionAnalyzer(
-            config.analysis?.hotPartitionThreshold,
-            config.analysis?.hotPartitionThresholds,
-          ),
+          A.FullTableScanAnalyzer,
+          A.MissingGSIAnalyzer,
+          (g: SystemGraph) =>
+            A.HotPartitionAnalyzer(
+              g,
+              config.analysis?.hotPartitionThreshold,
+              config.analysis?.hotPartitionThresholds,
+            ),
         ]
       : []),
     ...(config.postgres?.enabled
-      ? [new MissingIndexAnalyzer(), new NplusOneAnalyzer(), new LargeSelectAnalyzer()]
+      ? [A.MissingIndexAnalyzer, A.NplusOneAnalyzer, A.LargeSelectAnalyzer]
       : []),
-    ...(config.mysql?.enabled
-      ? [new MissingMySQLIndexAnalyzer(), new MySQLFullTableScanAnalyzer()]
-      : []),
+    ...(config.mysql?.enabled ? [A.MissingMySQLIndexAnalyzer, A.MySQLFullTableScanAnalyzer] : []),
     ...(config.mongodb?.enabled
-      ? [new MissingMongoIndexAnalyzer(), new MongoCollectionScanAnalyzer()]
+      ? [A.MissingMongoIndexAnalyzer, A.MongoCollectionScanAnalyzer]
       : []),
     ...(config.sqs?.enabled === true
       ? [
-          new MissingDLQAnalyzer(),
-          new UnencryptedQueueAnalyzer(),
-          new LargeQueueBacklogAnalyzer(),
-          new VisibilityTimeoutMismatchAnalyzer(),
+          A.MissingDLQAnalyzer,
+          A.UnencryptedQueueAnalyzer,
+          A.LargeQueueBacklogAnalyzer,
+          A.VisibilityTimeoutMismatchAnalyzer,
         ]
       : []),
-    ...(config.secretsManager?.enabled === true ? [new MissingSecretRotationAnalyzer()] : []),
-    ...(config.cloudwatchLogs?.enabled ? [new MissingLogRetentionAnalyzer()] : []),
+    ...(config.secretsManager?.enabled === true ? [A.MissingSecretRotationAnalyzer] : []),
+    ...(config.cloudwatchLogs?.enabled ? [A.MissingLogRetentionAnalyzer] : []),
     ...(config.lambda?.enabled === true
       ? [
-          new LambdaDefaultMemoryAnalyzer(),
-          new LambdaHighTimeoutAnalyzer(),
-          new LambdaMissingTriggerDLQAnalyzer(),
-          new LambdaMissingIAMPermissionsAnalyzer(),
-          new LambdaHighMemoryAnalyzer(),
+          A.LambdaDefaultMemoryAnalyzer,
+          A.LambdaHighTimeoutAnalyzer,
+          A.LambdaMissingTriggerDLQAnalyzer,
+          A.LambdaMissingIAMPermissionsAnalyzer,
+          A.LambdaHighMemoryAnalyzer,
         ]
       : []),
     ...(config.rds?.enabled === true
       ? [
-          new RDSPubliclyAccessibleAnalyzer(),
-          new RDSNoBackupAnalyzer(),
-          new RDSUnencryptedAnalyzer(),
-          new RDSNoDeletionProtectionAnalyzer(),
-          new RDSNoMultiAZAnalyzer(),
-          new RDSMultiAZNonProdAnalyzer(),
+          A.RDSPubliclyAccessibleAnalyzer,
+          A.RDSNoBackupAnalyzer,
+          A.RDSUnencryptedAnalyzer,
+          A.RDSNoDeletionProtectionAnalyzer,
+          A.RDSNoMultiAZAnalyzer,
+          A.RDSMultiAZNonProdAnalyzer,
         ]
       : []),
     ...(config.s3?.enabled === true
-      ? [
-          new S3PublicAccessAnalyzer(),
-          new S3MissingVersioningAnalyzer(),
-          new S3UnencryptedAnalyzer(),
-        ]
+      ? [A.S3PublicAccessAnalyzer, A.S3MissingVersioningAnalyzer, A.S3UnencryptedAnalyzer]
       : []),
     ...(config.elasticache?.enabled === true
-      ? [new CacheTransitEncryptionAnalyzer(), new CacheSingleNodeAnalyzer()]
+      ? [A.CacheTransitEncryptionAnalyzer, A.CacheSingleNodeAnalyzer]
       : []),
     ...(config.runtimeSignals?.enabled === true
-      ? [new LambdaThrottlingAnalyzer(), new StaleQueueMessagesAnalyzer()]
+      ? [A.LambdaThrottlingAnalyzer, A.StaleQueueMessagesAnalyzer]
       : []),
-    ...(iacDriftAnalyzer ? [iacDriftAnalyzer] : []),
-    pipelineAnalyzer,
+    ...(iacSchema ? [(g: SystemGraph) => A.IaCDriftAnalyzer(g, iacSchema)] : []),
+    (g: SystemGraph) => A.PipelineAnalyzer(g, iacLambdas),
   ];
 }
 
@@ -262,7 +223,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   const iacTask = (async () => {
     if (config.terraform?.enabled === false) {
       return {
-        drift: undefined as IaCDriftAnalyzer | undefined,
+        drift: undefined as IaCSchema | undefined,
         lambdas: [] as IaCLambda[],
         outputs: [] as IaCOutput[],
       };
@@ -281,18 +242,16 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         iacSchema.secrets.length +
         iacSchema.apiGateways.length +
         iacSchema.outputs.length;
-      const drift = new IaCDriftAnalyzer();
-      drift.setIaCSchema(iacSchema);
       log.success('IaC schema', `${total} resource(s) across TF/CFN/CDK`);
       return {
-        drift: drift as IaCDriftAnalyzer | undefined,
+        drift: iacSchema as IaCSchema | undefined,
         lambdas: iacSchema.lambdas,
         outputs: iacSchema.outputs,
       };
     } catch (err) {
       log.warn('IaC scan skipped', err instanceof Error ? err.message : String(err));
       return {
-        drift: undefined as IaCDriftAnalyzer | undefined,
+        drift: undefined as IaCSchema | undefined,
         lambdas: [] as IaCLambda[],
         outputs: [] as IaCOutput[],
       };
@@ -470,7 +429,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   servicesMeta.elasticache = elasticacheRes;
   servicesMeta.logs = logsRes;
 
-  const iacDriftAnalyzer = iac.drift;
+  const iacDriftSchema = iac.drift;
   const iacLambdas = iac.lambdas;
   const iacOutputs = iac.outputs;
 
@@ -519,11 +478,11 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   // ── Run analyzers ────────────────────────────────────────────────────────────
-  let findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
+  let findings: Awaited<ReturnType<typeof A.runAllAnalyzers>>;
   {
     const s = mkSpinner('Running analyzers...');
-    const analyzers = buildAnalyzers(config, iacDriftAnalyzer, iacLambdas);
-    findings = await runAllAnalyzers(graph, analyzers);
+    const analyzers = buildAnalyzers(config, iacDriftSchema, iacLambdas);
+    findings = await A.runAllAnalyzers(graph, analyzers);
     s.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${findings.length} finding(s)`));
   }
 
@@ -588,7 +547,7 @@ export async function runCodeRefresh(
   config: InfrawiseConfig,
 ): Promise<{
   graph: ReturnType<typeof buildGraph>;
-  findings: Awaited<ReturnType<typeof runAllAnalyzers>>;
+  findings: Awaited<ReturnType<typeof A.runAllAnalyzers>>;
 }> {
   // Same 24h TTL as the graph cache — a shorter TTL here silently dropped all
   // AWS/DB metadata from refreshed graphs once a serve/stdio session passed 1h.
@@ -600,14 +559,13 @@ export async function runCodeRefresh(
   const servicesMeta = cached?.servicesMeta ?? {};
 
   // Re-run IaC schema (pure file scan, no AWS calls)
-  let iacDriftAnalyzer: IaCDriftAnalyzer | undefined;
+  let iacDriftSchema: IaCSchema | undefined;
   let iacLambdas: IaCLambda[] = [];
   let iacOutputs: IaCOutput[] = [];
   try {
     const iacSchema = config.terraform?.enabled === false ? null : await extractIaCSchema(repoPath);
     if (iacSchema) {
-      iacDriftAnalyzer = new IaCDriftAnalyzer();
-      iacDriftAnalyzer.setIaCSchema(iacSchema);
+      iacDriftSchema = iacSchema;
       iacLambdas = iacSchema.lambdas;
       iacOutputs = iacSchema.outputs;
     }
@@ -633,8 +591,8 @@ export async function runCodeRefresh(
   );
   addStackOutputNodes(graph, iacOutputs);
 
-  const analyzers = buildAnalyzers(config, iacDriftAnalyzer, iacLambdas);
-  const findings = await runAllAnalyzers(graph, analyzers);
+  const analyzers = buildAnalyzers(config, iacDriftSchema, iacLambdas);
+  const findings = await A.runAllAnalyzers(graph, analyzers);
 
   writeCache('graph', graph);
   writeCache('findings', findings);

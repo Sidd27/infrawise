@@ -61,14 +61,14 @@ function cacheNode(
 }
 
 describe('LambdaHighMemoryAnalyzer', () => {
-  const analyzer = new LambdaHighMemoryAnalyzer();
+  const analyzer = LambdaHighMemoryAnalyzer;
 
   it('flags high memory with zero recent throttles', async () => {
     const graph: SystemGraph = {
       nodes: [lambdaNode({ memoryMB: 3008, recentThrottles: 0 })],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].issue).toContain('fn');
@@ -79,7 +79,7 @@ describe('LambdaHighMemoryAnalyzer', () => {
       nodes: [lambdaNode({ memoryMB: 1024, recentThrottles: 0 })],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag when runtime signals are absent', async () => {
@@ -87,7 +87,7 @@ describe('LambdaHighMemoryAnalyzer', () => {
       nodes: [lambdaNode({ memoryMB: 3008, recentThrottles: undefined })],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag when there are recent throttles', async () => {
@@ -95,19 +95,19 @@ describe('LambdaHighMemoryAnalyzer', () => {
       nodes: [lambdaNode({ memoryMB: 3008, recentThrottles: 2 })],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('RDSMultiAZNonProdAnalyzer', () => {
-  const analyzer = new RDSMultiAZNonProdAnalyzer();
+  const analyzer = RDSMultiAZNonProdAnalyzer;
 
   it('flags Multi-AZ on a non-production-looking name', async () => {
     const graph: SystemGraph = {
       nodes: [dbInstanceNode({ name: 'orders-staging', multiAZ: true })],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].issue).toContain('orders-staging');
@@ -118,7 +118,7 @@ describe('RDSMultiAZNonProdAnalyzer', () => {
       nodes: [dbInstanceNode({ name: 'orders-prod', multiAZ: true })],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag single-AZ instances', async () => {
@@ -126,7 +126,7 @@ describe('RDSMultiAZNonProdAnalyzer', () => {
       nodes: [dbInstanceNode({ name: 'orders-staging', multiAZ: false })],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 

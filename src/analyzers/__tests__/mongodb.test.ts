@@ -22,17 +22,17 @@ function makeMongoQueryGraph(withIndex = false): SystemGraph {
 }
 
 describe('MissingMongoIndexAnalyzer', () => {
-  const analyzer = new MissingMongoIndexAnalyzer();
+  const analyzer = MissingMongoIndexAnalyzer;
 
   it('flags collection queried without indexes', async () => {
-    const findings = await analyzer.analyze(makeMongoQueryGraph(false));
+    const findings = await analyzer(makeMongoQueryGraph(false));
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('app.users');
   });
 
   it('does not flag collection that has indexes', async () => {
-    const findings = await analyzer.analyze(makeMongoQueryGraph(true));
+    const findings = await analyzer(makeMongoQueryGraph(true));
     expect(findings).toHaveLength(0);
   });
 
@@ -44,15 +44,15 @@ describe('MissingMongoIndexAnalyzer', () => {
       ],
       edges: [{ from: 'fn:fn1', to: 'table:dynamo:Orders', type: 'query' }],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('returns empty findings for empty graph', async () => {
-    expect(await analyzer.analyze({ nodes: [], edges: [] })).toHaveLength(0);
+    expect(await analyzer({ nodes: [], edges: [] })).toHaveLength(0);
   });
 
   it('includes caller function names in metadata', async () => {
-    const findings = await analyzer.analyze(makeMongoQueryGraph(false));
+    const findings = await analyzer(makeMongoQueryGraph(false));
     expect(findings[0].metadata?.callerFunctions).toContain('getUser');
     expect(findings[0].metadata?.queryCount).toBe(1);
   });
@@ -70,13 +70,13 @@ describe('MissingMongoIndexAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mongodb:app.users', type: 'scan' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
   });
 });
 
 describe('MongoCollectionScanAnalyzer', () => {
-  const analyzer = new MongoCollectionScanAnalyzer();
+  const analyzer = MongoCollectionScanAnalyzer;
 
   it('detects a collection scan', async () => {
     const graph: SystemGraph = {
@@ -91,14 +91,14 @@ describe('MongoCollectionScanAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:mongodb:app.users', type: 'scan' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('app.users');
   });
 
   it('returns no findings when no scans exist', async () => {
-    expect(await analyzer.analyze(makeMongoQueryGraph(false))).toHaveLength(0);
+    expect(await analyzer(makeMongoQueryGraph(false))).toHaveLength(0);
   });
 
   it('does not flag non-mongodb tables on scan', async () => {
@@ -114,7 +114,7 @@ describe('MongoCollectionScanAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('emits one finding per collection with correct scan count in metadata', async () => {
@@ -134,12 +134,12 @@ describe('MongoCollectionScanAnalyzer', () => {
         { from: 'fn:b', to: 'table:mongodb:app.users', type: 'scan' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].metadata?.scanCount).toBe(2);
   });
 
   it('returns empty findings for empty graph', async () => {
-    expect(await analyzer.analyze({ nodes: [], edges: [] })).toHaveLength(0);
+    expect(await analyzer({ nodes: [], edges: [] })).toHaveLength(0);
   });
 });

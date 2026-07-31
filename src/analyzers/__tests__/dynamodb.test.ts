@@ -38,11 +38,11 @@ function makeGraphWithGSI(): SystemGraph {
 }
 
 describe('FullTableScanAnalyzer', () => {
-  const analyzer = new FullTableScanAnalyzer();
+  const analyzer = FullTableScanAnalyzer;
 
   it('detects a full table scan', async () => {
     const graph = makeScanGraph();
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('Orders');
@@ -50,7 +50,7 @@ describe('FullTableScanAnalyzer', () => {
 
   it('returns no findings when no scans', async () => {
     const graph = makeQueryGraph();
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
@@ -66,7 +66,7 @@ describe('FullTableScanAnalyzer', () => {
         { from: 'fn:listAll', to: 'table:dynamo:Users', type: 'scan' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(2);
   });
 
@@ -83,17 +83,17 @@ describe('FullTableScanAnalyzer', () => {
       ],
       edges: [{ from: 'fn:listAll', to: 'table:pg:public.orders', type: 'scan' }],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 });
 
 describe('MissingGSIAnalyzer', () => {
-  const analyzer = new MissingGSIAnalyzer();
+  const analyzer = MissingGSIAnalyzer;
 
   it('flags table with queries but no GSI', async () => {
     const graph = makeQueryGraph();
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('Orders');
@@ -101,19 +101,19 @@ describe('MissingGSIAnalyzer', () => {
 
   it('does not flag table that has a GSI', async () => {
     const graph = makeGraphWithGSI();
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
   it('returns empty findings for empty graph', async () => {
-    const findings = await analyzer.analyze({ nodes: [], edges: [] });
+    const findings = await analyzer({ nodes: [], edges: [] });
     expect(findings).toHaveLength(0);
   });
 });
 
 describe('HotPartitionAnalyzer', () => {
   it('detects hot partition when table accessed by many functions', async () => {
-    const analyzer = new HotPartitionAnalyzer(3); // threshold = 3
+    const analyzer = (g: SystemGraph) => HotPartitionAnalyzer(g, 3); // threshold = 3
 
     const graph: SystemGraph = {
       nodes: [
@@ -129,13 +129,13 @@ describe('HotPartitionAnalyzer', () => {
       ],
     };
 
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].issue).toContain('Orders');
   });
 
   it('does not flag table below threshold', async () => {
-    const analyzer = new HotPartitionAnalyzer(5);
+    const analyzer = (g: SystemGraph) => HotPartitionAnalyzer(g, 5);
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:a', type: 'function', name: 'a', file: 'a.ts' },
@@ -147,12 +147,12 @@ describe('HotPartitionAnalyzer', () => {
         { from: 'fn:b', to: 'table:dynamo:Orders', type: 'query' },
       ],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(0);
   });
 
   it('uses per-table thresholds when configured', async () => {
-    const analyzer = new HotPartitionAnalyzer(2, { Orders: 4 });
+    const analyzer = (g: SystemGraph) => HotPartitionAnalyzer(g, 2, { Orders: 4 });
     const graph: SystemGraph = {
       nodes: [
         { id: 'fn:a', type: 'function', name: 'a', file: 'a.ts' },
@@ -168,7 +168,7 @@ describe('HotPartitionAnalyzer', () => {
       ],
     };
 
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
 
     expect(findings).toHaveLength(1);
     expect(findings[0].metadata).toMatchObject({ tableName: 'Users', threshold: 2 });

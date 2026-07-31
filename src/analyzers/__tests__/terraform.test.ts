@@ -31,14 +31,12 @@ function makeIaCWithFiles(): IaCSchema {
 
 describe('IaCDriftAnalyzer', () => {
   it('returns empty findings when no IaC schema is set', async () => {
-    const analyzer = new IaCDriftAnalyzer();
     const graph: SystemGraph = { nodes: [], edges: [] };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await IaCDriftAnalyzer(graph)).toHaveLength(0);
   });
 
   it('returns empty findings when the repo has no IaC files at all', async () => {
-    const analyzer = new IaCDriftAnalyzer();
-    analyzer.setIaCSchema(makeEmptyIaC());
+    const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, makeEmptyIaC());
     const graph: SystemGraph = {
       nodes: [
         { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
@@ -53,11 +51,10 @@ describe('IaCDriftAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('returns empty findings when everything is in sync', async () => {
-    const analyzer = new IaCDriftAnalyzer();
     const iac = makeEmptyIaC();
     iac.dynamoTables = [{ name: 'Orders', filePath: 'main.tf', gsiNames: [], source: 'terraform' }];
     iac.queues = [
@@ -70,7 +67,7 @@ describe('IaCDriftAnalyzer', () => {
       },
     ];
     iac.lambdas = [{ name: 'processOrders', filePath: 'main.tf', source: 'terraform' }];
-    analyzer.setIaCSchema(iac);
+    const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, iac);
 
     const graph: SystemGraph = {
       nodes: [
@@ -87,20 +84,19 @@ describe('IaCDriftAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   describe('DynamoDB drift', () => {
     it('flags DynamoDB table defined in IaC but not deployed', async () => {
-      const analyzer = new IaCDriftAnalyzer();
       const iac = makeEmptyIaC();
       iac.dynamoTables = [
         { name: 'Orders', filePath: 'main.tf', gsiNames: [], source: 'terraform' },
       ];
-      analyzer.setIaCSchema(iac);
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, iac);
 
       const graph: SystemGraph = { nodes: [], edges: [] };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].severity).toBe('medium');
       expect(findings[0].issue).toContain('Orders');
@@ -108,8 +104,7 @@ describe('IaCDriftAnalyzer', () => {
     });
 
     it('flags DynamoDB table deployed but not in IaC', async () => {
-      const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeIaCWithFiles());
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [
@@ -117,7 +112,7 @@ describe('IaCDriftAnalyzer', () => {
         ],
         edges: [],
       };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].issue).toContain('Orders');
       expect(findings[0].metadata?.driftType).toBe('deployed_not_defined');
@@ -126,7 +121,6 @@ describe('IaCDriftAnalyzer', () => {
 
   describe('SQS queue drift', () => {
     it('flags queue defined in IaC but not deployed', async () => {
-      const analyzer = new IaCDriftAnalyzer();
       const iac = makeEmptyIaC();
       iac.queues = [
         {
@@ -137,18 +131,17 @@ describe('IaCDriftAnalyzer', () => {
           source: 'terraform',
         },
       ];
-      analyzer.setIaCSchema(iac);
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, iac);
 
       const graph: SystemGraph = { nodes: [], edges: [] };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].issue).toContain('orders-queue');
       expect(findings[0].metadata?.driftType).toBe('defined_not_deployed');
     });
 
     it('flags queue deployed but not in IaC', async () => {
-      const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeIaCWithFiles());
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [
@@ -163,7 +156,7 @@ describe('IaCDriftAnalyzer', () => {
         ],
         edges: [],
       };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].severity).toBe('low');
       expect(findings[0].metadata?.driftType).toBe('deployed_not_defined');
@@ -172,27 +165,25 @@ describe('IaCDriftAnalyzer', () => {
 
   describe('Lambda drift', () => {
     it('flags Lambda defined in IaC but not deployed', async () => {
-      const analyzer = new IaCDriftAnalyzer();
       const iac = makeEmptyIaC();
       iac.lambdas = [{ name: 'processOrders', filePath: 'lambdas.tf', source: 'terraform' }];
-      analyzer.setIaCSchema(iac);
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, iac);
 
       const graph: SystemGraph = { nodes: [], edges: [] };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].issue).toContain('processOrders');
       expect(findings[0].metadata?.driftType).toBe('defined_not_deployed');
     });
 
     it('flags Lambda deployed but not in IaC', async () => {
-      const analyzer = new IaCDriftAnalyzer();
-      analyzer.setIaCSchema(makeIaCWithFiles());
+      const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, makeIaCWithFiles());
 
       const graph: SystemGraph = {
         nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders' }],
         edges: [],
       };
-      const findings = await analyzer.analyze(graph);
+      const findings = await analyzer(graph);
       expect(findings).toHaveLength(1);
       expect(findings[0].severity).toBe('low');
       expect(findings[0].metadata?.driftType).toBe('deployed_not_defined');
@@ -200,7 +191,6 @@ describe('IaCDriftAnalyzer', () => {
   });
 
   it('reports multiple drift findings across resource types', async () => {
-    const analyzer = new IaCDriftAnalyzer();
     const iac = makeEmptyIaC();
     iac.dynamoTables = [
       { name: 'MissingTable', filePath: 'main.tf', gsiNames: [], source: 'terraform' },
@@ -214,10 +204,10 @@ describe('IaCDriftAnalyzer', () => {
         source: 'terraform',
       },
     ];
-    analyzer.setIaCSchema(iac);
+    const analyzer = (g: SystemGraph) => IaCDriftAnalyzer(g, iac);
 
     const graph: SystemGraph = { nodes: [], edges: [] };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(2);
   });
 });

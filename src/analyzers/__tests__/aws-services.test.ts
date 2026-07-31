@@ -20,7 +20,7 @@ import {
 import type { SystemGraph } from '../../types.js';
 
 describe('MissingDLQAnalyzer', () => {
-  const analyzer = new MissingDLQAnalyzer();
+  const analyzer = MissingDLQAnalyzer;
 
   it('flags queue without a DLQ', async () => {
     const graph: SystemGraph = {
@@ -36,7 +36,7 @@ describe('MissingDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('orders');
@@ -65,7 +65,7 @@ describe('MissingDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag a placeholder queue that was never extracted', async () => {
@@ -83,7 +83,7 @@ describe('MissingDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag queue that has a DLQ', async () => {
@@ -100,7 +100,7 @@ describe('MissingDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-queue nodes', async () => {
@@ -108,7 +108,7 @@ describe('MissingDLQAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('flags multiple queues missing DLQs', async () => {
@@ -133,12 +133,12 @@ describe('MissingDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(2);
+    expect(await analyzer(graph)).toHaveLength(2);
   });
 });
 
 describe('UnencryptedQueueAnalyzer', () => {
-  const analyzer = new UnencryptedQueueAnalyzer();
+  const analyzer = UnencryptedQueueAnalyzer;
 
   it('flags unencrypted queue', async () => {
     const graph: SystemGraph = {
@@ -154,7 +154,7 @@ describe('UnencryptedQueueAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].issue).toContain('orders');
@@ -174,17 +174,17 @@ describe('UnencryptedQueueAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('returns empty findings for empty graph', async () => {
-    expect(await analyzer.analyze({ nodes: [], edges: [] })).toHaveLength(0);
+    expect(await analyzer({ nodes: [], edges: [] })).toHaveLength(0);
   });
 });
 
 describe('LargeQueueBacklogAnalyzer', () => {
   it('flags queue above default threshold (1000)', async () => {
-    const analyzer = new LargeQueueBacklogAnalyzer();
+    const analyzer = LargeQueueBacklogAnalyzer;
     const graph: SystemGraph = {
       nodes: [
         {
@@ -199,14 +199,14 @@ describe('LargeQueueBacklogAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].metadata?.messageCount).toBe(1500);
   });
 
   it('does not flag queue below threshold', async () => {
-    const analyzer = new LargeQueueBacklogAnalyzer();
+    const analyzer = LargeQueueBacklogAnalyzer;
     const graph: SystemGraph = {
       nodes: [
         {
@@ -221,11 +221,11 @@ describe('LargeQueueBacklogAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('respects custom threshold', async () => {
-    const analyzer = new LargeQueueBacklogAnalyzer(100);
+    const analyzer = (g: SystemGraph) => LargeQueueBacklogAnalyzer(g, 100);
     const graph: SystemGraph = {
       nodes: [
         {
@@ -240,11 +240,11 @@ describe('LargeQueueBacklogAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(1);
+    expect(await analyzer(graph)).toHaveLength(1);
   });
 
   it('treats missing approximateMessages as 0', async () => {
-    const analyzer = new LargeQueueBacklogAnalyzer();
+    const analyzer = LargeQueueBacklogAnalyzer;
     const graph: SystemGraph = {
       nodes: [
         {
@@ -258,12 +258,12 @@ describe('LargeQueueBacklogAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('VisibilityTimeoutMismatchAnalyzer', () => {
-  const analyzer = new VisibilityTimeoutMismatchAnalyzer();
+  const analyzer = VisibilityTimeoutMismatchAnalyzer;
 
   const graphWith = (visibilityTimeoutSec: number): SystemGraph => ({
     nodes: [
@@ -282,26 +282,26 @@ describe('VisibilityTimeoutMismatchAnalyzer', () => {
   });
 
   it('flags high when visibility timeout is below the Lambda timeout', async () => {
-    const findings = await analyzer.analyze(graphWith(10));
+    const findings = await analyzer(graphWith(10));
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].metadata?.recommendedVisibilityTimeoutSec).toBe(180);
   });
 
   it('flags medium when visibility timeout is between 1x and 6x the Lambda timeout', async () => {
-    const findings = await analyzer.analyze(graphWith(60));
+    const findings = await analyzer(graphWith(60));
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('less than 6×');
   });
 
   it('does not flag when visibility timeout is at least 6x the Lambda timeout', async () => {
-    expect(await analyzer.analyze(graphWith(180))).toHaveLength(0);
+    expect(await analyzer(graphWith(180))).toHaveLength(0);
   });
 });
 
 describe('MissingSecretRotationAnalyzer', () => {
-  const analyzer = new MissingSecretRotationAnalyzer();
+  const analyzer = MissingSecretRotationAnalyzer;
 
   it('flags secret without rotation', async () => {
     const graph: SystemGraph = {
@@ -316,7 +316,7 @@ describe('MissingSecretRotationAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('db-password');
@@ -336,7 +336,7 @@ describe('MissingSecretRotationAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag secret with rotation enabled', async () => {
@@ -352,7 +352,7 @@ describe('MissingSecretRotationAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-secret nodes', async () => {
@@ -360,12 +360,12 @@ describe('MissingSecretRotationAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('MissingLogRetentionAnalyzer', () => {
-  const analyzer = new MissingLogRetentionAnalyzer();
+  const analyzer = MissingLogRetentionAnalyzer;
 
   it('flags log group with no retention policy', async () => {
     const graph: SystemGraph = {
@@ -374,7 +374,7 @@ describe('MissingLogRetentionAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('/app/api');
@@ -393,7 +393,7 @@ describe('MissingLogRetentionAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].metadata?.retentionDays).toBe(400);
@@ -412,7 +412,7 @@ describe('MissingLogRetentionAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag retention exactly at 365 days', async () => {
@@ -428,7 +428,7 @@ describe('MissingLogRetentionAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-log-group nodes', async () => {
@@ -436,12 +436,12 @@ describe('MissingLogRetentionAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('LambdaDefaultMemoryAnalyzer', () => {
-  const analyzer = new LambdaDefaultMemoryAnalyzer();
+  const analyzer = LambdaDefaultMemoryAnalyzer;
 
   it('flags Lambda with default 128 MB memory', async () => {
     const graph: SystemGraph = {
@@ -450,7 +450,7 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].issue).toContain('processOrders');
@@ -464,7 +464,7 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-lambda nodes', async () => {
@@ -472,12 +472,12 @@ describe('LambdaDefaultMemoryAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('LambdaMissingTriggerDLQAnalyzer', () => {
-  const analyzer = new LambdaMissingTriggerDLQAnalyzer();
+  const analyzer = LambdaMissingTriggerDLQAnalyzer;
 
   it('flags Lambda triggered by SQS queue with no DLQ', async () => {
     const graph: SystemGraph = {
@@ -506,7 +506,7 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
     expect(findings[0].issue).toContain('processOrders');
@@ -541,7 +541,7 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag Lambda with no triggers', async () => {
@@ -551,7 +551,7 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag Lambda triggered by EventBridge', async () => {
@@ -574,7 +574,7 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('does not flag when trigger source queue is not in the graph', async () => {
@@ -596,7 +596,7 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-lambda nodes', async () => {
@@ -604,12 +604,12 @@ describe('LambdaMissingTriggerDLQAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('LambdaHighTimeoutAnalyzer', () => {
-  const analyzer = new LambdaHighTimeoutAnalyzer();
+  const analyzer = LambdaHighTimeoutAnalyzer;
 
   it('flags Lambda with timeout >= 300s', async () => {
     const graph: SystemGraph = {
@@ -618,7 +618,7 @@ describe('LambdaHighTimeoutAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
     expect(findings[0].metadata?.timeoutSec).toBe(300);
@@ -631,7 +631,7 @@ describe('LambdaHighTimeoutAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(1);
+    expect(await analyzer(graph)).toHaveLength(1);
   });
 
   it('does not flag Lambda with timeout below 300s', async () => {
@@ -641,7 +641,7 @@ describe('LambdaHighTimeoutAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('treats missing timeoutSec as 0', async () => {
@@ -649,12 +649,12 @@ describe('LambdaHighTimeoutAnalyzer', () => {
       nodes: [{ id: 'lambda:aws:processOrders', type: 'lambda', name: 'processOrders' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('S3PublicAccessAnalyzer', () => {
-  const analyzer = new S3PublicAccessAnalyzer();
+  const analyzer = S3PublicAccessAnalyzer;
 
   it('flags bucket with public access not blocked', async () => {
     const graph: SystemGraph = {
@@ -671,7 +671,7 @@ describe('S3PublicAccessAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('verify');
     expect(findings[0].issue).toContain('assets');
@@ -693,7 +693,7 @@ describe('S3PublicAccessAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-bucket nodes', async () => {
@@ -701,12 +701,12 @@ describe('S3PublicAccessAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('S3MissingVersioningAnalyzer', () => {
-  const analyzer = new S3MissingVersioningAnalyzer();
+  const analyzer = S3MissingVersioningAnalyzer;
 
   it('flags bucket with versioning disabled', async () => {
     const graph: SystemGraph = {
@@ -723,7 +723,7 @@ describe('S3MissingVersioningAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('assets');
@@ -745,7 +745,7 @@ describe('S3MissingVersioningAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-bucket nodes', async () => {
@@ -753,12 +753,12 @@ describe('S3MissingVersioningAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('S3UnencryptedAnalyzer', () => {
-  const analyzer = new S3UnencryptedAnalyzer();
+  const analyzer = S3UnencryptedAnalyzer;
 
   it('flags bucket without server-side encryption', async () => {
     const graph: SystemGraph = {
@@ -775,7 +775,7 @@ describe('S3UnencryptedAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
     expect(findings[0].issue).toContain('assets');
@@ -797,7 +797,7 @@ describe('S3UnencryptedAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 
   it('ignores non-bucket nodes', async () => {
@@ -805,12 +805,12 @@ describe('S3UnencryptedAnalyzer', () => {
       nodes: [{ id: 'fn:fn1', type: 'function', name: 'fn1', file: 'src/x.ts' }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('CacheTransitEncryptionAnalyzer', () => {
-  const analyzer = new CacheTransitEncryptionAnalyzer();
+  const analyzer = CacheTransitEncryptionAnalyzer;
 
   it('flags cluster without transit encryption', async () => {
     const graph: SystemGraph = {
@@ -826,7 +826,7 @@ describe('CacheTransitEncryptionAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
   });
@@ -845,12 +845,12 @@ describe('CacheTransitEncryptionAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('CacheSingleNodeAnalyzer', () => {
-  const analyzer = new CacheSingleNodeAnalyzer();
+  const analyzer = CacheSingleNodeAnalyzer;
 
   it('flags standalone single-node cluster', async () => {
     const graph: SystemGraph = {
@@ -866,7 +866,7 @@ describe('CacheSingleNodeAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('low');
   });
@@ -886,19 +886,19 @@ describe('CacheSingleNodeAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('LambdaThrottlingAnalyzer', () => {
-  const analyzer = new LambdaThrottlingAnalyzer();
+  const analyzer = LambdaThrottlingAnalyzer;
 
   it('flags lambda with recent throttles', async () => {
     const graph: SystemGraph = {
       nodes: [{ id: 'lambda:aws:worker', type: 'lambda', name: 'worker', recentThrottles: 12 }],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('high');
   });
@@ -908,12 +908,12 @@ describe('LambdaThrottlingAnalyzer', () => {
       nodes: [{ id: 'lambda:aws:worker', type: 'lambda', name: 'worker', recentThrottles: 0 }],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
 
 describe('StaleQueueMessagesAnalyzer', () => {
-  const analyzer = new StaleQueueMessagesAnalyzer();
+  const analyzer = StaleQueueMessagesAnalyzer;
 
   it('flags queue whose oldest message exceeds one hour', async () => {
     const graph: SystemGraph = {
@@ -930,7 +930,7 @@ describe('StaleQueueMessagesAnalyzer', () => {
       ],
       edges: [],
     };
-    const findings = await analyzer.analyze(graph);
+    const findings = await analyzer(graph);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
   });
@@ -950,6 +950,6 @@ describe('StaleQueueMessagesAnalyzer', () => {
       ],
       edges: [],
     };
-    expect(await analyzer.analyze(graph)).toHaveLength(0);
+    expect(await analyzer(graph)).toHaveLength(0);
   });
 });
