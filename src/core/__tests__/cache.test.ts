@@ -1,12 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeCache, readCache, clearCache } from '../cache.js';
+import { writeCache, readCache } from '../cache.js';
 
 const CACHE_DIR = path.join(process.cwd(), '.infrawise', 'cache');
 
 afterEach(() => {
-  clearCache();
+  fs.rmSync(CACHE_DIR, { recursive: true, force: true });
 });
 
 describe('writeCache / readCache', () => {
@@ -59,32 +59,5 @@ describe('writeCache / readCache', () => {
 
     writeCache('number-key', 99);
     expect(readCache<number>('number-key')).toBe(99);
-  });
-});
-
-describe('clearCache', () => {
-  it('clears a specific key', () => {
-    writeCache('key-a', { a: 1 });
-    writeCache('key-b', { b: 2 });
-    clearCache('key-a');
-    expect(readCache('key-a')).toBeNull();
-    expect(readCache<{ b: number }>('key-b')).toEqual({ b: 2 });
-  });
-
-  it('clears all keys when called without argument', () => {
-    writeCache('key-a', 1);
-    writeCache('key-b', 2);
-    clearCache();
-    expect(readCache('key-a')).toBeNull();
-    expect(readCache('key-b')).toBeNull();
-  });
-
-  it('does not throw when clearing a key that does not exist', () => {
-    expect(() => clearCache('does-not-exist')).not.toThrow();
-  });
-
-  it('does not throw when clearing all keys on an empty cache dir', () => {
-    clearCache();
-    expect(() => clearCache()).not.toThrow();
   });
 });

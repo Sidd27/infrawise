@@ -26,41 +26,26 @@ export function writeCache<T>(key: string, data: T): void {
   fs.writeFileSync(filePath, JSON.stringify(entry), 'utf-8');
 }
 
-export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
+function readEntry<T>(key: string): CacheEntry<T> | null {
   const filePath = path.join(cacheDir, `${key}.json`);
   if (!fs.existsSync(filePath)) return null;
-
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    const entry: CacheEntry<T> = JSON.parse(raw);
-
-    if (entry.version !== CACHE_VERSION) return null;
-    if (Date.now() - entry.timestamp > maxAgeMs) return null;
-
-    return entry.data;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as CacheEntry<T>;
   } catch {
     return null;
   }
+}
+
+export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
+  const entry = readEntry<T>(key);
+  if (!entry) return null;
+  if (entry.version !== CACHE_VERSION) return null;
+  if (Date.now() - entry.timestamp > maxAgeMs) return null;
+  return entry.data;
 }
 
 // Returns when the entry was written (ms epoch), ignoring TTL — used to surface
 // analysis freshness. null if the entry is missing or unreadable.
 export function readCacheTimestamp(key: string): number | null {
-  const filePath = path.join(cacheDir, `${key}.json`);
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    const entry: CacheEntry<unknown> = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    return typeof entry.timestamp === 'number' ? entry.timestamp : null;
-  } catch {
-    return null;
-  }
-}
-
-export function clearCache(key?: string): void {
-  if (key) {
-    const filePath = path.join(cacheDir, `${key}.json`);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  } else {
-    if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true });
-  }
+  return readEntry(key)?.timestamp ?? null;
 }

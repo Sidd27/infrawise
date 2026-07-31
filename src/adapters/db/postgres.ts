@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import type { PostgresTableMetadata, ColumnDetail, ForeignKeyMetadata } from '../../types.js';
-import { PostgresConnectionError, logger } from '../../core/index.js';
+import { InfrawiseError, logger } from '../../core/index.js';
 
 interface ColumnRow {
   table_schema: string;
@@ -189,9 +189,16 @@ export async function extractPostgresMetadata(
       client.release();
     }
   } catch (err) {
-    if (err instanceof PostgresConnectionError) throw err;
-    throw new PostgresConnectionError(
-      err instanceof Error ? err.message : 'Unknown error connecting to PostgreSQL',
+    if (err instanceof InfrawiseError) throw err;
+    throw new InfrawiseError(
+      'Unable to connect to PostgreSQL.',
+      [
+        'Invalid connection string',
+        'Security group restrictions',
+        'Expired credentials',
+        err instanceof Error ? err.message : 'Unknown error connecting to PostgreSQL',
+      ],
+      'infrawise doctor',
     );
   } finally {
     await pool.end();

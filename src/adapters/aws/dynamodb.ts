@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import { fromIni } from '@aws-sdk/credential-providers';
 import type { DynamoTableMetadata, InfrawiseConfig } from '../../types.js';
-import { DynamoDBError, logger } from '../../core/index.js';
+import { InfrawiseError, logger } from '../../core/index.js';
 
 function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
   const region = config.aws?.region ?? 'us-east-1';
@@ -91,7 +91,16 @@ export async function extractDynamoMetadata(
     }
     logger.debug(`Found ${tableNames.length} DynamoDB table(s)`);
   } catch (err) {
-    throw new DynamoDBError(err instanceof Error ? err.message : 'Failed to list DynamoDB tables');
+    throw new InfrawiseError(
+      'Unable to access DynamoDB.',
+      [
+        'Insufficient IAM permissions (need dynamodb:ListTables, dynamodb:DescribeTable)',
+        'Wrong AWS region configured',
+        'DynamoDB endpoint not reachable',
+        err instanceof Error ? err.message : 'Failed to list DynamoDB tables',
+      ],
+      'infrawise doctor',
+    );
   }
 
   const results: DynamoTableMetadata[] = [];

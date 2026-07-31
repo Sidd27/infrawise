@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Project, SyntaxKind, Node, CallExpression, StringLiteral, SourceFile } from 'ts-morph';
 import type { ExtractedOperation } from '../types.js';
-import { RepositoryScanError, logger } from '../core/index.js';
+import { InfrawiseError, logger } from '../core/index.js';
 import { scanPythonRepository } from './python.js';
 
 const DYNAMO_OPERATIONS = new Set([
@@ -740,7 +740,16 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
   const resolvedPath = path.resolve(repoPath);
 
   if (!fs.existsSync(resolvedPath)) {
-    throw new RepositoryScanError(`Path does not exist: ${resolvedPath}`);
+    throw new InfrawiseError(
+      'Unable to scan repository.',
+      [
+        'Path does not exist or is not accessible',
+        'Not a valid TypeScript project',
+        'tsconfig.json not found',
+        `Path does not exist: ${resolvedPath}`,
+      ],
+      'infrawise doctor',
+    );
   }
 
   const { hasTypeScript, hasPython } = detectLanguages(resolvedPath);
