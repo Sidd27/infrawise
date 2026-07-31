@@ -19,6 +19,8 @@ interface StartOptions {
   rediscover?: boolean;
 }
 
+// These files commonly hold other MCP servers — merge our entry in, never
+// overwrite the file. VS Code keys them under `servers`, everyone else `mcpServers`.
 export function writeMcpConfig(
   configAbsPath: string,
   file: string,
@@ -27,16 +29,24 @@ export function writeMcpConfig(
 ): void {
   const dir = path.dirname(file);
   if (dir !== '.' && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const entry = {
-    [key]: {
-      infrawise: {
-        ...(key === 'servers' ? { type: 'stdio' } : {}),
-        command: 'infrawise',
-        args: ['serve', '--stdio', '--config', configAbsPath],
-      },
-    },
+
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(file)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>;
+    } catch {
+      log.warn(`${file} is not valid JSON — replacing it`);
+    }
+  }
+
+  const servers = (existing[key] as Record<string, unknown> | undefined) ?? {};
+  servers['infrawise'] = {
+    ...(key === 'servers' ? { type: 'stdio' } : {}),
+    command: 'infrawise',
+    args: ['serve', '--stdio', '--config', configAbsPath],
   };
-  fs.writeFileSync(file, JSON.stringify(entry, null, 2), 'utf-8');
+  existing[key] = servers;
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2), 'utf-8');
   log.success(`${label} config written`, file);
 }
 

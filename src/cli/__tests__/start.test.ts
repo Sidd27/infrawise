@@ -47,6 +47,39 @@ describe('writeVscodeMcp', () => {
     });
   });
 
+  it('merges into an existing mcp.json without dropping other servers', () => {
+    fs.mkdirSync(path.join(tmpDir, '.vscode'));
+    fs.writeFileSync(
+      path.join(tmpDir, '.vscode', 'mcp.json'),
+      JSON.stringify({
+        servers: { other: { type: 'stdio', command: 'other-server', args: [] } },
+        inputs: [{ id: 'token', type: 'promptString' }],
+      }),
+      'utf-8',
+    );
+    writeVscodeMcp('/abs/infrawise.yaml');
+    const config = readConfig();
+    expect(config.servers['other']).toEqual({ type: 'stdio', command: 'other-server', args: [] });
+    expect(config.servers['infrawise'].command).toBe('infrawise');
+    expect((config as Record<string, unknown>)['inputs']).toEqual([
+      { id: 'token', type: 'promptString' },
+    ]);
+  });
+
+  it('merges .mcp.json without dropping other servers', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.mcp.json'),
+      JSON.stringify({ mcpServers: { other: { command: 'other-server' } } }),
+      'utf-8',
+    );
+    writeMcpConfig('/abs/infrawise.yaml', '.mcp.json', 'MCP');
+    const config = JSON.parse(fs.readFileSync(path.join(tmpDir, '.mcp.json'), 'utf-8')) as {
+      mcpServers: Record<string, { command: string }>;
+    };
+    expect(config.mcpServers['other']).toEqual({ command: 'other-server' });
+    expect(config.mcpServers['infrawise'].command).toBe('infrawise');
+  });
+
   it('replaces an invalid mcp.json instead of crashing', () => {
     fs.mkdirSync(path.join(tmpDir, '.vscode'));
     fs.writeFileSync(path.join(tmpDir, '.vscode', 'mcp.json'), 'not json', 'utf-8');
