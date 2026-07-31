@@ -125,13 +125,14 @@ const SEVERITIES = [
 ] as const;
 
 // Pads on the uncolored width — chalk's escape codes make .length useless here.
-const boxRow = (s: string): string =>
+export const boxRow = (s: string, width = BOX_WIDTH): string =>
   chalk.dim('  │') +
   s +
-  ' '.repeat(Math.max(0, BOX_WIDTH - stripVTControlCharacters(s).length)) +
+  ' '.repeat(Math.max(0, width - stripVTControlCharacters(s).length)) +
   chalk.dim('│');
 
-const rule = (l: string, r: string): string => chalk.dim(`  ${l}${'─'.repeat(BOX_WIDTH)}${r}`);
+export const rule = (l: string, r: string, width = BOX_WIDTH): string =>
+  chalk.dim(`  ${l}${'─'.repeat(width)}${r}`);
 
 export function printSummaryBox(findings: Finding[]): void {
   const pad = (n: number): string => String(n).padStart(3);

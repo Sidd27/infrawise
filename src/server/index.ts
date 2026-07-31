@@ -99,6 +99,33 @@ function logged<T extends Record<string, unknown>>(
   };
 }
 
+// Every tool this server registers, with the config key that gates it (if any).
+// Single source for the server card and the CLI's startup box — keep in step
+// with the registerTool calls below.
+export const TOOLS: ReadonlyArray<{ name: string; service?: string }> = [
+  { name: 'get_infra_overview' },
+  { name: 'get_graph_summary' },
+  { name: 'get_table_schema' },
+  { name: 'analyze_function' },
+  { name: 'suggest_gsi', service: 'dynamodb' },
+  { name: 'postgres_index_suggestions', service: 'postgres' },
+  { name: 'suggest_mongo_index', service: 'mongodb' },
+  { name: 'mysql_index_suggestions', service: 'mysql' },
+  { name: 'get_queue_details', service: 'sqs' },
+  { name: 'get_topic_details', service: 'sns' },
+  { name: 'get_secrets_overview', service: 'secretsManager' },
+  { name: 'get_parameter_overview', service: 'ssm' },
+  { name: 'get_lambda_overview', service: 'lambda' },
+  { name: 'get_eventbridge_details', service: 'eventbridge' },
+  { name: 'get_s3_overview', service: 's3' },
+  { name: 'get_api_routes', service: 'apiGateway' },
+  { name: 'get_log_errors', service: 'cloudwatchLogs' },
+  { name: 'get_stack_outputs', service: 'terraform' },
+  { name: 'get_cognito_overview', service: 'cognito' },
+  { name: 'get_stream_details', service: 'kinesis' },
+  { name: 'get_cache_overview', service: 'elasticache' },
+];
+
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
 export function createMcpServer(): McpServer {
@@ -868,29 +895,7 @@ export function createServer(port = 3000) {
     homepage: 'https://github.com/Sidd27/infrawise',
     repository: 'https://github.com/Sidd27/infrawise',
     transports: [{ type: 'streamable-http', url: `http://localhost:${port}/mcp` }],
-    tools: [
-      'get_infra_overview',
-      'get_graph_summary',
-      'analyze_function',
-      'suggest_gsi',
-      'postgres_index_suggestions',
-      'suggest_mongo_index',
-      'mysql_index_suggestions',
-      'get_queue_details',
-      'get_topic_details',
-      'get_secrets_overview',
-      'get_parameter_overview',
-      'get_lambda_overview',
-      'get_eventbridge_details',
-      'get_s3_overview',
-      'get_api_routes',
-      'get_log_errors',
-      'get_stack_outputs',
-      'get_cognito_overview',
-      'get_stream_details',
-      'get_cache_overview',
-      'get_table_schema',
-    ],
+    tools: TOOLS.map((t) => t.name),
   }));
 
   fastify.post('/mcp', async (request, reply) => {
