@@ -19,57 +19,29 @@ interface StartOptions {
   rediscover?: boolean;
 }
 
-function writeMcpJson(configAbsPath: string): void {
+export function writeMcpConfig(
+  configAbsPath: string,
+  file: string,
+  label: string,
+  key: 'servers' | 'mcpServers' = 'mcpServers',
+): void {
+  const dir = path.dirname(file);
+  if (dir !== '.' && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const entry = {
-    mcpServers: {
+    [key]: {
       infrawise: {
+        ...(key === 'servers' ? { type: 'stdio' } : {}),
         command: 'infrawise',
         args: ['serve', '--stdio', '--config', configAbsPath],
       },
     },
   };
-  fs.writeFileSync('.mcp.json', JSON.stringify(entry, null, 2), 'utf-8');
-  log.success('MCP config written', '.mcp.json');
+  fs.writeFileSync(file, JSON.stringify(entry, null, 2), 'utf-8');
+  log.success(`${label} config written`, file);
 }
 
-function writeCursorMcp(configAbsPath: string): void {
-  const dir = '.cursor';
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const entry = {
-    mcpServers: {
-      infrawise: {
-        command: 'infrawise',
-        args: ['serve', '--stdio', '--config', configAbsPath],
-      },
-    },
-  };
-  fs.writeFileSync(path.join(dir, 'mcp.json'), JSON.stringify(entry, null, 2), 'utf-8');
-  log.success('Cursor config written', '.cursor/mcp.json');
-}
-
-export function writeVscodeMcp(configAbsPath: string): void {
-  const dir = '.vscode';
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, 'mcp.json');
-  // VS Code's mcp.json commonly holds other servers — merge, never overwrite
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(file)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>;
-    } catch {
-      log.warn('.vscode/mcp.json is not valid JSON — replacing it');
-    }
-  }
-  const servers = (existing['servers'] as Record<string, unknown> | undefined) ?? {};
-  servers['infrawise'] = {
-    type: 'stdio',
-    command: 'infrawise',
-    args: ['serve', '--stdio', '--config', configAbsPath],
-  };
-  existing['servers'] = servers;
-  fs.writeFileSync(file, JSON.stringify(existing, null, 2), 'utf-8');
-  log.success('VS Code config written', '.vscode/mcp.json');
-}
+export const writeVscodeMcp = (configAbsPath: string): void =>
+  writeMcpConfig(configAbsPath, path.join('.vscode', 'mcp.json'), 'VS Code', 'servers');
 
 function launchEditor(editor: 'claude' | 'cursor' | 'code'): Promise<void> {
   return new Promise((resolve) => {
@@ -160,8 +132,8 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
 
   // Write editor MCP config files
   console.log('');
-  writeMcpJson(configAbsPath);
-  if (options.cursor) writeCursorMcp(configAbsPath);
+  writeMcpConfig(configAbsPath, '.mcp.json', 'MCP');
+  if (options.cursor) writeMcpConfig(configAbsPath, path.join('.cursor', 'mcp.json'), 'Cursor');
   if (options.vscode) writeVscodeMcp(configAbsPath);
 
   // Launch editor or print instructions

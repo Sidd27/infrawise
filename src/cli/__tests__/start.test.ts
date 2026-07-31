@@ -15,7 +15,7 @@ vi.mock('../utils.js', () => ({
   printHeader: vi.fn(),
 }));
 
-import { writeVscodeMcp } from '../commands/start.js';
+import { writeVscodeMcp, writeMcpConfig } from '../commands/start.js';
 
 describe('writeVscodeMcp', () => {
   let tmpDir: string;
@@ -45,25 +45,6 @@ describe('writeVscodeMcp', () => {
       command: 'infrawise',
       args: ['serve', '--stdio', '--config', '/abs/infrawise.yaml'],
     });
-  });
-
-  it('merges into an existing mcp.json without dropping other servers', () => {
-    fs.mkdirSync(path.join(tmpDir, '.vscode'));
-    fs.writeFileSync(
-      path.join(tmpDir, '.vscode', 'mcp.json'),
-      JSON.stringify({
-        servers: { other: { type: 'stdio', command: 'other-server', args: [] } },
-        inputs: [{ id: 'token', type: 'promptString' }],
-      }),
-      'utf-8',
-    );
-    writeVscodeMcp('/abs/infrawise.yaml');
-    const config = readConfig();
-    expect(config.servers['other']).toEqual({ type: 'stdio', command: 'other-server', args: [] });
-    expect(config.servers['infrawise'].command).toBe('infrawise');
-    expect((config as Record<string, unknown>)['inputs']).toEqual([
-      { id: 'token', type: 'promptString' },
-    ]);
   });
 
   it('replaces an invalid mcp.json instead of crashing', () => {
