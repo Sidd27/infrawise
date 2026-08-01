@@ -1,0 +1,221 @@
+---
+interface Scenario {
+  title: string
+  tool: string
+  desc: string
+}
+
+interface Role {
+  id: string
+  role: string
+  scope: string
+  color: string
+  doc: string
+  docLabel: string
+  scenarios: Scenario[]
+}
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+
+const roles: Role[] = [
+  {
+    id: 'engineer',
+    role: 'Software engineer',
+    scope: 'Shipping the feature in front of you',
+    color: '#818cf8',
+    doc: 'use-cases/onboarding-a-service',
+    docLabel: 'Onboarding onto a service',
+    scenarios: [
+      {
+        title: 'Your first week on an unfamiliar service',
+        tool: 'get_infra_overview → get_graph_summary',
+        desc: 'Ask "what does checkout actually touch?" and get the blast radius back: every table, queue, and topic it reaches, and which Lambda sits behind each API route. No reading 40 Terraform files, no clicking through six console tabs.',
+      },
+      {
+        title: 'Writing a query against a 200-table database',
+        tool: 'get_table_schema',
+        desc: 'Pull schemas for the three tables you need — columns, types, primary keys, and the foreign keys that give you the join path. The rest of the database never enters the context window.',
+      },
+      {
+        title: 'Triage without leaving the editor',
+        tool: 'get_log_errors + get_queue_details',
+        desc: 'A queue is backing up. Is the consumer stuck or is the Lambda being throttled? oldestMessageAgeSec and recentThrottles answer it in one question, before you open CloudWatch.',
+      },
+    ],
+  },
+  {
+    id: 'principal',
+    role: 'Principal engineer',
+    scope: 'Raising the floor for everyone else',
+    color: '#c4b5fd',
+    doc: 'use-cases/reviewing-a-pull-request',
+    docLabel: 'Reviewing a pull request',
+    scenarios: [
+      {
+        title: 'The IAM policy nobody remembered to update',
+        tool: 'analyze_function',
+        desc: 'Run it on the handler in the pull request: what it reaches, what triggers it, and missingPermissions — the services the code calls that its execution role does not allow. Found in review instead of at 3am.',
+      },
+      {
+        title: 'Make the standard enforce itself',
+        tool: 'infrawise check --fail-on high',
+        desc: 'A queue with no DLQ, a bucket with no encryption, a Lambda still on default memory — the build fails on the pull request. The convention stops depending on whoever happens to review it.',
+      },
+      {
+        title: 'Know every consumer before you change the contract',
+        tool: 'get_graph_summary + get_topic_details',
+        desc: 'Before renaming a column or a topic, list every function that queries the table and every producer and consumer of the topic — mapped from real code, not from tribal memory.',
+      },
+    ],
+  },
+  {
+    id: 'architect',
+    role: 'Architect',
+    scope: 'The estate, not the endpoint',
+    color: '#34d399',
+    doc: 'use-cases/auditing-an-inherited-account',
+    docLabel: 'Auditing an inherited account',
+    scenarios: [
+      {
+        title: 'Find the infrastructure nobody declared',
+        tool: 'IaC drift findings',
+        desc: 'Two lists worth having before any audit: resources running in the account with no Terraform, CloudFormation, or CDK definition behind them, and definitions that were never deployed at all.',
+      },
+      {
+        title: 'One security posture sweep, not six',
+        tool: 'infrawise analyze',
+        desc: 'Public S3 buckets, unencrypted queues, secrets with rotation switched off, publicly accessible RDS instances, cache clusters without transit encryption — one report, severity-ranked, across every service at once.',
+      },
+      {
+        title: 'A cost pass that arrives before the bill',
+        tool: 'cost signals',
+        desc: 'Provisioned-capacity DynamoDB tables, 3 GB Lambdas that have never once throttled, cache clusters carrying more nodes than they need — surfaced as advisory signals you can act on this month.',
+      },
+    ],
+  },
+]
+---
+
+<style>
+  .workflows {
+    position: relative;
+    z-index: 2;
+    padding: var(--section-gap) 24px;
+  }
+  .workflows .section-inner {
+    max-width: var(--max-page);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 60px);
+  }
+  .section-headline {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 12px 0 8px;
+    max-width: 620px;
+  }
+  .section-sub {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 52px;
+    max-width: 560px;
+    line-height: 1.6;
+  }
+  .role-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .role-card {
+    border: 1px solid var(--border-subtle);
+    border-top: 2px solid var(--c);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    padding: 22px 20px 8px;
+    display: flex;
+    flex-direction: column;
+  }
+  .role-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+  }
+  .role-scope {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c);
+    letter-spacing: 0.03em;
+    margin-top: 4px;
+    margin-bottom: 20px;
+  }
+  .scenario {
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+  }
+  .scenario-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .scenario-tool {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 18%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+  }
+  .scenario-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin: 0;
+  }
+  .role-doc {
+    margin-top: auto;
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--c);
+    text-decoration: none;
+    display: inline-block;
+  }
+  .role-doc:hover { text-decoration: underline; }
+  @media (max-width: 900px) {
+    .role-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<section class="workflows">
+  <div class="section-inner">
+    <p class="label">Who It Helps</p>
+    <h2 class="section-headline">The same graph, three different jobs.</h2>
+    <p class="section-sub">Writing a handler is one use. The graph is just as useful for onboarding onto a service you did not build, reviewing someone else's pull request, or auditing an account you inherited.</p>
+
+    <div class="role-grid">
+      {roles.map(r => (
+        <div class="role-card" style={`--c: ${r.color}`}>
+          <h3 class="role-name">{r.role}</h3>
+          <p class="role-scope">{r.scope}</p>
+          {r.scenarios.map(s => (
+            <div class="scenario">
+              <p class="scenario-title">{s.title}</p>
+              <span class="scenario-tool">{s.tool}</span>
+              <p class="scenario-desc">{s.desc}</p>
+            </div>
+          ))}
+          <a class="role-doc" href={`${base}/${r.doc}/`}>{r.docLabel} →</a>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

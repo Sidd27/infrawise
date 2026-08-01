@@ -12,6 +12,29 @@ interface UseCase {
 
 const cases: UseCase[] = [
   {
+    id: 'schema-paste',
+    title: 'Pasting your schema into the chat, again',
+    desc: 'The oldest ritual in AI-assisted development: copy the table definitions out of the console, paste them into the chat, repeat next session. The pasted copy is partial, and it goes stale the moment someone runs a migration.',
+    tool: 'get_table_schema',
+    before: [
+      { text: '-- pasted by hand at the top of every session', type: 'comment' },
+      { text: 'CREATE TABLE orders (', type: 'normal' },
+      { text: '  id uuid PRIMARY KEY,', type: 'normal' },
+      { text: '  customer_id uuid,        -- FK to what? nullable?', type: 'normal' },
+      { text: '  ...                      -- 40 more tables to go', type: 'normal' },
+      { text: ');', type: 'normal' },
+      { text: '-- \u274c partial, and stale after the next migration', type: 'err' },
+    ],
+    after: [
+      { text: '-- the assistant asks infrawise instead', type: 'comment' },
+      { text: 'get_table_schema({ tables: ["orders", "customers"] })', type: 'normal' },
+      { text: '-- \u2192 columns, types, primary keys, foreign keys', type: 'comment' },
+      { text: 'SELECT o.id, c.email FROM orders o', type: 'normal' },
+      { text: '  JOIN customers c ON c.id = o.customer_id;', type: 'normal' },
+      { text: '-- \u2705 real column names, real join path, live schema', type: 'ok' },
+    ],
+  },
+  {
     id: 'event-shape',
     title: 'Wrong Lambda event shape',
     desc: 'AI guesses the handler signature. SQS, S3, and EventBridge all use different shapes — getting it wrong means silent undefined at runtime.',
@@ -191,7 +214,7 @@ const cases: UseCase[] = [
   <div class="section-inner">
     <p class="label">Where It Helps</p>
     <h2 class="section-headline">The bugs that only appear at runtime.</h2>
-    <p class="section-sub">AI hallucinates queue types, event shapes, and filter policies. Infrawise gives it your actual infrastructure so it stops guessing.</p>
+    <p class="section-sub">AI hallucinates column names, queue types, event shapes, and filter policies. Infrawise gives it your actual infrastructure so it stops guessing.</p>
 
     <div class="case-list">
       {cases.map(c => (

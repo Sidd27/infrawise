@@ -71,11 +71,15 @@ export default defineConfig({
 				{
 					label: 'Use Cases',
 					items: [
+						{ label: 'Schema without pasting',    slug: 'use-cases/schema-without-pasting' },
 						{ label: 'Lambda event shapes',       slug: 'use-cases/lambda-event-shapes' },
 						{ label: 'DynamoDB scan detection',   slug: 'use-cases/dynamodb-scans'      },
 						{ label: 'SQS dead-letter queues',    slug: 'use-cases/sqs-dlq'             },
 						{ label: 'IaC drift detection',       slug: 'use-cases/iac-drift'           },
 						{ label: 'AWS security posture',      slug: 'use-cases/security-posture'    },
+						{ label: 'Onboarding onto a service', slug: 'use-cases/onboarding-a-service' },
+						{ label: 'Reviewing a pull request',  slug: 'use-cases/reviewing-a-pull-request' },
+						{ label: 'Auditing an inherited account', slug: 'use-cases/auditing-an-inherited-account' },
 					],
 				},
 			],
