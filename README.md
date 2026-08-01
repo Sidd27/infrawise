@@ -126,7 +126,7 @@ Findings (3 total)
 infrawise start --claude
 ```
 
-Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise serve --stdio` process — no server to start, no ports to configure.
+Writes `.mcp.json` to your project root (merging with any MCP servers already configured there) and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise serve --stdio` process — no server to start, no ports to configure.
 
 ### Cursor
 
@@ -134,7 +134,7 @@ Writes `.mcp.json` to your project root and opens Claude Code. Claude Code reads
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` and opens Cursor. All 21 infrawise tools are available in Cursor's MCP panel.
+Writes `.cursor/mcp.json` (merging with any existing MCP servers) and opens Cursor. All 21 infrawise tools are available in Cursor's MCP panel.
 
 ### VS Code
 
@@ -150,7 +150,7 @@ Writes `.vscode/mcp.json` (merging with any existing MCP servers) and opens VS C
 infrawise start
 ```
 
-Writes `.mcp.json` and exits. Open whichever editor you prefer — point it at `infrawise serve --stdio --config /path/to/infrawise.yaml` as an MCP server command.
+Writes `.mcp.json` (merging with any existing MCP servers) and exits. Open whichever editor you prefer — point it at `infrawise serve --stdio --config /path/to/infrawise.yaml` as an MCP server command.
 
 ### HTTP transport (alternative)
 

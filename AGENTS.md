@@ -170,7 +170,7 @@ src/
   analyzers/  rule-based analyzers
   context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python)
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
-  cli/        CLI commands
+  cli/        CLI commands (mcp-boot.ts holds the serve/stdio bootstrap they share)
 ```
 
 Build: `pnpm build` → `tsc --noEmit false --outDir dist`

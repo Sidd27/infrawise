@@ -58,7 +58,7 @@ if (existsSync(serverJsonPath)) {
 // ── Regenerate architecture diagram ──────────────────────────────────────────
 
 console.log('\nGenerating architecture diagram...');
-execSync('pnpm generate-diagrams', { stdio: 'inherit' });
+execSync('pnpm build-arch', { stdio: 'inherit' });
 
 execSync('git add package.json docs/architecture.svg', { stdio: 'inherit' });
 if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
