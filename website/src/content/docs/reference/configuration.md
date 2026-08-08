@@ -90,6 +90,9 @@ msk:
 elasticache:
   enabled: false
 
+cloudfront:
+  enabled: false
+
 runtimeSignals:
   enabled: false # Lambda throttles/errors + queue age via CloudWatch metrics
   windowHours: 24
@@ -109,7 +112,7 @@ analysis:
 
 **`aws`** controls which AWS account and region Infrawise scans. `profile` selects a named profile from `~/.aws/config`; leave it empty to use the default credential chain (environment variables, `~/.aws/credentials`, instance profile).
 
-**Service keys** (`dynamodb`, `sqs`, `sns`, `ssm`, `secretsManager`, `lambda`, `eventbridge`, `rds`, `s3`, `apiGateway`, `cognito`, `kinesis`, `msk`, `elasticache`, `cloudwatchLogs`) each take `enabled: true|false`. Disabled services are never contacted, and their MCP tools are reported as off by `infrawise serve`.
+**Service keys** (`dynamodb`, `sqs`, `sns`, `ssm`, `secretsManager`, `lambda`, `eventbridge`, `rds`, `s3`, `apiGateway`, `cognito`, `kinesis`, `msk`, `elasticache`, `cloudfront`, `cloudwatchLogs`) each take `enabled: true|false`. Disabled services are never contacted, and their MCP tools are reported as off by `infrawise serve`.
 
 **Database keys** (`postgres`, `mysql`, `mongodb`) take a connection string. Infrawise reads table/collection names, column definitions, and index configurations — it never queries row data. Connection strings support `${ENV_VAR}` substitution (see below), and can also live in `.infrawise/secrets.yaml` outside version control.
 

@@ -48,6 +48,8 @@ Attach this policy to the IAM user or role Infrawise uses. This is the full poli
         "kafka:ListClustersV2",
         "elasticache:DescribeCacheClusters",
         "elasticache:DescribeReplicationGroups",
+        "cloudfront:ListDistributions",
+        "cloudfront:ListCachePolicies",
         "iam:ListAttachedRolePolicies",
         "iam:ListRolePolicies",
         "iam:GetRolePolicy",
@@ -116,6 +118,7 @@ sqs:
 | `kinesis` | `kinesis:ListStreams`, `kinesis:DescribeStreamSummary` |
 | `msk` | `kafka:ListClustersV2` |
 | `elasticache` | `elasticache:DescribeCacheClusters`, `elasticache:DescribeReplicationGroups` |
+| `cloudfront` | `cloudfront:ListDistributions`, `cloudfront:ListCachePolicies` |
 | `runtimeSignals` (opt-in) | `cloudwatch:GetMetricData` |
 
 For the DynamoDB/Lambda/SQS example above, that's:

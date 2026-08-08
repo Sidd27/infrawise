@@ -58,7 +58,7 @@ To connect Claude Code to the LocalStack demo environment, run this from the `de
 infrawise start --claude --config infrawise.yaml
 ```
 
-This writes `.mcp.json` pointing Infrawise at the LocalStack config. Open Claude Code in the same directory — all 21 MCP tools are immediately available and running against the seeded LocalStack resources. Try asking: "What infrastructure issues should I fix first?"
+This writes `.mcp.json` pointing Infrawise at the LocalStack config. Open Claude Code in the same directory — all 22 MCP tools are immediately available and running against the seeded LocalStack resources. Try asking: "What infrastructure issues should I fix first?"
 
 For Cursor, use `--cursor` instead of `--claude`.
 
@@ -71,6 +71,24 @@ If you prefer an HTTP server (for debugging tool calls or a custom MCP client), 
 ```bash
 docker compose down
 ```
+
+---
+
+## Full service coverage: the Floci demo
+
+The LocalStack community image has no Cognito, Kinesis, ElastiCache, API Gateway v2, RDS, MSK, or CloudFront, so the demo above leaves parts of Infrawise unexercised.
+
+[Floci](https://floci.io) is an MIT-licensed AWS emulator that listens on the same port 4566 and covers all of them — with no auth token and no account. The `demo/floci` directory in the repository runs the same seed script against it, then adds the services LocalStack cannot emulate:
+
+```bash
+cd demo/floci
+cp .env.example .env
+./start.sh
+```
+
+It needs a `floci` AWS profile in `~/.aws` pointing at `http://localhost:4566`, set up exactly like the `localstack` profile above. Since both emulators bind port 4566, run only one at a time.
+
+That demo also ships two local-file fixtures that need no emulator at all: a `terraform/` directory that drifts from the seeded resources, and a `cdk.out/` whose `manifest.json` lists only one of its two stack templates — the orphan is what per-stack CDK staleness detection is built for.
 
 ---
 

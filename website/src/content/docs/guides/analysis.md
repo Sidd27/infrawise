@@ -1,9 +1,9 @@
 ---
 title: Analysis capabilities
-description: What Infrawise's 36 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
+description: What Infrawise's 37 rule-based analyzers detect across AWS services, PostgreSQL, MySQL, MongoDB, and IaC sources — with severity levels and actionable recommendations.
 ---
 
-An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 36 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
+An "analysis" in Infrawise means: connect to your configured services using read-only API calls, extract resource metadata into an in-memory graph, then run 37 rule-based analyzers against that graph. Each analyzer checks for a specific misconfiguration, missing resource, or deviation from operational best practice. Results are classified as `high`, `medium`, or `low` severity and surfaced as findings with specific recommendations.
 
 Your AI assistant can query these findings via MCP tools like `get_infra_overview` and `get_graph_summary`, or ask for function-level analysis with `analyze_function`. See the [MCP tools reference](/infrawise/reference/mcp-tools/) for the full tool list.
 
@@ -52,6 +52,7 @@ Use the `--severity` flag on `infrawise analyze` or `infrawise start` to filter 
 | ElastiCache | Missing in-transit encryption | Without TLS, credentials and cached data cross the network in plaintext. |
 | ElastiCache | Single node with no replication | A node failure loses all cached data and takes the cache offline until replaced. |
 | ElastiCache | Cost signal: more than 3 nodes (advisory) | Verify traffic actually justifies N× the per-node cost — no billing API involved. |
+| CloudFront | Behavior serving traffic over plain HTTP | A behavior with an `allow-all` viewer protocol policy lets viewers reach the origin unencrypted, putting any auth header or cookie on the wire in plaintext. |
 
 ## Database analyzers
 

@@ -24,8 +24,14 @@ A resource exists in AWS but has no matching definition in your IaC files. It wa
 Infrawise reads local IaC files from your project directory. It supports:
 
 - **Terraform** — `.tf` files
-- **AWS CDK** — synthesized output
+- **AWS CDK** — synthesized output in `cdk.out/`
 - **CloudFormation** — `.yaml` and `.json` template files
+
+### Stale CDK output does not count as drift
+
+In a monorepo where stacks are removed or renamed but people only re-run `cdk synth` for the stacks they are actively touching, `cdk.out` accumulates orphaned `*.template.json` files from stacks that no longer exist. Reporting those as real would invent drift against infrastructure nobody deployed.
+
+Infrawise cross-checks every template against `cdk.out/manifest.json` — written by `cdk synth` itself on each run, in every CDK language — which lists exactly the stacks the app instantiates today. A template the manifest does not reference has its resources excluded from both the graph and drift analysis. Its outputs are kept but flagged `stale`, so a dead cross-stack export stays visible in `get_stack_outputs` rather than silently disappearing. A template whose modification time lags the rest of `cdk.out` by more than an hour is flagged as well, which usually means `cdk synth` was not re-run for everything before the analysis.
 
 Enable it with `terraform.enabled: true` in `infrawise.yaml` (this one key covers Terraform, CDK, and CloudFormation parsing). Infrawise scans the same repository path used for code scanning — the current directory by default, or `--repo <path>` on `analyze`/`check`. There's no separate IaC-path config key.
 

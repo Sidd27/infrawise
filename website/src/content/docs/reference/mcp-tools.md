@@ -1,9 +1,9 @@
 ---
 title: MCP tools reference
-description: All 21 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
+description: All 22 MCP tools exposed by Infrawise — inputs, return shape, when to call, and common patterns.
 ---
 
-Infrawise exposes **21 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
+Infrawise exposes **22 MCP tools** via a local stdio or HTTP server. Run `infrawise start` once to analyze your infrastructure and write the editor config. After that your editor manages the server — no commands to run between sessions.
 
 :::tip
 Start every session with `get_infra_overview`. It costs one tool call and gives you everything you need to know what infrastructure exists before writing any code.
@@ -322,6 +322,8 @@ Per API:
 - Name and type (`REST`, `HTTP`, or `WEBSOCKET`)
 - Routes — each with HTTP method, path, and the Lambda function name it invokes (`null` when no Lambda integration is configured)
 
+Lambda attribution handles both integration URI forms: the REST invoke path (`arn:aws:apigateway:...:path/2015-03-31/functions/<fnArn>/invocations`) and the bare function ARN that HTTP API `AWS_PROXY` integrations use — which is what CDK's `HttpLambdaIntegration` produces. Alias and version qualifiers resolve to the function name, not the qualifier. A `null` therefore means the route genuinely has no Lambda integration, and is worth wiring up.
+
 **When to call:** Before writing or reviewing any API handler — call this to confirm which Lambda backs a route and what method/path combination it expects. Also use when auditing API surface area for routes with no Lambda integration.
 
 ---
@@ -338,8 +340,13 @@ Per output:
 - Name, description, and the raw value expression
 - Export name (CloudFormation/CDK `Export.Name`) when the output is a cross-stack export
 - Source (`terraform`, `cloudformation`, or `cdk`) and file path
+- `stale` and `staleReason` when the output came from a CDK template that is no longer current
 
-**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack.
+**CDK staleness.** In a monorepo where stacks get removed or renamed but people only re-run `cdk synth` for the stacks they are touching, `cdk.out` accumulates orphaned `*.template.json` files from stacks that no longer exist. Infrawise cross-checks every template against `cdk.out/manifest.json`, which `cdk synth` rewrites on each run and which lists exactly the stacks the app instantiates today — in every CDK language, not just TypeScript.
+
+A template the manifest does not reference has its **resources excluded entirely**, so deleted infrastructure never reaches the graph or the drift analyzer. Its outputs are kept and flagged, so a dead cross-stack export is visible rather than silently missing. A template whose modification time lags the newest template in `cdk.out` by more than an hour is flagged too — a weaker signal, so its resources are kept. With no readable manifest, no cross-check is possible and nothing is flagged.
+
+**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack. Never rely on an output marked `stale` without re-running `cdk synth`.
 
 ---
 
@@ -390,6 +397,26 @@ Per cluster:
 - Related findings (missing transit encryption, single-node with no replication)
 
 **When to call:** Before writing cache client code — TLS is required when transit encryption is on (`rediss://` for Redis) — or when reviewing cache availability and security posture.
+
+---
+
+## get_cloudfront_overview
+
+Returns all CloudFront distributions with their origins and cache behaviors.
+
+No inputs required.
+
+**Returns**
+
+Per distribution:
+- ID, comment, domain name, alias domains, and enabled state
+- Origins — ID, domain name, origin type (`s3` or `custom`), origin path, and `api`: the API Gateway name resolved from an `<apiId>.execute-api.*` origin domain
+- Behaviors — path pattern, target origin and its domain, cache policy name, viewer protocol policy, allowed methods, and whether it is the default behavior
+- Related findings
+
+Behaviors come back in CloudFront match order: ordered cache behaviors first, the default behavior (`pathPattern: "*"`) last. The first pattern that matches a request path wins, so read the list top-down.
+
+**When to call:** To answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement. This is the tool for an app that fronts several backend APIs through one distribution with path-pattern behaviors — the origin-to-API resolution means you can trace a path to the API that serves it without reading CDK source or opening the console.
 
 ---
 

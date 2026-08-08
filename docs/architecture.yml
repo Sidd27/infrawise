@@ -63,11 +63,11 @@ nodes:
     lines: 3
 
   L2:
-    label: "Cognito · Kinesis\nMSK · ElastiCache"
+    label: "Cognito · Kinesis\nMSK · ElastiCache\nCloudFront"
     theme: aws
     col: 0
     row: 2
-    lines: 2
+    lines: 3
 
   S:
     label: "Secrets Manager · SSM\nCloudWatch"
@@ -96,10 +96,11 @@ nodes:
     lines: 2
 
   C:
-    label: 'TypeScript / JS'
+    label: "TypeScript / JS\nPython"
     theme: code
     col: 0
     row: 7
+    lines: 2
 
   A:
     label: 'Adapters'
@@ -114,7 +115,7 @@ nodes:
     row: 3
 
   AN:
-    label: '36 Analyzers'
+    label: '37 Analyzers'
     theme: iw
     col: 4
     row: 3
