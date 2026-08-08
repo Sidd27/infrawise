@@ -118,6 +118,19 @@ export type GraphNode = (
     }
   | {
       id: string;
+      type: 'distribution';
+      name: string;
+      provider: string;
+      distributionId: string;
+      domainName: string;
+      comment?: string;
+      enabled: boolean;
+      aliases?: string[];
+      origins?: CloudFrontOriginMetadata[];
+      behaviors?: CloudFrontBehaviorMetadata[];
+    }
+  | {
+      id: string;
       type: 'cache_cluster';
       name: string;
       provider: string;
@@ -169,6 +182,8 @@ export type GraphNode = (
       value?: string;
       iacSource: string;
       file: string;
+      stale?: boolean;
+      staleReason?: string;
     }
   | {
       id: string;
@@ -195,7 +210,8 @@ export type GraphEdge =
   | { from: string; to: string; type: 'subscribes_to' }
   | { from: string; to: string; type: 'reads_secret' }
   | { from: string; to: string; type: 'reads_parameter' }
-  | { from: string; to: string; type: 'triggers' };
+  | { from: string; to: string; type: 'triggers' }
+  | { from: string; to: string; type: 'routes_to' };
 
 export interface SystemGraph {
   nodes: GraphNode[];
@@ -290,6 +306,32 @@ export interface APIGatewayMetadata {
   type: 'REST' | 'HTTP' | 'WEBSOCKET';
   stageName?: string;
   routes: APIGatewayRouteMetadata[];
+}
+
+export interface CloudFrontOriginMetadata {
+  id: string;
+  domainName: string;
+  originType: 's3' | 'custom';
+  originPath?: string;
+}
+
+export interface CloudFrontBehaviorMetadata {
+  pathPattern: string;
+  targetOriginId: string;
+  viewerProtocolPolicy: string;
+  cachePolicy?: string;
+  allowedMethods?: string[];
+  isDefault: boolean;
+}
+
+export interface CloudFrontDistributionMetadata {
+  id: string;
+  domainName: string;
+  comment?: string;
+  enabled: boolean;
+  aliases: string[];
+  origins: CloudFrontOriginMetadata[];
+  behaviors: CloudFrontBehaviorMetadata[];
 }
 
 export interface SNSFilterPolicy {
@@ -476,6 +518,7 @@ export interface ServicesMeta {
   kinesis?: KinesisStreamMetadata[];
   msk?: MSKClusterMetadata[];
   elasticache?: ElastiCacheClusterMetadata[];
+  cloudfront?: CloudFrontDistributionMetadata[];
 }
 
 // ─── Operations ─────────────────────────────────────────────────────────────
@@ -582,6 +625,9 @@ export interface InfrawiseConfig {
     enabled?: boolean;
   };
   elasticache?: {
+    enabled?: boolean;
+  };
+  cloudfront?: {
     enabled?: boolean;
   };
   runtimeSignals?: {

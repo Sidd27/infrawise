@@ -5,7 +5,7 @@ ENDPOINT="http://localhost:4566"
 REGION="us-east-1"
 AWS="aws --endpoint-url=$ENDPOINT --region=$REGION"
 
-echo "🌱 Seeding AWS resources in LocalStack..."
+echo "🌱 Seeding AWS resources into ${EMULATOR_NAME:-LocalStack}..."
 
 # ── DynamoDB ────────────────────────────────────────────────────────────────
 
@@ -405,7 +405,7 @@ $AWS elasticache create-cache-cluster \
   --no-cli-pager 2>/dev/null || true
 
 echo ""
-echo "✅ AWS seed complete"
+echo "✅ ${EMULATOR_NAME:-LocalStack} seed complete"
 echo "   DynamoDB    : Orders (no GSI), LegacyOrders (IaC drift), Users (control)"
 echo "   SQS         : orders-queue (no DLQ+unencrypted), payment-events (no DLQ), orders-fifo.fifo (FIFO), report-trigger-queue (visibility 10s mismatch), temp-processing-queue (IaC drift)"
 echo "   Secrets     : db-password + stripe-api-key (no rotation)"
@@ -413,6 +413,6 @@ echo "   Lambda      : processOrders (128MB, SQS trigger), generateReport (128MB
 echo "   EventBridge : generate-report-schedule (rate), order-created-event (pattern)"
 echo "   API Gateway : demo-api (REST) — GET/POST /orders → processOrders, GET /reports → generateReport, POST /notifications → sendNotification"
 echo "   Logs        : processOrders + generateReport (no retention), audit-logs (400 days)"
-echo "   Kinesis     : click-events (1 shard) — needs Floci or LocalStack with Kinesis"
-echo "   Cognito     : demo-users pool + web-client app client — needs Floci (LocalStack Pro only)"
-echo "   ElastiCache : sessions-cache (single node, no transit encryption) — needs Floci (LocalStack Pro only)"
+echo "   Kinesis     : click-events (1 shard)"
+echo "   Cognito     : demo-users pool + web-client app client"
+echo "   ElastiCache : sessions-cache (single node, no transit encryption)"

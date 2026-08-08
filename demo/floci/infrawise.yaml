@@ -1,6 +1,6 @@
-project: localstack
+project: floci
 aws:
-  profile: localstack
+  profile: floci
   region: us-east-1
 dynamodb:
   enabled: true
@@ -31,7 +31,7 @@ lambda:
 eventbridge:
   enabled: true
 rds:
-  enabled: false
+  enabled: true
 s3:
   enabled: true
 apiGateway:
@@ -41,13 +41,13 @@ cognito:
 kinesis:
   enabled: true
 msk:
-  enabled: false
+  enabled: true
 elasticache:
   enabled: true
 cloudfront:
-  enabled: false # CloudFront is a LocalStack Pro service — not emulated on the free tier
+  enabled: true
 runtimeSignals:
-  enabled: false
+  enabled: false # needs CloudWatch metrics with real datapoints
 cloudwatchLogs:
   enabled: true
   logGroupPrefixes: []

@@ -1,6 +1,6 @@
 # Infrawise
 
-> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, API Gateway, RDS, Cognito, Kinesis, MSK, ElastiCache), databases (PostgreSQL, MySQL, MongoDB), Apache Kafka (any broker, via kafkajs or kafka-python/confluent-kafka producer/consumer code detection), application code (TypeScript, JavaScript, and Python AST scanning), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
+> MCP server for deterministic infrastructure analysis. Scans AWS services (DynamoDB, Lambda, SQS, SNS, Secrets Manager, SSM, CloudWatch, EventBridge, S3, API Gateway, RDS, Cognito, Kinesis, MSK, ElastiCache, CloudFront), databases (PostgreSQL, MySQL, MongoDB), Apache Kafka (any broker, via kafkajs or kafka-python/confluent-kafka producer/consumer code detection), application code (TypeScript, JavaScript, and Python AST scanning), and IaC (Terraform, CDK, CloudFormation) to surface findings and correct trigger event shapes — without reading secret values or raw logs.
 
 ## Problem it solves
 
@@ -11,7 +11,7 @@ When an AI coding assistant writes a Lambda handler, it doesn't know:
 - Which secrets are missing rotation or which DLQs are unconfigured
 - Whether the Lambda execution role actually allows the services the function calls
 
-Infrawise answers all of these via 21 MCP tools served over Streamable HTTP.
+Infrawise answers all of these via 22 MCP tools served over Streamable HTTP.
 
 ## Docs
 
@@ -40,7 +40,7 @@ For HTTP transport instead of stdio:
 infrawise serve   # start MCP server at http://localhost:3000/mcp
 ```
 
-## MCP tools (21 total)
+## MCP tools (22 total)
 
 - `get_infra_overview` — full snapshot of all infrastructure plus analysis freshness (age + stale flag), start here
 - `get_graph_summary` — complete graph: all nodes, edges, findings
@@ -59,10 +59,11 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — CloudWatch error patterns (never raw log messages)
 - `get_api_routes` — API Gateway APIs (REST, HTTP, WebSocket) with routes, methods, and Lambda integrations
-- `get_stack_outputs` — stack outputs and cross-stack exports from local IaC files (Terraform outputs, CFN/CDK Outputs)
+- `get_stack_outputs` — stack outputs and cross-stack exports from local IaC files (Terraform outputs, CFN/CDK Outputs), with per-stack staleness flags for orphaned cdk.out templates
 - `get_cognito_overview` — Cognito user pools and app client config: auth flows, OAuth settings, token validity (secrets never included)
 - `get_stream_details` — Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)
 - `get_cache_overview` — ElastiCache clusters: engine, encryption, replication, failover, cost signal (cached data never read)
+- `get_cloudfront_overview` — CloudFront distributions: per-behavior path patterns, origins (S3 vs custom, resolved API Gateway name), cache policy, viewer protocol policy
 
 ## Works with
 

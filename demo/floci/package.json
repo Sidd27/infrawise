@@ -1,0 +1,10 @@
+{
+  "name": "infrawise-demo-floci",
+  "version": "0.0.0",
+  "private": true,
+  "description": "infrawise Floci demo — every supported AWS service emulated locally (seed in seed/aws-seed.sh)",
+  "scripts": {
+    "start": "./start.sh",
+    "stop": "docker compose down"
+  }
+}

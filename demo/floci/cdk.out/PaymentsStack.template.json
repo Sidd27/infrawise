@@ -1,0 +1,20 @@
+{
+  "Resources": {
+    "PaymentsTable7A2B4C": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "PaymentsTable",
+        "KeySchema": [{ "AttributeName": "paymentId", "KeyType": "HASH" }],
+        "AttributeDefinitions": [{ "AttributeName": "paymentId", "AttributeType": "S" }],
+        "BillingMode": "PAY_PER_REQUEST"
+      }
+    }
+  },
+  "Outputs": {
+    "PaymentsTableName": {
+      "Description": "Name of the payments table",
+      "Value": { "Ref": "PaymentsTable7A2B4C" },
+      "Export": { "Name": "demo-payments-table-name" }
+    }
+  }
+}

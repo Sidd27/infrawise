@@ -87,7 +87,7 @@ describe('MCP Server — protocol', () => {
   it('lists all 21 tools', async () => {
     const client = await makeClient(emptyGraph, []);
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(21);
+    expect(tools).toHaveLength(22);
     const names = tools.map((t) => t.name);
     expect(names).toContain('get_infra_overview');
     expect(names).toContain('get_graph_summary');
@@ -379,5 +379,81 @@ describe('get_table_schema', () => {
     expect(res.tables).toHaveLength(2);
     expect(res.tables[0].matches[0].databaseType).toBe('dynamodb');
     expect(res.tables[1].matches[0].databaseType).toBe('postgres');
+  });
+});
+
+describe('get_cloudfront_overview', () => {
+  const cdnGraph: SystemGraph = {
+    nodes: [
+      {
+        id: 'api:aws:abc123',
+        type: 'api',
+        name: 'orders-api',
+        provider: 'aws',
+        apiType: 'HTTP',
+        routes: [],
+      },
+      {
+        id: 'distribution:aws:E123',
+        type: 'distribution',
+        name: 'front door',
+        provider: 'aws',
+        distributionId: 'E123',
+        domainName: 'd123.cloudfront.net',
+        comment: 'front door',
+        enabled: true,
+        aliases: ['app.example.com'],
+        origins: [
+          {
+            id: 'orders-origin',
+            domainName: 'abc123.execute-api.us-east-1.amazonaws.com',
+            originType: 'custom',
+          },
+          { id: 'assets-origin', domainName: 'assets.s3.amazonaws.com', originType: 's3' },
+        ],
+        behaviors: [
+          {
+            pathPattern: '/api/*',
+            targetOriginId: 'orders-origin',
+            viewerProtocolPolicy: 'redirect-to-https',
+            cachePolicy: 'CachingDisabled',
+            isDefault: false,
+          },
+          {
+            pathPattern: '*',
+            targetOriginId: 'assets-origin',
+            viewerProtocolPolicy: 'redirect-to-https',
+            isDefault: true,
+          },
+        ],
+      },
+    ],
+    edges: [{ from: 'distribution:aws:E123', to: 'api:aws:abc123', type: 'routes_to' }],
+  };
+
+  let client: Client;
+  beforeEach(async () => {
+    client = await makeClient(cdnGraph, []);
+  });
+  afterEach(async () => {
+    await client.close();
+  });
+
+  it('resolves an execute-api origin to the API Gateway name', async () => {
+    const res = await callTool(client, 'get_cloudfront_overview');
+    expect(res.total).toBe(1);
+    const origins = res.distributions[0].origins;
+    expect(origins[0].api).toBe('orders-api');
+    expect(origins[1].api).toBeUndefined();
+    expect(origins[1].originType).toBe('s3');
+  });
+
+  it('lists behaviors in match order with the default last', async () => {
+    const res = await callTool(client, 'get_cloudfront_overview');
+    const behaviors = res.distributions[0].behaviors;
+    expect(behaviors.map((b: { pathPattern: string }) => b.pathPattern)).toEqual(['/api/*', '*']);
+    expect(behaviors[0].originDomain).toBe('abc123.execute-api.us-east-1.amazonaws.com');
+    expect(behaviors[0].cachePolicy).toBe('CachingDisabled');
+    expect(behaviors[1].isDefault).toBe(true);
   });
 });

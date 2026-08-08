@@ -42,6 +42,11 @@ import {
   DescribeReplicationGroupsCommand,
 } from '@aws-sdk/client-elasticache';
 import {
+  CloudFrontClient,
+  ListDistributionsCommand,
+  ListCachePoliciesCommand,
+} from '@aws-sdk/client-cloudfront';
+import {
   CognitoIdentityProviderClient,
   ListUserPoolsCommand,
   ListUserPoolClientsCommand,
@@ -74,6 +79,9 @@ import type {
   KinesisStreamMetadata,
   MSKClusterMetadata,
   ElastiCacheClusterMetadata,
+  CloudFrontDistributionMetadata,
+  CloudFrontOriginMetadata,
+  CloudFrontBehaviorMetadata,
 } from '../../types.js';
 import { logger } from '../../core/index.js';
 
@@ -801,12 +809,111 @@ export async function validateRDSAccess(cfg: AWSConfig = {}): Promise<void> {
   await new RDSClient(clientConfig(cfg)).send(new DescribeDBInstancesCommand({ MaxRecords: 20 }));
 }
 
+// ─── CloudFront ──────────────────────────────────────────────────────────────
+
+// Cache policies are referenced by opaque UUID. Resolving the ids to names is
+// what makes the behavior readable ("CachingDisabled" vs a uuid).
+async function cachePolicyNames(client: CloudFrontClient): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  for (const type of ['managed', 'custom'] as const) {
+    try {
+      const res = await client.send(new ListCachePoliciesCommand({ Type: type }));
+      for (const item of res.CachePolicyList?.Items ?? []) {
+        const id = item.CachePolicy?.Id;
+        const name = item.CachePolicy?.CachePolicyConfig?.Name;
+        if (id && name) names.set(id, name);
+      }
+    } catch {
+      /* policy names are optional context */
+    }
+  }
+  return names;
+}
+
+export async function extractCloudFrontMetadata(
+  cfg: AWSConfig = {},
+): Promise<CloudFrontDistributionMetadata[]> {
+  // CloudFront is a global service — its control plane only answers in us-east-1.
+  const client = new CloudFrontClient({ ...clientConfig(cfg), region: 'us-east-1' });
+  const distributions: CloudFrontDistributionMetadata[] = [];
+
+  try {
+    const policyNames = await cachePolicyNames(client);
+
+    let marker: string | undefined;
+    do {
+      const res = await client.send(new ListDistributionsCommand({ Marker: marker }));
+      for (const d of res.DistributionList?.Items ?? []) {
+        if (!d.Id) continue;
+
+        const origins: CloudFrontOriginMetadata[] = (d.Origins?.Items ?? []).map((o) => ({
+          id: o.Id ?? '',
+          domainName: o.DomainName ?? '',
+          originType: o.S3OriginConfig ? 's3' : 'custom',
+          originPath: o.OriginPath || undefined,
+        }));
+
+        const toBehavior = (
+          b: {
+            PathPattern?: string;
+            TargetOriginId?: string;
+            ViewerProtocolPolicy?: string;
+            CachePolicyId?: string;
+            AllowedMethods?: { Items?: string[] };
+          },
+          isDefault: boolean,
+        ): CloudFrontBehaviorMetadata => ({
+          pathPattern: isDefault ? '*' : (b.PathPattern ?? '*'),
+          targetOriginId: b.TargetOriginId ?? '',
+          viewerProtocolPolicy: b.ViewerProtocolPolicy ?? 'unknown',
+          cachePolicy: b.CachePolicyId
+            ? (policyNames.get(b.CachePolicyId) ?? b.CachePolicyId)
+            : undefined,
+          allowedMethods: b.AllowedMethods?.Items,
+          isDefault,
+        });
+
+        // Ordered cache behaviors are matched first, in order; the default
+        // behavior is the fallback, so it belongs last.
+        const behaviors = [
+          ...(d.CacheBehaviors?.Items ?? []).map((b) => toBehavior(b, false)),
+          ...(d.DefaultCacheBehavior ? [toBehavior(d.DefaultCacheBehavior, true)] : []),
+        ];
+
+        distributions.push({
+          id: d.Id,
+          domainName: d.DomainName ?? '',
+          comment: d.Comment || undefined,
+          enabled: d.Enabled ?? false,
+          aliases: d.Aliases?.Items ?? [],
+          origins,
+          behaviors,
+        });
+      }
+      marker = res.DistributionList?.IsTruncated ? res.DistributionList.NextMarker : undefined;
+    } while (marker);
+
+    logger.debug(`Extracted ${distributions.length} CloudFront distribution(s)`);
+  } catch (err) {
+    logger.warn(
+      `CloudFront extraction failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  return distributions;
+}
+
 // ─── API Gateway ──────────────────────────────────────────────────────────────
 
-function lambdaNameFromArn(arn?: string): string | undefined {
-  if (!arn) return undefined;
-  const parts = arn.split(':');
-  return parts[parts.length - 1] || undefined;
+// An integration URI is either the API Gateway invoke path
+// (arn:aws:apigateway:<region>:lambda:path/2015-03-31/functions/<fnArn>/invocations)
+// or, for HTTP API AWS_PROXY integrations, the bare function ARN. Both forms put
+// the name after "function:", optionally followed by an alias or version
+// qualifier. Non-Lambda integrations (HTTP proxy, S3, Step Functions) have no
+// "function:" segment and correctly resolve to undefined.
+export function lambdaNameFromIntegrationUri(uri?: string): string | undefined {
+  if (!uri) return undefined;
+  return /:function:([^:/]+)/.exec(uri)?.[1];
 }
 
 export async function extractAPIGatewayMetadata(
@@ -841,9 +948,7 @@ export async function extractAPIGatewayMetadata(
             const integration = (methodItem as Record<string, Record<string, unknown> | undefined>)
               ?.methodIntegration;
             const lambdaArn = typeof integration?.uri === 'string' ? integration.uri : undefined;
-            const lambdaName = lambdaArn
-              ? lambdaNameFromArn(lambdaArn.split('/functions/')[1]?.split('/')[0])
-              : undefined;
+            const lambdaName = lambdaNameFromIntegrationUri(lambdaArn);
             routes.push({ method, path: resourcePath, lambdaArn, lambdaName });
           }
         }
@@ -900,9 +1005,7 @@ export async function extractAPIGatewayMetadata(
           const routePath = pathParts.join(' ') || '/';
           const integrationId = route.Target?.replace('integrations/', '');
           const lambdaArn = integrationId ? integrationMap.get(integrationId) : undefined;
-          const lambdaName = lambdaArn
-            ? lambdaNameFromArn(lambdaArn.split('/functions/')[1]?.split('/')[0])
-            : undefined;
+          const lambdaName = lambdaNameFromIntegrationUri(lambdaArn);
           routes.push({ method: method ?? routeKey, path: routePath, lambdaArn, lambdaName });
         }
       } catch (err) {

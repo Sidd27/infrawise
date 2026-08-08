@@ -83,6 +83,8 @@ export interface IaCOutput {
   value?: string;
   source: IaCSource;
   filePath: string;
+  stale?: boolean;
+  staleReason?: string;
 }
 
 export interface IaCSchema {
@@ -515,6 +517,7 @@ function processCFNOutputs(
   schema: IaCSchema,
   filePath: string,
   source: IaCSource,
+  staleReason?: string,
 ): void {
   const outputs = template['Outputs'];
   if (typeof outputs !== 'object' || outputs === null) return;
@@ -535,13 +538,21 @@ function processCFNOutputs(
       value: typeof out['Value'] === 'string' ? out['Value'] : JSON.stringify(out['Value']),
       source,
       filePath,
+      ...(staleReason ? { stale: true, staleReason } : {}),
     });
   }
 }
 
 export async function extractCloudFormationSchema(repoPath: string): Promise<IaCSchema> {
   const schema = emptySchema();
-  const cfnFiles = findFilesRecursively(repoPath, ['.yaml', '.yml', '.json']);
+  // cdk.out belongs to extractCDKSchema, which cross-checks each template
+  // against the app manifest. Walking it here would re-admit the orphaned
+  // stacks that check just excluded, under a 'cloudformation' source.
+  const cfnFiles = findFilesRecursively(
+    repoPath,
+    ['.yaml', '.yml', '.json'],
+    new Set(['node_modules', '.git', 'dist', '.infrawise', 'cdk.out']),
+  );
   logger.debug(`Scanning ${cfnFiles.length} potential CloudFormation file(s)`);
 
   for (const filePath of cfnFiles) {
@@ -558,26 +569,82 @@ export async function extractCloudFormationSchema(repoPath: string): Promise<IaC
 
 // ─── CDK parser ───────────────────────────────────────────────────────────────
 
+// A template whose mtime lags the newest sibling by more than this was not part
+// of the last `cdk synth`, which rewrites every template in cdk.out each run.
+const SYNTH_SKEW_MS = 60 * 60 * 1000;
+
+// `cdk synth` rewrites cdk.out/manifest.json on every run, listing exactly the
+// stacks the app instantiates today — in every CDK language, not just TypeScript.
+// A *.template.json the manifest does not reference is an orphan left behind by
+// a stack that was deleted, renamed, or merged. Returns null when there is no
+// readable manifest, in which case no cross-check is possible.
+function stacksInApp(cdkOutDir: string): Set<string> | null {
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(fs.readFileSync(path.join(cdkOutDir, 'manifest.json'), 'utf-8'));
+  } catch {
+    return null;
+  }
+  const artifacts = (manifest as Record<string, unknown> | null)?.['artifacts'];
+  if (typeof artifacts !== 'object' || artifacts === null) return null;
+
+  const templateFiles = new Set<string>();
+  for (const raw of Object.values(artifacts as Record<string, unknown>)) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const artifact = raw as Record<string, unknown>;
+    if (artifact['type'] !== 'aws:cloudformation:stack') continue;
+    const props = artifact['properties'] as Record<string, unknown> | undefined;
+    if (typeof props?.['templateFile'] === 'string') {
+      templateFiles.add(path.basename(props['templateFile']));
+    }
+  }
+  return templateFiles;
+}
+
 export async function extractCDKSchema(repoPath: string): Promise<IaCSchema> {
   const schema = emptySchema();
 
   // Strategy 1: Parse cdk.out/*.template.json (synthesized CloudFormation)
   const cdkOutDir = path.join(repoPath, 'cdk.out');
   if (fs.existsSync(cdkOutDir)) {
-    const templateFiles = fs
-      .readdirSync(cdkOutDir)
-      .filter((f) => f.endsWith('.template.json'))
-      .map((f) => path.join(cdkOutDir, f));
+    const templateFiles = fs.readdirSync(cdkOutDir).filter((f) => f.endsWith('.template.json'));
+    const inApp = stacksInApp(cdkOutDir);
+
+    const mtimes = new Map<string, number>();
+    for (const file of templateFiles) {
+      try {
+        mtimes.set(file, fs.statSync(path.join(cdkOutDir, file)).mtimeMs);
+      } catch {
+        /* unreadable — no mtime signal for this one */
+      }
+    }
+    const newestMtime = Math.max(0, ...mtimes.values());
 
     logger.debug(`Found ${templateFiles.length} CDK synthesized template(s) in cdk.out/`);
 
-    for (const filePath of templateFiles) {
+    for (const file of templateFiles) {
+      const filePath = path.join(cdkOutDir, file);
       const parsed = parseCFNFile(filePath);
       if (!parsed) continue;
+
+      const orphaned = inApp !== null && !inApp.has(file);
+      const mtime = mtimes.get(file);
+      const skewed = mtime !== undefined && newestMtime - mtime > SYNTH_SKEW_MS;
+
+      const staleReason = orphaned
+        ? 'no matching stack instantiation found in the CDK app (not listed in cdk.out/manifest.json) — leftover from a deleted or renamed stack'
+        : skewed
+          ? `synth output is ${Math.round((newestMtime - mtime) / 3_600_000)}h older than the newest stack in cdk.out — re-run \`cdk synth\``
+          : undefined;
+
+      if (staleReason) logger.warn(`Stale CDK template ${file}: ${staleReason}`);
+
+      // Orphaned stacks describe infrastructure that no longer exists — their
+      // resources must not reach the graph or the drift analyzer. Outputs are
+      // kept but flagged, so a stale cross-stack export is visible, not silent.
       const resources = parsed['Resources'] as Record<string, unknown> | undefined;
-      if (!resources) continue;
-      processCFNResources(resources, schema, filePath, 'cdk');
-      processCFNOutputs(parsed, schema, filePath, 'cdk');
+      if (resources && !orphaned) processCFNResources(resources, schema, filePath, 'cdk');
+      processCFNOutputs(parsed, schema, filePath, 'cdk', staleReason);
     }
   }
 

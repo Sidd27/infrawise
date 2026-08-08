@@ -296,6 +296,32 @@ export async function S3UnencryptedAnalyzer(graph: SystemGraph): Promise<Finding
 
 // ─── ElastiCache ─────────────────────────────────────────────────────────────
 
+// ─── CloudFront ──────────────────────────────────────────────────────────────
+
+export async function CloudFrontInsecureViewerProtocolAnalyzer(
+  graph: SystemGraph,
+): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  for (const node of graph.nodes) {
+    if (node.type !== 'distribution' || !node.enabled) continue;
+    for (const behavior of node.behaviors ?? []) {
+      if (behavior.viewerProtocolPolicy !== 'allow-all') continue;
+      findings.push({
+        severity: 'medium',
+        issue: `CloudFront "${node.name}" serves "${behavior.pathPattern}" over plain HTTP`,
+        description: `The behavior matching "${behavior.pathPattern}" on distribution ${node.distributionId} has viewerProtocolPolicy "allow-all", so viewers can reach origin "${behavior.targetOriginId}" over unencrypted HTTP. Any auth header or cookie on those requests crosses the network in plaintext.`,
+        recommendation: `Set viewerProtocolPolicy to "redirect-to-https" (or "https-only" for API paths that should never be reachable over HTTP) for "${behavior.pathPattern}".`,
+        metadata: {
+          distributionId: node.distributionId,
+          pathPattern: behavior.pathPattern,
+          provider: node.provider,
+        },
+      });
+    }
+  }
+  return findings;
+}
+
 export async function CacheTransitEncryptionAnalyzer(graph: SystemGraph): Promise<Finding[]> {
   const findings: Finding[] = [];
   for (const node of graph.nodes) {

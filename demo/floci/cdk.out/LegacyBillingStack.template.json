@@ -1,0 +1,24 @@
+{
+  "Resources": {
+    "LegacyInvoicesTableD41F09": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "LegacyInvoicesTable",
+        "KeySchema": [{ "AttributeName": "invoiceId", "KeyType": "HASH" }],
+        "AttributeDefinitions": [{ "AttributeName": "invoiceId", "AttributeType": "S" }],
+        "BillingMode": "PAY_PER_REQUEST"
+      }
+    },
+    "LegacyBillingQueue1B8E2A": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": { "QueueName": "legacy-billing-queue" }
+    }
+  },
+  "Outputs": {
+    "LegacyInvoicesTableArn": {
+      "Description": "ARN of the legacy invoices table",
+      "Value": { "Fn::GetAtt": ["LegacyInvoicesTableD41F09", "Arn"] },
+      "Export": { "Name": "demo-legacy-invoices-table-arn" }
+    }
+  }
+}

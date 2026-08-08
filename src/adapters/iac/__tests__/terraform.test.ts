@@ -895,3 +895,89 @@ Outputs:
     expect(schema.outputs[0].source).toBe('cloudformation');
   });
 });
+
+describe('CDK cdk.out staleness', () => {
+  const template = (tableName: string) =>
+    JSON.stringify({
+      Resources: {
+        Tbl: { Type: 'AWS::DynamoDB::Table', Properties: { TableName: tableName } },
+      },
+      Outputs: { TblArn: { Value: 'arn', Export: { Name: `${tableName}-arn` } } },
+    });
+
+  const manifest = (templateFiles: string[]) =>
+    JSON.stringify({
+      version: '36.0.0',
+      artifacts: Object.fromEntries([
+        ['Tree', { type: 'cdk:tree' }],
+        ...templateFiles.map((f) => [
+          f.replace('.template.json', ''),
+          { type: 'aws:cloudformation:stack', properties: { templateFile: f } },
+        ]),
+      ]),
+    });
+
+  it('excludes resources from templates the app no longer instantiates', async () => {
+    write(dir, 'cdk.out/LiveStack.template.json', template('live-table'));
+    write(dir, 'cdk.out/DeletedStack.template.json', template('deleted-table'));
+    write(dir, 'cdk.out/manifest.json', manifest(['LiveStack.template.json']));
+
+    const schema = await extractCDKSchema(dir);
+    expect(schema.dynamoTables.map((t) => t.name)).toEqual(['live-table']);
+  });
+
+  it('keeps outputs from orphaned templates but flags them stale', async () => {
+    write(dir, 'cdk.out/DeletedStack.template.json', template('deleted-table'));
+    write(dir, 'cdk.out/manifest.json', manifest([]));
+
+    const schema = await extractCDKSchema(dir);
+    expect(schema.outputs).toHaveLength(1);
+    expect(schema.outputs[0].stale).toBe(true);
+    expect(schema.outputs[0].staleReason).toContain('manifest.json');
+  });
+
+  it('treats every template as current when there is no manifest', async () => {
+    write(dir, 'cdk.out/OldStack.template.json', template('old-table'));
+
+    const schema = await extractCDKSchema(dir);
+    expect(schema.dynamoTables.map((t) => t.name)).toEqual(['old-table']);
+    expect(schema.outputs[0].stale).toBeUndefined();
+  });
+
+  it('flags a template whose synth output lags its siblings', async () => {
+    const stale = write(dir, 'cdk.out/StaleStack.template.json', template('stale-table'));
+    write(dir, 'cdk.out/FreshStack.template.json', template('fresh-table'));
+    write(
+      dir,
+      'cdk.out/manifest.json',
+      manifest(['StaleStack.template.json', 'FreshStack.template.json']),
+    );
+    const old = new Date(Date.now() - 5 * 60 * 60 * 1000);
+    fs.utimesSync(stale, old, old);
+
+    const schema = await extractCDKSchema(dir);
+    const staleOutput = schema.outputs.find((o) => o.filePath === stale);
+    expect(staleOutput?.stale).toBe(true);
+    expect(staleOutput?.staleReason).toContain('cdk synth');
+    // A lagging mtime is a weak signal — resources stay, only the flag is raised.
+    expect(schema.dynamoTables.map((t) => t.name).sort()).toEqual(['fresh-table', 'stale-table']);
+  });
+});
+
+describe('cdk.out ownership', () => {
+  it('does not re-admit an orphaned CDK stack through the CloudFormation scan', async () => {
+    write(
+      dir,
+      'cdk.out/DeletedStack.template.json',
+      JSON.stringify({
+        Resources: {
+          Tbl: { Type: 'AWS::DynamoDB::Table', Properties: { TableName: 'deleted-table' } },
+        },
+      }),
+    );
+    write(dir, 'cdk.out/manifest.json', JSON.stringify({ artifacts: {} }));
+
+    expect((await extractCloudFormationSchema(dir)).dynamoTables).toHaveLength(0);
+    expect((await extractIaCSchema(dir)).dynamoTables).toHaveLength(0);
+  });
+});

@@ -354,6 +354,32 @@ export function buildGraph(
     }
   }
 
+  for (const d of servicesMeta.cloudfront ?? []) {
+    const distId = `distribution:aws:${d.id}`;
+    addNode({
+      id: distId,
+      type: 'distribution',
+      name: d.comment || d.aliases[0] || d.domainName,
+      provider: 'aws',
+      distributionId: d.id,
+      domainName: d.domainName,
+      comment: d.comment,
+      enabled: d.enabled,
+      aliases: d.aliases,
+      origins: d.origins,
+      behaviors: d.behaviors,
+    });
+
+    // An origin pointing at <apiId>.execute-api.<region>.amazonaws.com is this
+    // distribution routing to an API Gateway we already extracted.
+    for (const origin of d.origins) {
+      const apiId = /^([a-z0-9]+)\.execute-api\./.exec(origin.domainName)?.[1];
+      if (!apiId) continue;
+      const targetId = `api:aws:${apiId}`;
+      if (nodeIds.has(targetId)) edges.push({ from: distId, to: targetId, type: 'routes_to' });
+    }
+  }
+
   for (const c of servicesMeta.elasticache ?? []) {
     addNode({
       id: `cache_cluster:aws:${c.id}`,
@@ -549,6 +575,8 @@ export interface StackOutputInfo {
   value?: string;
   source: string;
   filePath: string;
+  stale?: boolean;
+  staleReason?: string;
 }
 
 export function addStackOutputNodes(graph: SystemGraph, outputs: StackOutputInfo[]): void {
@@ -566,6 +594,8 @@ export function addStackOutputNodes(graph: SystemGraph, outputs: StackOutputInfo
       value: o.value,
       iacSource: o.source,
       file: o.filePath,
+      stale: o.stale,
+      staleReason: o.staleReason,
     });
   }
 }
@@ -625,6 +655,8 @@ export const getStreamNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'stream' }>>(g, 'stream');
 export const getKafkaClusterNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'kafka_cluster' }>>(g, 'kafka_cluster');
+export const getDistributionNodes = (g: SystemGraph) =>
+  getNodes<Extract<GraphNode, { type: 'distribution' }>>(g, 'distribution');
 export const getCacheClusterNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'cache_cluster' }>>(g, 'cache_cluster');
 

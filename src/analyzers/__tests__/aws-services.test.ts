@@ -16,6 +16,7 @@ import {
   CacheSingleNodeAnalyzer,
   LambdaThrottlingAnalyzer,
   StaleQueueMessagesAnalyzer,
+  CloudFrontInsecureViewerProtocolAnalyzer,
 } from '../aws-services.js';
 import type { SystemGraph } from '../../types.js';
 
@@ -951,5 +952,47 @@ describe('StaleQueueMessagesAnalyzer', () => {
       edges: [],
     };
     expect(await analyzer(graph)).toHaveLength(0);
+  });
+});
+
+describe('CloudFrontInsecureViewerProtocolAnalyzer', () => {
+  const analyzer = CloudFrontInsecureViewerProtocolAnalyzer;
+
+  const distribution = (viewerProtocolPolicy: string, enabled = true): SystemGraph => ({
+    nodes: [
+      {
+        id: 'distribution:aws:E123',
+        type: 'distribution',
+        name: 'public front door',
+        provider: 'aws',
+        distributionId: 'E123',
+        domainName: 'd123.cloudfront.net',
+        enabled,
+        behaviors: [
+          {
+            pathPattern: '/api/*',
+            targetOriginId: 'orders-api',
+            viewerProtocolPolicy,
+            isDefault: false,
+          },
+        ],
+      },
+    ],
+    edges: [],
+  });
+
+  it('flags a behavior that allows plain HTTP', async () => {
+    const findings = await analyzer(distribution('allow-all'));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].issue).toContain('/api/*');
+    expect(findings[0].metadata?.distributionId).toBe('E123');
+  });
+
+  it('passes a behavior that redirects to HTTPS', async () => {
+    expect(await analyzer(distribution('redirect-to-https'))).toHaveLength(0);
+  });
+
+  it('ignores a disabled distribution', async () => {
+    expect(await analyzer(distribution('allow-all', false))).toHaveLength(0);
   });
 });

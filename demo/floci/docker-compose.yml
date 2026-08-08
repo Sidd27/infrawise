@@ -1,0 +1,12 @@
+services:
+  floci:
+    image: floci/floci:latest
+    ports:
+      - '4566:4566'
+    # Floci backs Lambda, RDS, ElastiCache and MSK with real containers, so it
+    # needs the Docker socket (and root to use it).
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - FLOCI_DEFAULT_REGION=us-east-1

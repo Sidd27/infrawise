@@ -215,6 +215,7 @@ function writeYaml(
     rds: { enabled: false },
     s3: { enabled: true },
     apiGateway: { enabled: true },
+    cloudfront: { enabled: true },
     cognito: { enabled: false },
     kinesis: { enabled: false },
     msk: { enabled: false },

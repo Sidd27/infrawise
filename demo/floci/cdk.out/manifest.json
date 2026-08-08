@@ -1,0 +1,18 @@
+{
+  "version": "36.0.0",
+  "artifacts": {
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": { "file": "tree.json" }
+    },
+    "PaymentsStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://000000000000/us-east-1",
+      "properties": {
+        "templateFile": "PaymentsStack.template.json",
+        "validateOnSynth": false
+      },
+      "displayName": "PaymentsStack"
+    }
+  }
+}

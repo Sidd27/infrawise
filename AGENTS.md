@@ -13,13 +13,13 @@
 *Guard* (mistake prevention) — Surface costly infra mistakes before they ship. Wrong SQS visibility timeout causing duplicate Lambda processing. Missing DLQ silently dropping failed messages. A Lambda scanning a DynamoDB table without a GSI. RDS queries on unindexed columns. These are expensive to discover in production. Infrawise warns at coding time, not incident time.
 
 **What it covers today:**
-- AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs, Cognito, Kinesis, MSK (clusters), ElastiCache, CloudWatch metrics (opt-in runtime signals)
+- AWS: DynamoDB, Lambda, SQS, SNS, SSM Parameter Store, Secrets Manager, EventBridge, RDS, API Gateway, S3, CloudWatch Logs, Cognito, Kinesis, MSK (clusters), ElastiCache, CloudFront, CloudWatch metrics (opt-in runtime signals)
 - Databases: PostgreSQL, MySQL, MongoDB
 - Messaging: Apache Kafka via `kafkajs` (TS/JS) and kafka-python/confluent-kafka (Python) — broker-agnostic (self-hosted, Confluent, Redpanda, or Amazon MSK). Producer/consumer-to-topic mapping is extracted from application code (AST scan, always-on, no config key) and surfaced as topic nodes via `get_topic_details`. Distinct from the Amazon MSK *Lambda trigger* (detected from the event-source ARN, with event shape `event.records[topic][0].value`).
 - IaC: Terraform, CDK, CloudFormation (local file parsing for drift detection, plus stack outputs / cross-stack exports)
 - Code scanning: TypeScript/JavaScript (ts-morph) and Python (bundled stdlib-ast scanner run via python3 subprocess, requires python3 on PATH) — auto-detected by file signal, no config. Python detection: boto3 clients and `dynamodb.Table()` resources, `cursor.execute`/SQLAlchemy `text()` SQL, pymongo collections, kafka-python/confluent-kafka
 
-**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 21 MCP tools (server mode) that AI assistants call to get precise context before writing code.
+**How it works:** `infrawise analyze` extracts infrastructure into an in-memory graph, runs rule-based analyzers to generate findings, then either prints a report (CLI) or serves 22 MCP tools (server mode) that AI assistants call to get precise context before writing code.
 
 **Strategic bets:**
 - MCP is the primary integration surface (Claude Code, Cursor, any MCP-capable editor). `infrawise check` is the standalone CI/CD gate — runs a fresh analysis and exits non-zero when findings reach `--fail-on` severity (default high), reaching teams not yet using AI editors.
@@ -84,10 +84,10 @@ mcp-publisher publish server.json
 
 - Follow KISS + SOLID. Simplest shape that works. Complexity must earn its place.
 - No comments unless the WHY is non-obvious. No docstrings.
-- **NO source code changes for LocalStack — period.** `src/` is written for real AWS only. LocalStack is reached through a standard `localstack` AWS profile the user adds to their global `~/.aws/config` + `~/.aws/credentials` (with `endpoint_url = http://localhost:4566` + `test`/`test` creds). The demo's `infrawise.yaml` uses `profile: localstack` and `.env` sets `AWS_PROFILE=localstack`; the AWS SDK resolves credentials, region, and `endpoint_url` from that profile. infrawise just selects a profile like any other. Never add an `endpoint` config key, dummy credentials, port-4566 probe, or any `localstack`/`4566` reference to `src/`. Setup is documented in `demo/localstack/README.md`.
+- **NO source code changes for local emulators — period.** `src/` is written for real AWS only. LocalStack and Floci are both reached through a standard AWS profile the user adds to their global `~/.aws/config` + `~/.aws/credentials` (with `endpoint_url = http://localhost:4566` + `test`/`test` creds) — `localstack` for one demo, `floci` for the other. Each demo's `infrawise.yaml` sets `profile:` accordingly and `.env` sets `AWS_PROFILE`; the AWS SDK resolves credentials, region, and `endpoint_url` from that profile. infrawise just selects a profile like any other. Never add an `endpoint` config key, dummy credentials, port-4566 probe, or any `localstack`/`floci`/`4566` reference to `src/`. Setup is documented in `demo/localstack/README.md` and `demo/floci/README.md`.
 - **Always ask before committing or pushing. Never commit without explicit user approval.**
 - Do NOT manually run `pnpm format`/`lint`/`typecheck`/`test` just before a commit — the `pre-commit` hook runs all four automatically (and re-stages only the files already in the commit after prettier). Running them by hand right before committing is wasted work; if the hook fails, fix and re-commit. Run them during development whenever you want to validate a change in progress.
-- When adding a new feature (new service type, new adapter, new tool): update `demo/local/app/` with a representative usage example and update `demo/local/infrawise.yaml` if needed. Demo must always stay in sync — no need to be asked.
+- When adding a new feature (new service type, new adapter, new tool): update the demos, always, without being asked. Code-level features go in `demo/local/app/` (plus `demo/local/infrawise.yaml` if needed). A new AWS service goes in `demo/localstack/seed/aws-seed.sh` when the LocalStack community image emulates it, otherwise in `demo/floci/seed/aws-seed.sh` — the Floci seed sources the LocalStack one, so shared resources belong in the LocalStack script and never in both. Add the config key to every demo `infrawise.yaml` that should exercise it.
 - **When a new feature adds a config key: update BOTH `src/types.ts` (the TypeScript interface) AND `src/core/config.ts` (the Zod schema).** If only `types.ts` is updated, Zod strips the key silently and the feature never activates — no error, just silent failure. Always add the matching `z.object(...)` entry to `InfrawiseConfigSchema` in `config.ts`.
 - **After every implementation, always update all three docs — no exceptions, no need to be asked:**
   - `README.md` — CLI reference table (including `start` flags), MCP tools table, "Using with AI coding assistants" section, configuration section, `--severity` flag docs
@@ -104,9 +104,13 @@ mcp-publisher publish server.json
 - No emojis or em-dashes.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
 
-## Running the LocalStack demo
+## Running the emulator demos
 
-Validates the full adapter stack against real AWS services emulated locally. No AWS account needed.
+Two demos validate the adapter stack against emulated AWS. No AWS account needed for either.
+
+`demo/floci` is the one to reach for when a change touches adapters, analyzers, or MCP tools: Floci emulates every service infrawise supports, so a single run exercises the whole stack. `demo/localstack` runs on the LocalStack community image, which has no Cognito, Kinesis, ElastiCache, API Gateway v2, RDS, MSK, or CloudFront. Both listen on port 4566 — run only one at a time.
+
+### LocalStack
 
 **Prerequisites:** Docker Desktop running, AWS CLI installed, and a `localstack` AWS profile in `~/.aws` (one-time setup — see `demo/localstack/README.md`).
 
@@ -123,9 +127,26 @@ source .env                 # sets AWS_PROFILE=localstack — required every ses
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 34+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Against Floci (see demo README) Cognito (1 user pool), Kinesis (1 stream), and ElastiCache (1 cluster, transit encryption finding) also extract — 37 findings total. Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
+Expected: 34+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
 
-To start the MCP server against LocalStack:
+### Floci
+
+No auth token and no account — just a `floci` AWS profile in `~/.aws` (see `demo/floci/README.md`).
+
+```bash
+cd demo/floci
+cp .env.example .env
+./start.sh                  # starts Floci + seeds all resources
+```
+
+`demo/floci/seed/aws-seed.sh` sources the LocalStack seed unchanged, then adds the Floci-only services. Keep the shared resources in the LocalStack seed so both demos stay in step; put anything LocalStack community cannot emulate in the Floci seed.
+
+Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), CloudFront (1 distribution, `/api/*` allow-all finding), API Gateway v2 (1 HTTP API, 4 routes). Two local-file fixtures need no emulator and are the regression cases for per-stack CDK staleness and route-to-Lambda attribution:
+
+- `demo/floci/cdk.out/` — `manifest.json` lists only `PaymentsStack`; `LegacyBillingStack.template.json` is an orphan, so its resources are excluded and its output returns `stale: true`
+- the HTTP API integrations use a bare function ARN and an aliased ARN, the two forms CDK's `HttpLambdaIntegration` emits — `get_api_routes` must name both Lambdas and return `null` for the integration-less route
+
+To start the MCP server against either emulator:
 
 ```bash
 infrawise serve --config infrawise.yaml    # HTTP transport, keeps server running in foreground
@@ -139,7 +160,7 @@ Stop when done:
 docker compose down
 ```
 
-**When to run:** After refactoring adapters, adding a new adapter, or changing the analysis pipeline — confirms real extraction + finding generation end-to-end.
+**When to run:** After refactoring adapters, adding a new adapter, or changing the analysis pipeline — confirms real extraction + finding generation end-to-end. Prefer `demo/floci` for full coverage.
 
 ---
 
@@ -164,7 +185,7 @@ src/
   core/       config, logger, cache
   graph/      graph engine
   adapters/
-    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS/APIGateway/Cognito/Kinesis/MSK/ElastiCache, s3, metrics — CloudWatch runtime signals)
+    aws/      extractors (dynamodb, logs, services — SQS/SNS/SSM/Secrets/Lambda/EventBridge/RDS/APIGateway/Cognito/Kinesis/MSK/ElastiCache/CloudFront, s3, metrics — CloudWatch runtime signals)
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
@@ -181,7 +202,7 @@ Test: `pnpm test` → vitest
 
 ## MCP tool reference
 
-Infrawise exposes 21 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
+Infrawise exposes 22 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
 Resource listings and findings cover resources that were actually extracted from your account. A queue, secret, or table that appears only as a code reference (for example `QueueUrl: process.env.QUEUE_URL`, which has no resolvable name) is kept in `get_graph_summary` with `placeholder: true` and excluded everywhere else — infrawise will not report "no DLQ" or "no rotation" for a resource whose configuration it never read.
 
@@ -413,9 +434,11 @@ Stack outputs and cross-stack exports parsed from local IaC files.
 
 No inputs required.
 
-Returns: per-output — name, description, exportName (CFN/CDK `Export.Name`), raw value expression, source (terraform/cloudformation/cdk), file path.
+Returns: per-output — name, description, exportName (CFN/CDK `Export.Name`), raw value expression, source (terraform/cloudformation/cdk), file path, and `stale` / `staleReason` when the output came from a CDK template that is no longer current.
 
-**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack.
+CDK staleness is resolved against `cdk.out/manifest.json`, which `cdk synth` rewrites on every run and which lists exactly the stacks the app instantiates today (in every CDK language). A `*.template.json` the manifest does not reference is an orphan from a deleted or renamed stack: its **resources are excluded entirely** so deleted infrastructure never reaches the graph or the drift analyzer, while its outputs are kept and flagged, so a dead cross-stack export is visible rather than silently missing. A template whose mtime lags the newest template in `cdk.out` by more than an hour is flagged too (weaker signal — resources are kept), since `cdk synth` rewrites every template each run. With no readable manifest, no cross-check is possible and nothing is flagged.
+
+**When to call:** When wiring cross-stack references (`Fn::ImportValue`, `terraform_remote_state`) or when you need the exported name of a resource defined in another stack. Not for live resource attributes — outputs come from local IaC files, not the deployed stack. Never rely on an output marked `stale` without re-running `cdk synth`.
 
 ---
 
@@ -455,7 +478,26 @@ Returns: per-cluster — id, engine, engineVersion, nodeType, numNodes, transitE
 
 ---
 
+### `get_cloudfront_overview`
+
+All CloudFront distributions with their origins and cache behaviors.
+
+No inputs required.
+
+Returns: per-distribution — id, comment, domainName, aliases, enabled, origins (id, domainName, originType `s3`/`custom`, originPath, and `api` — the API Gateway name resolved from an `<apiId>.execute-api.*` origin domain), behaviors (pathPattern, origin, originDomain, cachePolicy resolved to its name, viewerProtocolPolicy, allowedMethods, isDefault), findings.
+
+Behaviors are returned in CloudFront match order: ordered cache behaviors first, the default behavior (`pathPattern: "*"`, `isDefault: true`) last. The first pattern that matches a request path wins, so read the list top-down to answer which behavior serves a path.
+
+**When to call:** To answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement across a front door that fans out to several APIs.
+
+---
+
 ## Recommended usage patterns
+
+**Tracing a request path through a CloudFront front door:**
+1. `get_cloudfront_overview` → find the first behavior whose pathPattern matches, read its origin
+2. `get_api_routes` → when that origin resolves to an API, confirm the route and its Lambda
+3. `analyze_function` on that Lambda → trigger event shape and findings
 
 **Before writing a query:**
 1. `get_infra_overview` → understand what tables/services exist

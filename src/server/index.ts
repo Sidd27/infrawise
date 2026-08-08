@@ -34,6 +34,7 @@ import {
   getStreamNodes,
   getKafkaClusterNodes,
   getCacheClusterNodes,
+  getDistributionNodes,
   getScanEdges,
   getOutgoingEdges,
 } from '../graph/index.js';
@@ -124,6 +125,7 @@ export const TOOLS: ReadonlyArray<{ name: string; service?: string }> = [
   { name: 'get_cognito_overview', service: 'cognito' },
   { name: 'get_stream_details', service: 'kinesis' },
   { name: 'get_cache_overview', service: 'elasticache' },
+  { name: 'get_cloudfront_overview', service: 'cloudfront' },
 ];
 
 // ── MCP Server ────────────────────────────────────────────────────────────────
@@ -166,6 +168,7 @@ export function createMcpServer(): McpServer {
           userPools: userPools.length,
           streams: getStreamNodes(currentGraph).length,
           cacheClusters: getCacheClusterNodes(currentGraph).length,
+          distributions: getDistributionNodes(currentGraph).length,
           totalNodes: currentGraph.nodes.length,
           totalEdges: currentGraph.edges.length,
           findings: summarizeFindings(currentFindings),
@@ -792,6 +795,61 @@ export function createMcpServer(): McpServer {
   );
 
   mcp.registerTool(
+    'get_cloudfront_overview',
+    {
+      description:
+        'Returns all CloudFront distributions with, per distribution: id, comment, domain name, alias domains, enabled state, origins (type s3 or custom, domain name, and the resolved API Gateway name when the origin is an execute-api endpoint), and every cache behavior with its path pattern, target origin, cache policy name, viewer protocol policy, and allowed methods. Behaviors are listed in CloudFront match order — ordered behaviors first, the default behavior last. Call this to answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement across a multi-API front door.',
+      inputSchema: z.object({}),
+    },
+    logged('get_cloudfront_overview', async () => {
+      const distributions = getDistributionNodes(currentGraph);
+      const apiNamesById = new Map(getAPINodes(currentGraph).map((a) => [a.id, a.name]));
+      const distFindings = currentFindings.filter(
+        (f) => (f.metadata as Record<string, unknown> | undefined)?.distributionId,
+      );
+
+      return toText({
+        total: distributions.length,
+        distributions: distributions.map((d) => {
+          const originsById = new Map((d.origins ?? []).map((o) => [o.id, o]));
+          return {
+            id: d.distributionId,
+            comment: d.comment,
+            domainName: d.domainName,
+            aliases: d.aliases ?? [],
+            enabled: d.enabled,
+            origins: (d.origins ?? []).map((o) => {
+              const apiId = /^([a-z0-9]+)\.execute-api\./.exec(o.domainName)?.[1];
+              const api = apiId ? apiNamesById.get(`api:aws:${apiId}`) : undefined;
+              return {
+                id: o.id,
+                domainName: o.domainName,
+                originType: o.originType,
+                originPath: o.originPath,
+                ...(api ? { api } : {}),
+              };
+            }),
+            behaviors: (d.behaviors ?? []).map((b) => ({
+              pathPattern: b.pathPattern,
+              origin: b.targetOriginId,
+              originDomain: originsById.get(b.targetOriginId)?.domainName,
+              cachePolicy: b.cachePolicy,
+              viewerProtocolPolicy: b.viewerProtocolPolicy,
+              allowedMethods: b.allowedMethods,
+              isDefault: b.isDefault,
+            })),
+            findings: distFindings
+              .filter(
+                (f) => (f.metadata as Record<string, unknown>).distributionId === d.distributionId,
+              )
+              .map((f) => ({ severity: f.severity, issue: f.issue })),
+          };
+        }),
+      });
+    }),
+  );
+
+  mcp.registerTool(
     'get_stream_details',
     {
       description:
@@ -849,7 +907,7 @@ export function createMcpServer(): McpServer {
     'get_stack_outputs',
     {
       description:
-        'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack.',
+        'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack. CDK outputs carry `stale: true` with a `staleReason` when their cdk.out template is no longer instantiated in the CDK app or predates the last `cdk synth` — do not rely on a stale export without re-synthesizing.',
       inputSchema: z.object({}),
     },
     logged('get_stack_outputs', async () => {
@@ -863,6 +921,7 @@ export function createMcpServer(): McpServer {
           value: o.value,
           source: o.iacSource,
           file: o.file,
+          ...(o.stale ? { stale: true, staleReason: o.staleReason } : {}),
         })),
       });
     }),

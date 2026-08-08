@@ -91,7 +91,7 @@ That's it. Infrawise will:
 1. Probe your environment and generate `infrawise.yaml` (first time only — asks which AWS profile to use only if you have several)
 2. Scan your AWS services, databases, and codebase
 3. Write `.mcp.json` so your editor auto-connects on every future launch
-4. Open Claude Code with all 21 MCP tools ready
+4. Open Claude Code with all 22 MCP tools ready
 
 **Every time after:**
 
@@ -134,7 +134,7 @@ Writes `.mcp.json` to your project root (merging with any MCP servers already co
 infrawise start --cursor
 ```
 
-Writes `.cursor/mcp.json` (merging with any existing MCP servers) and opens Cursor. All 21 infrawise tools are available in Cursor's MCP panel.
+Writes `.cursor/mcp.json` (merging with any existing MCP servers) and opens Cursor. All 22 infrawise tools are available in Cursor's MCP panel.
 
 ### VS Code
 
@@ -193,10 +193,11 @@ Add to your editor's MCP config:
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
-| `get_stack_outputs`          | Stack outputs and cross-stack exports parsed from local IaC files (Terraform outputs, CFN/CDK Outputs)      |
+| `get_stack_outputs`          | Stack outputs and cross-stack exports parsed from local IaC files, with staleness flags for orphaned `cdk.out` templates |
 | `get_cognito_overview`       | Cognito user pools — MFA config, app client auth flows, OAuth settings, token validity (secrets never included) |
 | `get_stream_details`         | Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)          |
 | `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover, cost signal (data never read) |
+| `get_cloudfront_overview`    | CloudFront distributions — per-behavior path patterns, origins (S3 vs custom, resolved API Gateway name), cache policy, viewer protocol policy |
 
 ---
 
@@ -346,6 +347,9 @@ msk:
 elasticache:
   enabled: false
 
+cloudfront:
+  enabled: false
+
 runtimeSignals:
   enabled: false # Lambda throttles/errors + queue age via CloudWatch metrics
   windowHours: 24
@@ -427,6 +431,7 @@ Works from AWS APIs, database schema introspection, and IaC files — no depende
 | Cognito                          | User pools and app client config — auth flows, OAuth settings, token validity, client secret presence              |
 | Kinesis / MSK                    | Streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)                        |
 | ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication, cost signal (more than 3 nodes)           |
+| CloudFront                       | Behaviors serving traffic over plain HTTP (`allow-all` viewer protocol policy)                                    |
 | Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
 | Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
 
@@ -527,7 +532,12 @@ Feature roadmap is tracked in the [Infrawise v1](https://github.com/users/Sidd27
 
 ## Demo
 
-The `demo/localstack/` directory runs infrawise against real AWS APIs emulated locally via [LocalStack](https://localstack.cloud) — an open-source tool that spins up a full AWS environment in Docker so you can test AWS integrations at zero cost, with no real AWS account needed. See [`demo/localstack/README.md`](demo/localstack/README.md) for setup instructions.
+Two demos run infrawise against real AWS APIs emulated locally in Docker, at zero cost and with no real AWS account.
+
+- [`demo/floci/`](demo/floci/README.md) uses [Floci](https://floci.io), an MIT-licensed emulator that covers every service infrawise supports — including CloudFront, API Gateway v2, RDS, Cognito, Kinesis, ElastiCache, and MSK. No auth token, no sign-up. Start here.
+- [`demo/localstack/`](demo/localstack/README.md) uses [LocalStack](https://localstack.cloud) community edition, which covers the core services.
+
+Both listen on port 4566, so run one at a time.
 
 ![infrawise analyze running against the LocalStack demo and reporting the high-severity findings](https://raw.githubusercontent.com/Sidd27/infrawise/main/docs/demo/gifs/analyze.gif)
 

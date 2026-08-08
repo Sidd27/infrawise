@@ -26,6 +26,7 @@ import {
   extractKinesisMetadata,
   extractMSKMetadata,
   extractElastiCacheMetadata,
+  extractCloudFrontMetadata,
 } from '../../adapters/aws/services.js';
 import { extractLogsMetadata } from '../../adapters/aws/logs.js';
 import { extractRuntimeSignals } from '../../adapters/aws/metrics.js';
@@ -181,6 +182,7 @@ function buildAnalyzers(
     ...(config.elasticache?.enabled === true
       ? [A.CacheTransitEncryptionAnalyzer, A.CacheSingleNodeAnalyzer]
       : []),
+    ...(config.cloudfront?.enabled === true ? [A.CloudFrontInsecureViewerProtocolAnalyzer] : []),
     ...(config.runtimeSignals?.enabled === true
       ? [A.LambdaThrottlingAnalyzer, A.StaleQueueMessagesAnalyzer]
       : []),
@@ -285,6 +287,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     rdsRes,
     s3Res,
     apiGatewayRes,
+    cloudfrontRes,
     cognitoRes,
     kinesisRes,
     mskRes,
@@ -372,6 +375,13 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
     ),
     extract(
+      config.cloudfront?.enabled === true,
+      'CloudFront',
+      () => extractCloudFrontMetadata(awsCfg),
+      (r) =>
+        `${r.length} distribution(s), ${r.reduce((sum, d) => sum + d.behaviors.length, 0)} behavior(s)`,
+    ),
+    extract(
       config.cognito?.enabled === true,
       'Cognito',
       () => extractCognitoMetadata(awsCfg),
@@ -423,6 +433,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   servicesMeta.rds = rdsRes;
   servicesMeta.s3 = s3Res;
   servicesMeta.apiGateway = apiGatewayRes;
+  servicesMeta.cloudfront = cloudfrontRes;
   servicesMeta.cognito = cognitoRes;
   servicesMeta.kinesis = kinesisRes;
   servicesMeta.msk = mskRes;
