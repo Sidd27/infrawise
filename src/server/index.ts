@@ -5,7 +5,7 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding } from '../types.js';
+import type { SystemGraph, Finding, GraphEdge } from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(
@@ -230,11 +230,14 @@ export function createMcpServer(): McpServer {
     'analyze_function',
     {
       description:
-        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Returns found: false if the function name was not discovered during analysis.',
+        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name; `ambiguous: true` means the name matched several files, so pick the entry whose file you are actually editing instead of assuming the first. Returns found: false if the function name was not discovered during analysis.',
       inputSchema: z.object({ function: z.string().describe('Function name to analyze') }),
     },
     logged('analyze_function', async ({ function: functionName }) => {
-      const funcNode = currentGraph.nodes.find(
+      // Function node ids are file-scoped, so one name can match several files.
+      // Returning every candidate keeps a same-named shadow definition from
+      // silently standing in for the real one.
+      const funcNodes = currentGraph.nodes.filter(
         (n) => n.type === 'function' && n.name === functionName,
       );
 
@@ -243,7 +246,7 @@ export function createMcpServer(): McpServer {
         (n) => n.type === 'lambda' && n.name === functionName,
       );
 
-      if (!funcNode && !lambdaNode) {
+      if (funcNodes.length === 0 && !lambdaNode) {
         return toText({
           function: functionName,
           found: false,
@@ -252,7 +255,6 @@ export function createMcpServer(): McpServer {
         });
       }
 
-      const outEdges = funcNode ? getOutgoingEdges(currentGraph, funcNode.id) : [];
       const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
       const relatedFindings = currentFindings.filter((f) => {
         const meta = f.metadata as Record<string, unknown> | undefined;
@@ -267,10 +269,10 @@ export function createMcpServer(): McpServer {
       // Compute missing IAM permissions inline from graph data
       const allowedServices =
         lambdaNode?.type === 'lambda' ? lambdaNode.allowedServices : undefined;
-      let missingPermissions: string[] | undefined;
-      if (allowedServices && !allowedServices.includes('*') && funcNode) {
+      const missingFor = (edges: GraphEdge[]): string[] | undefined => {
+        if (!allowedServices || allowedServices.includes('*')) return undefined;
         const needed = new Set<string>();
-        for (const edge of outEdges) {
+        for (const edge of edges) {
           const target = nodeMap.get(edge.to);
           if (!target) continue;
           if (
@@ -284,29 +286,38 @@ export function createMcpServer(): McpServer {
           else if (edge.type === 'publishes_to' && target.type === 'queue') needed.add('sqs');
           else if (edge.type === 'publishes_to' && target.type === 'topic') needed.add('sns');
         }
-        missingPermissions = [...needed].filter((s) => !allowedServices.includes(s));
-      }
+        return [...needed].filter((s) => !allowedServices.includes(s));
+      };
+
+      const matches = funcNodes.map((n) => {
+        const outEdges = getOutgoingEdges(currentGraph, n.id);
+        const missingPermissions = missingFor(outEdges);
+        return {
+          file: n.type === 'function' ? n.file : undefined,
+          accesses: outEdges.map((e) => {
+            const target = nodeMap.get(e.to);
+            return {
+              targetId: e.to,
+              edgeType: e.type,
+              targetName: target && 'name' in target ? target.name : e.to,
+              targetType: target?.type,
+            };
+          }),
+          ...(missingPermissions !== undefined ? { missingPermissions } : {}),
+        };
+      });
 
       return toText({
         function: functionName,
         found: true,
-        file: funcNode?.type === 'function' ? funcNode.file : undefined,
+        matches,
+        ...(matches.length > 1 ? { ambiguous: true } : {}),
         triggers: allTriggers.map((t) => ({
           type: t.type,
           source: t.sourceName,
           eventShape: t.eventShape,
           ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
         })),
-        accesses: outEdges.map((e) => {
-          const target = nodeMap.get(e.to);
-          return {
-            targetId: e.to,
-            edgeType: e.type,
-            targetName: target && 'name' in target ? target.name : e.to,
-            targetType: target?.type,
-          };
-        }),
-        ...(missingPermissions !== undefined ? { missingPermissions } : {}),
         issues: relatedFindings.map((f) => ({
           severity: f.severity,
           issue: f.issue,

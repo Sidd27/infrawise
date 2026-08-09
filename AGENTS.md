@@ -252,9 +252,11 @@ Analyze a single function for infrastructure issues, including trigger event sha
 |---|---|---|
 | `function` | string | yes |
 
-Returns: file path, all services/tables accessed (with edge types), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, **missingPermissions** (list of AWS service names the function accesses in code but the execution role does not allow — present only when IAM data is available), related findings, deduplicated recommendations.
+Returns: **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched, **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
 
-**When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source, confirm IAM permissions cover the services the function calls, and get all findings scoped to this function. Also use when a function touches a database, queue, or other service.
+Function nodes are file-scoped, so one name can legitimately match several files. Every candidate is returned rather than the first, so a same-named function in a scratch or experiments directory never silently stands in for the real one.
+
+**When to call:** When writing or reviewing a Lambda handler — always call this first to get the correct event shape for the trigger source, confirm IAM permissions cover the services the function calls, and get all findings scoped to this function. Also use when a function touches a database, queue, or other service. When `ambiguous` is true, pick the `matches` entry whose `file` you are actually editing.
 
 ---
 

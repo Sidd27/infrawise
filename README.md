@@ -179,7 +179,7 @@ Add to your editor's MCP config:
 | `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, analysis `freshness` (age + stale flag), `configured` flag |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
 | `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys/billing mode, cost signal (no row data) |
-| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions  |
+| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions; returns every same-named file as a separate match |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |

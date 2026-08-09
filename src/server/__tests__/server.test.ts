@@ -147,10 +147,48 @@ describe('MCP Server — tool results', () => {
   it('analyze_function returns accesses and issues for known function', async () => {
     const data = await callTool(client, 'analyze_function', { function: 'getOrder' });
     expect(data.found).toBe(true);
-    expect(data.accesses).toHaveLength(1);
-    expect(data.accesses[0].edgeType).toBe('scan');
+    expect(data.matches).toHaveLength(1);
+    expect(data.matches[0].file).toBe('handler.ts');
+    expect(data.matches[0].accesses).toHaveLength(1);
+    expect(data.matches[0].accesses[0].edgeType).toBe('scan');
+    expect(data.ambiguous).toBeUndefined();
     expect(data.issues).toHaveLength(1);
     expect(data.issues[0].severity).toBe('high');
+  });
+
+  it('analyze_function returns every same-named function, not just the first', async () => {
+    const shadowGraph: SystemGraph = {
+      nodes: [
+        ...testGraph.nodes,
+        {
+          id: 'function:experiments/handler.ts:getOrder',
+          type: 'function',
+          name: 'getOrder',
+          file: 'experiments/handler.ts',
+        },
+      ],
+      edges: [
+        ...testGraph.edges,
+        {
+          from: 'function:experiments/handler.ts:getOrder',
+          to: 'table:postgres:public.users',
+          type: 'query',
+        },
+      ],
+    };
+    const shadowClient = await makeClient(shadowGraph, testFindings);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', { function: 'getOrder' });
+      expect(data.ambiguous).toBe(true);
+      expect(data.matches).toHaveLength(2);
+      expect(data.matches.map((m: { file: string }) => m.file)).toEqual([
+        'handler.ts',
+        'experiments/handler.ts',
+      ]);
+      expect(data.matches[1].accesses[0].targetName).toBe('public.users');
+    } finally {
+      await shadowClient.close();
+    }
   });
 
   it('analyze_function returns not found for unknown function', async () => {
