@@ -3,7 +3,7 @@ title: Installation
 description: Install Infrawise — the open-source MCP server that maps AWS infrastructure for AI coding assistants — and connect it to Claude Code or Cursor in under two minutes.
 ---
 
-Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 37 rule-based analyzers and exposes 22 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
+Infrawise is an open-source MCP (Model Context Protocol) server that gives AI coding assistants like Claude Code and Cursor a real-time, read-only map of your AWS infrastructure. It runs 39 rule-based analyzers and exposes 22 MCP tools your AI can call while you write code — without leaving your editor. This page covers installation, connecting to your editor, and the AWS credentials Infrawise needs.
 
 ## Prerequisites
 
