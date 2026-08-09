@@ -20,8 +20,13 @@ updates:
       # that do `import yaml from 'js-yaml'`, Vite resolves those from the
       # website root, and js-yaml 5 dropped the default export. A major bump
       # here builds fine in src/ and breaks `astro build`.
+      #
+      # Every update type is ignored, not just major. Root and website/ are one
+      # pnpm workspace holding js-yaml 5 and 4 deliberately, and a patch bump to
+      # website/'s copy makes Dependabot "unify" them by downgrading root to 4
+      # (PR #100). js-yaml 4 ships no types, so that takes typecheck down with
+      # it. website/ patch bumps are not worth re-litigating that each week.
       - dependency-name: "js-yaml"
-        update-types: ["version-update:semver-major"]
 
   # The Dockerfile pins its base image by digest for reproducibility and for
   # Scorecard's Pinned-Dependencies check, which means the pin only picks up
