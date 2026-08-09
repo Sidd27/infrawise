@@ -1,17 +1,11 @@
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type {
-  SystemGraph,
-  Finding,
-  GraphEdge,
-  AnalysisProvenance,
-  SourceStatus,
-} from '../types.js';
+import type { SystemGraph, Finding, GraphEdge, AnalysisProvenance } from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(
@@ -53,9 +47,11 @@ let currentFindings: Finding[] = [];
 // graph with no analysis. Surfaced via get_infra_overview so assistants can
 // judge how stale the facts are and decide to refresh.
 let analyzedAt: number | null = null;
-// Analysis is considered stale past this age — matches the 24h cache TTL that
-// drives auto-refresh in stdio/start.
-const STALE_AGE_MS = 24 * 60 * 60 * 1000;
+// The one verdict infrawise still renders. `ageSeconds` is the fact the caller
+// decides on; this is a coarse backstop for when it does not. Deliberately well
+// below the 24h cache TTL — a working day is long enough for infrastructure to
+// move underneath a session.
+const SUGGEST_REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
 // False when the server booted without an infrawise.yaml (e.g. a hosted MCP
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
@@ -65,6 +61,11 @@ let configured = true;
 // than "everything succeeded" — an old cache must not assert completeness.
 let provenance: AnalysisProvenance | null = null;
 
+// `analyzedAtMs` is only a fallback for caches written before provenance carried
+// its own timestamp. When provenance is present it wins: it records when the
+// cloud was read, while the caller's value is merely when this graph object was
+// assembled — a code-only rebuild assembles a new graph from cloud data it never
+// re-read, and reporting that as freshness is a lie.
 export function setGraphState(
   graph: SystemGraph,
   findings: Finding[],
@@ -73,60 +74,75 @@ export function setGraphState(
 ): void {
   currentGraph = graph;
   currentFindings = findings;
-  analyzedAt = analyzedAtMs;
   provenance = sourceProvenance;
+  analyzedAt = sourceProvenance?.analyzedAt ?? analyzedAtMs;
 }
 
-// The evidence a tool would need to justify an absence. A source that failed or
-// was never enabled cannot support "there are none" — only "I did not look".
-function sourceState(service: string | undefined): SourceStatus | undefined {
-  if (!service || !provenance) return undefined;
-  return provenance.sources.find((s) => s.service === service);
+// ── Data health ──────────────────────────────────────────────────────────────
+//
+// One fixed-shape block on every response. Every key is always present and state
+// lives in values, never in whether a key exists: a consumer that has to branch
+// on presence reads "absent" as "fine", which is the failure this whole thing
+// exists to prevent. `error` and `reason` are null rather than omitted.
+
+const NO_PROVENANCE = 'analysis predates source tracking — re-run `infrawise analyze`';
+
+// Sources this tool's answer rests on. Scoped per tool so the block stays
+// bounded, fixed per tool so the shape stays stable. Tools with no gating
+// service (get_infra_overview, get_graph_summary) speak for the whole graph and
+// list everything.
+function sourcesFor(tool: { name: string; service?: string; sources?: string[] } | undefined) {
+  if (!provenance) return [];
+  const graphWide = tool === undefined || (!tool.service && !tool.sources);
+  const wanted = graphWide ? null : [tool.service, ...(tool.sources ?? [])].filter(Boolean);
+  return provenance.sources
+    .filter((s) => wanted === null || wanted.includes(s.service))
+    .map((s) => ({ service: s.service, status: s.status, error: s.error ?? null }));
 }
 
-const UNAVAILABLE_HINT: Record<SourceStatus['status'], string> = {
-  partial:
-    'This source was read but one part of it was lost, so some detail is missing rather than absent. Do not treat a missing attribute here as evidence it is unset — re-run `infrawise analyze` to fill the gap.',
-  failed:
-    'This source failed to extract, so an empty result here means "not read", not "none exist". Do not conclude anything is absent or misconfigured from this response — re-run `infrawise analyze` with credentials that can read it.',
-  disabled:
-    'This source is not enabled in infrawise.yaml, so it was never read. An empty result here says nothing about what exists in the account.',
-  ok: '',
-};
+// Has `cdk synth` run since the analysis? The two existing checks in the IaC
+// adapter compare cdk.out against itself, so a synth that rewrites every
+// template leaves them all mutually consistent and both checks silent while the
+// served graph was built from the previous one. This compares disk to the
+// snapshot instead.
+//
+// mtime also moves on `git checkout`, so a branch switch can read as a synth. A
+// false "changed" costs one analyze; a false "unchanged" costs code written
+// against infrastructure that moved.
+function iacHealth() {
+  const unknown = (reason: string) => ({
+    status: 'unknown' as const,
+    synthedAt: null,
+    analyzedAt: analyzedAt === null ? null : new Date(analyzedAt).toISOString(),
+    reason,
+  });
+  if (!provenance) return unknown(NO_PROVENANCE);
+  if (!provenance.cdkOutDir) return unknown('no cdk.out directory recorded for this project');
+  if (analyzedAt === null) return unknown('no analysis loaded');
 
-// A tool can draw on more than one source (get_stream_details reads Kinesis and
-// MSK; get_table_schema spans all four database types). Every one of them has to
-// be checked, or a tool stays silent about the half it could not read.
-function unavailability(tool: { service?: string; sources?: string[] } | undefined) {
-  if (!tool) return {};
-  const known = [tool.service, ...(tool.sources ?? [])]
-    .map(sourceState)
-    .filter((s): s is SourceStatus => s !== undefined);
-  if (known.length === 0) return {};
+  let newest = 0;
+  try {
+    const entries = readdirSync(provenance.cdkOutDir).filter((f) => f.endsWith('.template.json'));
+    if (entries.length === 0) return unknown('no CDK templates found in cdk.out');
+    for (const entry of entries) {
+      newest = Math.max(newest, statSync(join(provenance.cdkOutDir, entry)).mtimeMs);
+    }
+  } catch {
+    return unknown('cdk.out is not readable from the server');
+  }
 
-  // A failure always gets reported. "Disabled" only when the tool has no usable
-  // source at all — on a tool spanning several (get_table_schema), naming the
-  // three databases a DynamoDB-only project never configured is noise, and a
-  // field that cries wolf stops being read.
-  const broken = known.filter((s) => s.status === 'failed' || s.status === 'partial');
-  const report = broken.length > 0 ? broken : known.every((s) => s.status !== 'ok') ? known : [];
-  if (report.length === 0) return {};
   return {
-    unavailable: {
-      sources: report.map((s) => ({
-        service: s.service,
-        status: s.status,
-        ...(s.error ? { error: s.error } : {}),
-      })),
-      hint: broken.length > 0 ? UNAVAILABLE_HINT[broken[0].status] : UNAVAILABLE_HINT.disabled,
-    },
+    status: newest > analyzedAt ? ('changed' as const) : ('unchanged' as const),
+    synthedAt: new Date(newest).toISOString(),
+    analyzedAt: new Date(analyzedAt).toISOString(),
+    reason: null,
   };
 }
 
-// Which extraction source a node came from, derived from its own shape rather
-// than stamped on every node at build time. Lets a caller see that a node came
-// from a source that only partly succeeded, instead of every node in the graph
-// looking equally well-read.
+// Node-level source attribution for get_graph_summary. Derived from the node's
+// own shape rather than stamped at build time, so no node schema changes. Every
+// node carries `source` and `sourceStatus` — a node from a healthy source says
+// so explicitly instead of being silent, for the same reason the envelope does.
 const NODE_SOURCE: Record<string, string> = {
   queue: 'sqs',
   topic: 'sns',
@@ -145,52 +161,41 @@ const NODE_SOURCE: Record<string, string> = {
   database_instance: 'rds',
 };
 
-function nodeSource(node: SystemGraph['nodes'][number]): string | undefined {
-  if (node.type === 'table') return node.databaseType;
-  return NODE_SOURCE[node.type];
-}
-
-// Annotates nodes whose source did not fully succeed. Nodes from a healthy
-// source are returned untouched, so the field only ever appears where it means
-// something.
-function withProvenance(nodes: SystemGraph['nodes']) {
-  if (!provenance) return nodes;
+function withNodeSource(nodes: SystemGraph['nodes']) {
   return nodes.map((n) => {
-    const state = sourceState(nodeSource(n));
-    if (!state || state.status === 'ok') return n;
-    return { ...n, source: state.service, sourceStatus: state.status };
+    const service = n.type === 'table' ? n.databaseType : NODE_SOURCE[n.type];
+    const state = service ? provenance?.sources.find((s) => s.service === service) : undefined;
+    return {
+      ...n,
+      source: service ?? null,
+      sourceStatus: state?.status ?? 'unknown',
+    };
   });
 }
 
-function freshness() {
-  const incomplete = (provenance?.sources ?? []).filter(
-    (s) => s.status === 'failed' || s.status === 'partial',
-  );
-  const sourceInfo = {
-    ...(provenance?.region ? { region: provenance.region } : {}),
-    ...(provenance?.profile ? { profile: provenance.profile } : {}),
-    ...(incomplete.length
-      ? {
-          incompleteSources: incomplete.map((s) => ({
-            service: s.service,
-            status: s.status,
-            error: s.error,
-          })),
-          incompleteHint:
-            'These sources failed to extract. Treat any absence in their tools as unknown, not as a clean result.',
-        }
-      : {}),
-  };
-  if (analyzedAt === null)
-    return { analyzedAt: null, ageSeconds: null, stale: false, ...sourceInfo };
-  const ageMs = Date.now() - analyzedAt;
-  const stale = ageMs > STALE_AGE_MS;
+function dataHealth(
+  tool: { name: string; service?: string; sources?: string[] } | undefined,
+  maxAgeSeconds: unknown,
+) {
+  const ageSeconds = analyzedAt === null ? null : Math.round((Date.now() - analyzedAt) / 1000);
+  const requested = typeof maxAgeSeconds === 'number' ? maxAgeSeconds : null;
   return {
-    analyzedAt: new Date(analyzedAt).toISOString(),
-    ageSeconds: Math.round(ageMs / 1000),
-    stale,
-    ...(stale ? { hint: 'Analysis is stale — run `infrawise analyze` to refresh.' } : {}),
-    ...sourceInfo,
+    dataHealth: {
+      analyzedAt: analyzedAt === null ? null : new Date(analyzedAt).toISOString(),
+      ageSeconds,
+      // Never claim freshness we cannot vouch for: with no analysis loaded this
+      // stays true rather than defaulting to "no need".
+      suggestRefresh:
+        analyzedAt === null ? true : Date.now() - analyzedAt > SUGGEST_REFRESH_AFTER_MS,
+      refreshWith: 'infrawise analyze',
+      requestedMaxAgeSeconds: requested,
+      withinRequestedAge:
+        requested === null || ageSeconds === null ? null : ageSeconds <= requested,
+      region: provenance?.region ?? null,
+      profile: provenance?.profile ?? null,
+      sources: sourcesFor(tool),
+      iac: iacHealth(),
+    },
   };
 }
 
@@ -207,10 +212,9 @@ function toText(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-// Wraps every tool handler. Besides logging, this is where a tool whose backing
-// source failed or was never enabled gets marked `unavailable` — done here, once,
-// so a tool added later cannot forget to fail closed. TOOLS is the mapping from
-// tool name to the config service that gates it.
+// Wraps every tool handler. Attaching dataHealth here, once, is what stops a
+// tool added later from forgetting it: there is no per-tool opt-in to miss.
+// TOOLS maps each tool to the sources its answer rests on.
 function logged<T extends Record<string, unknown>>(
   name: string,
   fn: (args: T) => Promise<ReturnType<typeof toText>>,
@@ -219,31 +223,14 @@ function logged<T extends Record<string, unknown>>(
     const hasArgs = Object.keys(args).length > 0;
     logger.info(`→ ${name}${hasArgs ? `  ${JSON.stringify(args)}` : ''}`);
     const result = await fn(args);
-    const flag = {
-      ...unavailability(TOOLS.find((t) => t.name === name)),
-      ...tooOld(args.maxAgeSeconds),
-    };
-    if (Object.keys(flag).length === 0) return result;
     const payload = JSON.parse(result.content[0].text) as object;
-    return toText({ ...flag, ...payload });
-  };
-}
-
-// A caller that states an age tolerance is asking a point-in-time question. The
-// answer still comes back — refusing outright would be less useful than a
-// labelled one — but it is labelled as older than the caller was willing to
-// accept, so it cannot be quoted as current. Nothing here re-reads AWS: a tool
-// that silently made cloud calls on read would be a different product.
-function tooOld(maxAgeSeconds: unknown) {
-  if (typeof maxAgeSeconds !== 'number' || analyzedAt === null) return {};
-  const ageSeconds = Math.round((Date.now() - analyzedAt) / 1000);
-  if (ageSeconds <= maxAgeSeconds) return {};
-  return {
-    staleForRequest: {
-      ageSeconds,
-      requestedMaxAgeSeconds: maxAgeSeconds,
-      hint: `This analysis is ${ageSeconds}s old and you asked for at most ${maxAgeSeconds}s. Treat the values below as possibly out of date — run \`infrawise analyze\` before relying on them for a point-in-time claim.`,
-    },
+    return toText({
+      ...dataHealth(
+        TOOLS.find((t) => t.name === name),
+        args.maxAgeSeconds,
+      ),
+      ...payload,
+    });
   };
 }
 
@@ -284,7 +271,7 @@ export function createMcpServer(): McpServer {
     'get_infra_overview',
     {
       description:
-        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. The `freshness` field reports when the analysis ran (`analyzedAt`, `ageSeconds`) and a `stale` flag with a refresh hint once the data is older than 24h, plus `incompleteSources` naming any source that failed to extract — while a source is listed there, treat an absence in its tool as unknown rather than as a clean result.',
+        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. Every response (this one included) carries a `dataHealth` block with a fixed shape: `analyzedAt`/`ageSeconds` for when the infrastructure was read, per-source `status`, `iac` for whether cdk.out was synthed since, and `refreshWith`. On this tool `dataHealth.sources` covers every source rather than one tool\'s. A source that is not `ok` means an empty result is "not read", not "none exist".',
       inputSchema: z.object({
         maxAgeSeconds: z
           .number()
@@ -308,7 +295,6 @@ export function createMcpServer(): McpServer {
       return toText({
         configured,
         ...(configured ? {} : { setupHint: NOT_CONFIGURED_HINT }),
-        freshness: freshness(),
         summary: {
           tables: tables.length,
           functions: functions.length,
@@ -371,7 +357,7 @@ export function createMcpServer(): McpServer {
     },
     logged('get_graph_summary', async () =>
       toText({
-        nodes: withProvenance(currentGraph.nodes),
+        nodes: withNodeSource(currentGraph.nodes),
         edges: currentGraph.edges,
         findings: currentFindings,
         summary: {

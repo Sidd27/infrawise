@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, createMcpServer, setGraphState } from '../index.js';
@@ -131,9 +134,9 @@ describe('MCP Server — tool results', () => {
     expect(data.summary.findings.medium).toBe(1);
     expect(data.highFindings).toHaveLength(1);
     expect(data.highFindings[0].issue).toBe('Full table scan');
-    expect(data.freshness.stale).toBe(false);
-    expect(typeof data.freshness.analyzedAt).toBe('string');
-    expect(data.freshness.ageSeconds).toBeGreaterThanOrEqual(0);
+    expect(data.dataHealth.suggestRefresh).toBe(false);
+    expect(typeof data.dataHealth.analyzedAt).toBe('string');
+    expect(data.dataHealth.ageSeconds).toBeGreaterThanOrEqual(0);
   });
 
   it('get_graph_summary returns all nodes and edges', async () => {
@@ -496,8 +499,8 @@ describe('get_cloudfront_overview', () => {
   });
 });
 
-describe('MCP Server — fail closed on unread sources', () => {
-  const provenance = {
+describe('MCP Server — dataHealth envelope', () => {
+  const prov = (extra: Record<string, unknown> = {}) => ({
     sources: [
       { service: 'sqs', status: 'failed' as const, error: 'AccessDenied: sqs:ListQueues' },
       { service: 'lambda', status: 'ok' as const },
@@ -505,156 +508,166 @@ describe('MCP Server — fail closed on unread sources', () => {
     ],
     region: 'us-east-1',
     profile: 'prod',
-  };
+    analyzedAt: Date.now(),
+    ...extra,
+  });
 
-  async function clientWithProvenance() {
-    setGraphState({ nodes: [], edges: [] }, [], Date.now(), provenance);
+  async function clientWith(provenance: unknown) {
+    setGraphState(testGraph, testFindings, null, provenance as Parameters<typeof setGraphState>[3]);
     const mcp = createMcpServer();
-    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
-    await mcp.connect(serverTransport);
+    const [st, ct] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(st);
     const c = new Client({ name: 'test', version: '1.0.0' });
-    await c.connect(clientTransport);
+    await c.connect(ct);
     return c;
   }
 
-  it('marks a tool unavailable when its source failed to extract', async () => {
-    const client = await clientWithProvenance();
-    try {
-      const data = await callTool(client, 'get_queue_details');
-      expect(data.unavailable.sources).toEqual([
-        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
-      ]);
-      expect(data.unavailable.hint).toContain('not read');
-      expect(data.queues).toEqual([]);
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('marks a tool unavailable when its source was never enabled', async () => {
-    const client = await clientWithProvenance();
-    try {
-      const data = await callTool(client, 'get_s3_overview');
-      expect(data.unavailable.sources[0].status).toBe('disabled');
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('flags a secondary source failing even when the primary one succeeded', async () => {
-    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
-      sources: [
-        { service: 'kinesis', status: 'ok' },
-        { service: 'msk', status: 'failed', error: 'AccessDenied: kafka:ListClusters' },
-      ],
-    });
-    const mcp = createMcpServer();
-    const [st, ct] = InMemoryTransport.createLinkedPair();
-    await mcp.connect(st);
-    const c = new Client({ name: 'test', version: '1.0.0' });
-    await c.connect(ct);
-    try {
-      const data = await callTool(c, 'get_stream_details');
-      expect(data.unavailable.sources).toEqual([
-        { service: 'msk', status: 'failed', error: 'AccessDenied: kafka:ListClusters' },
-      ]);
-      expect(data.kafkaClusters).toEqual([]);
-    } finally {
-      await c.close();
-    }
-  });
-
-  it('does not cry wolf about databases a project never configured', async () => {
-    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
-      sources: [
-        { service: 'dynamodb', status: 'ok' },
-        { service: 'postgres', status: 'disabled' },
-        { service: 'mysql', status: 'disabled' },
-        { service: 'mongodb', status: 'disabled' },
-      ],
-    });
-    const mcp = createMcpServer();
-    const [st, ct] = InMemoryTransport.createLinkedPair();
-    await mcp.connect(st);
-    const c = new Client({ name: 'test', version: '1.0.0' });
-    await c.connect(ct);
-    try {
-      const data = await callTool(c, 'get_table_schema', { tables: ['orders'] });
-      expect(data.unavailable).toBeUndefined();
-    } finally {
-      await c.close();
-    }
-  });
-
-  it('warns get_table_schema when a database failed, so found:false is not trusted', async () => {
-    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
-      sources: [
-        { service: 'dynamodb', status: 'ok' },
-        { service: 'postgres', status: 'failed', error: 'password authentication failed' },
-        { service: 'mysql', status: 'disabled' },
-        { service: 'mongodb', status: 'disabled' },
-      ],
-    });
-    const mcp = createMcpServer();
-    const [st, ct] = InMemoryTransport.createLinkedPair();
-    await mcp.connect(st);
-    const c = new Client({ name: 'test', version: '1.0.0' });
-    await c.connect(ct);
-    try {
-      const data = await callTool(c, 'get_table_schema', { tables: ['orders'] });
-      expect(data.tables[0].found).toBe(false);
-      expect(data.unavailable.sources).toEqual([
-        { service: 'postgres', status: 'failed', error: 'password authentication failed' },
-      ]);
-    } finally {
-      await c.close();
-    }
-  });
-
-  it('leaves a healthy source unflagged', async () => {
-    const client = await clientWithProvenance();
+  it('is present on every response with a fixed shape, even when healthy', async () => {
+    const client = await clientWith(prov());
     try {
       const data = await callTool(client, 'get_lambda_overview');
-      expect(data.unavailable).toBeUndefined();
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('reports failed sources in the overview freshness block', async () => {
-    const client = await clientWithProvenance();
-    try {
-      const data = await callTool(client, 'get_infra_overview');
-      expect(data.freshness.incompleteSources).toEqual([
-        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
+      expect(Object.keys(data.dataHealth).sort()).toEqual([
+        'ageSeconds',
+        'analyzedAt',
+        'iac',
+        'profile',
+        'refreshWith',
+        'region',
+        'requestedMaxAgeSeconds',
+        'sources',
+        'suggestRefresh',
+        'withinRequestedAge',
       ]);
-      expect(data.freshness.region).toBe('us-east-1');
-      expect(data.freshness.profile).toBe('prod');
+      expect(data.dataHealth.sources).toEqual([{ service: 'lambda', status: 'ok', error: null }]);
+      expect(data.dataHealth.refreshWith).toBe('infrawise analyze');
     } finally {
       await client.close();
     }
   });
 
-  it('claims nothing when the analysis predates provenance tracking', async () => {
-    const client = await makeClient(testGraph, testFindings);
+  it('reports a failed source rather than an empty list with no explanation', async () => {
+    const client = await clientWith(prov());
     try {
       const data = await callTool(client, 'get_queue_details');
-      expect(data.unavailable).toBeUndefined();
-      expect(data.freshness?.incompleteSources).toBeUndefined();
+      expect(data.dataHealth.sources).toEqual([
+        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
+      ]);
+      // The cached graph still holds whatever the last good read found. The
+      // point is that the caller can see the list is not authoritative.
+      expect(data.dataHealth.sources[0].status).toBe('failed');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('names a disabled source instead of suppressing it', async () => {
+    const client = await clientWith(prov());
+    try {
+      const data = await callTool(client, 'get_s3_overview');
+      expect(data.dataHealth.sources).toEqual([{ service: 's3', status: 'disabled', error: null }]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('lists every source for a graph-wide tool', async () => {
+    const client = await clientWith(prov());
+    try {
+      const data = await callTool(client, 'get_infra_overview');
+      expect(data.dataHealth.sources.map((s: { service: string }) => s.service)).toEqual([
+        'sqs',
+        'lambda',
+        's3',
+      ]);
+      expect(data.freshness).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('suggests a refresh past 6h, not before', async () => {
+    const fresh = await clientWith(prov({ analyzedAt: Date.now() - 5 * 3600_000 }));
+    try {
+      expect((await callTool(fresh, 'get_queue_details')).dataHealth.suggestRefresh).toBe(false);
+    } finally {
+      await fresh.close();
+    }
+    const old = await clientWith(prov({ analyzedAt: Date.now() - 7 * 3600_000 }));
+    try {
+      expect((await callTool(old, 'get_queue_details')).dataHealth.suggestRefresh).toBe(true);
+    } finally {
+      await old.close();
+    }
+  });
+
+  it('reports the cloud read time, not the time the graph was rebuilt', async () => {
+    const readAt = Date.now() - 4 * 3600_000;
+    const client = await clientWith(prov({ analyzedAt: readAt }));
+    try {
+      const data = await callTool(client, 'get_queue_details');
+      expect(data.dataHealth.ageSeconds).toBeGreaterThanOrEqual(4 * 3600 - 5);
+      expect(new Date(data.dataHealth.analyzedAt).getTime()).toBeCloseTo(readAt, -4);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('answers withinRequestedAge against the caller-supplied tolerance', async () => {
+    const client = await clientWith(prov({ analyzedAt: Date.now() - 600_000 }));
+    try {
+      const strict = await callTool(client, 'get_queue_details', { maxAgeSeconds: 60 });
+      expect(strict.dataHealth.requestedMaxAgeSeconds).toBe(60);
+      expect(strict.dataHealth.withinRequestedAge).toBe(false);
+      const loose = await callTool(client, 'get_queue_details', { maxAgeSeconds: 86400 });
+      expect(loose.dataHealth.withinRequestedAge).toBe(true);
+      const none = await callTool(client, 'get_queue_details');
+      expect(none.dataHealth.requestedMaxAgeSeconds).toBeNull();
+      expect(none.dataHealth.withinRequestedAge).toBeNull();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('claims nothing when the cache predates provenance', async () => {
+    const client = await clientWith(null);
+    try {
+      const data = await callTool(client, 'get_queue_details');
+      expect(data.dataHealth.sources).toEqual([]);
+      expect(data.dataHealth.iac.status).toBe('unknown');
+      expect(data.dataHealth.iac.reason).toContain('predates');
+      expect(data.dataHealth.suggestRefresh).toBe(true);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('marks every graph node with its source and that source status', async () => {
+    const client = await clientWith(prov());
+    try {
+      const data = await callTool(client, 'get_graph_summary');
+      const queue = data.nodes.find((n: { type: string }) => n.type === 'queue');
+      const lambda = data.nodes.find((n: { type: string }) => n.type === 'lambda');
+      expect(queue.source).toBe('sqs');
+      expect(queue.sourceStatus).toBe('failed');
+      expect(lambda.source).toBe('lambda');
+      expect(lambda.sourceStatus).toBe('ok');
     } finally {
       await client.close();
     }
   });
 });
 
-describe('MCP Server — per-call age tolerance and node provenance', () => {
-  async function clientAt(ageMs: number, prov: unknown = null) {
-    setGraphState(
-      testGraph,
-      testFindings,
-      Date.now() - ageMs,
-      prov as Parameters<typeof setGraphState>[3],
-    );
+describe('MCP Server — cdk.out synth detection', () => {
+  const mkCdkOut = (mtime: number) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdkout-'));
+    const file = path.join(dir, 'PaymentsStack.template.json');
+    fs.writeFileSync(file, '{}');
+    fs.utimesSync(file, new Date(mtime), new Date(mtime));
+    return dir;
+  };
+
+  async function clientWith(provenance: unknown) {
+    setGraphState(testGraph, testFindings, null, provenance as Parameters<typeof setGraphState>[3]);
     const mcp = createMcpServer();
     const [st, ct] = InMemoryTransport.createLinkedPair();
     await mcp.connect(st);
@@ -663,52 +676,61 @@ describe('MCP Server — per-call age tolerance and node provenance', () => {
     return c;
   }
 
-  it('labels an answer older than the caller asked for', async () => {
-    const client = await clientAt(600_000);
-    try {
-      const data = await callTool(client, 'get_queue_details', { maxAgeSeconds: 60 });
-      expect(data.staleForRequest.requestedMaxAgeSeconds).toBe(60);
-      expect(data.staleForRequest.ageSeconds).toBeGreaterThanOrEqual(600);
-      expect(data.queues).toHaveLength(1);
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('stays quiet when the analysis is within tolerance', async () => {
-    const client = await clientAt(5_000);
-    try {
-      const data = await callTool(client, 'get_queue_details', { maxAgeSeconds: 3600 });
-      expect(data.staleForRequest).toBeUndefined();
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('leaves the default 24h behaviour alone when no tolerance is given', async () => {
-    const client = await clientAt(600_000);
-    try {
-      const data = await callTool(client, 'get_queue_details');
-      expect(data.staleForRequest).toBeUndefined();
-    } finally {
-      await client.close();
-    }
-  });
-
-  it('marks graph nodes whose source did not fully succeed', async () => {
-    const client = await clientAt(1000, {
-      sources: [
-        { service: 'sqs', status: 'partial', error: 'attributes incomplete' },
-        { service: 'lambda', status: 'ok' },
-      ],
+  it('reports changed when a template was synthed after the analysis', async () => {
+    const analyzedAt = Date.now() - 3600_000;
+    const client = await clientWith({
+      sources: [],
+      analyzedAt,
+      cdkOutDir: mkCdkOut(Date.now()),
     });
     try {
-      const data = await callTool(client, 'get_graph_summary');
-      const queue = data.nodes.find((n: { type: string }) => n.type === 'queue');
-      const lambda = data.nodes.find((n: { type: string }) => n.type === 'lambda');
-      expect(queue.sourceStatus).toBe('partial');
-      expect(queue.source).toBe('sqs');
-      expect(lambda.sourceStatus).toBeUndefined();
+      const iac = (await callTool(client, 'get_stack_outputs')).dataHealth.iac;
+      expect(iac.status).toBe('changed');
+      expect(iac.synthedAt).not.toBeNull();
+      expect(new Date(iac.analyzedAt).getTime()).toBeCloseTo(analyzedAt, -4);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('reports unchanged with both operands when nothing was synthed since', async () => {
+    const client = await clientWith({
+      sources: [],
+      analyzedAt: Date.now(),
+      cdkOutDir: mkCdkOut(Date.now() - 3600_000),
+    });
+    try {
+      const iac = (await callTool(client, 'get_stack_outputs')).dataHealth.iac;
+      expect(iac.status).toBe('unchanged');
+      expect(iac.synthedAt).not.toBeNull();
+      expect(iac.analyzedAt).not.toBeNull();
+      expect(iac.reason).toBeNull();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('reports unknown with a reason when cdk.out is absent, never unchanged', async () => {
+    const client = await clientWith({
+      sources: [],
+      analyzedAt: Date.now(),
+      cdkOutDir: path.join(os.tmpdir(), 'definitely-not-here'),
+    });
+    try {
+      const iac = (await callTool(client, 'get_stack_outputs')).dataHealth.iac;
+      expect(iac.status).toBe('unknown');
+      expect(iac.reason).toBeTruthy();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('reports unknown when the project has no cdk.out recorded', async () => {
+    const client = await clientWith({ sources: [], analyzedAt: Date.now() });
+    try {
+      const iac = (await callTool(client, 'get_stack_outputs')).dataHealth.iac;
+      expect(iac.status).toBe('unknown');
+      expect(iac.reason).toContain('no cdk.out');
     } finally {
       await client.close();
     }

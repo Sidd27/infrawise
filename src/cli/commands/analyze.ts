@@ -567,6 +567,8 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       sources: sourceStatuses,
       region: config.aws?.region,
       profile: config.aws?.profile,
+      analyzedAt: Date.now(),
+      cdkOutDir: path.join(repoPath, 'cdk.out'),
     } satisfies AnalysisProvenance);
   }
 

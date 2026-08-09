@@ -204,11 +204,25 @@ Test: `pnpm test` → vitest
 
 Infrawise exposes 22 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
-Every tool that returns resource state accepts an optional `maxAgeSeconds`. Pass a small value for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. When the loaded analysis is older than the value given, the answer still comes back but carries `staleForRequest` with the actual age — treat those values as possibly out of date rather than quoting them as current. Nothing re-reads AWS on a tool call; run `infrawise analyze` to refresh.
+### `dataHealth` — on every response
 
-`get_graph_summary` marks any node whose source did not fully succeed with `source` and `sourceStatus`, so a node from a partly-read source is distinguishable from one that was read cleanly. Nodes from healthy sources carry neither field.
+Every tool response carries a `dataHealth` object with a fixed shape. Every key is always present; state lives in values, never in whether a key exists. `error` and `reason` are `null` rather than omitted, so nothing has to be inferred from absence.
 
-Tools report `unavailable` when a source behind them failed to extract or was never enabled in infrawise.yaml. It carries `sources` (each with `service`, `status` of `failed`/`disabled`, and the error) plus a `hint`. When that field is present, an empty list means "not read", not "none exist" — do not conclude a resource is absent, or that a queue has no DLQ / a secret has no rotation, from a response carrying it. `get_table_schema` is the sharpest case: with a database listed there, `found: false` means "not looked for", not "no such table". Tools spanning several sources (`get_table_schema` over the four database types, `get_stream_details` over Kinesis and MSK) report a failure in any one of them; they stay quiet about merely disabled sources unless every source is unread. `get_infra_overview` lists all failures under `freshness.incompleteSources`.
+| Field | Meaning |
+|---|---|
+| `analyzedAt` / `ageSeconds` | When the infrastructure was **read**, and how long ago. Not when the graph was rebuilt — editing code rebuilds the graph without re-reading AWS, and does not move this. |
+| `suggestRefresh` | True past 6h. A coarse backstop only; judge `ageSeconds` against the question you are answering. |
+| `refreshWith` | The command that refreshes: `infrawise analyze`. Always present, states how, never whether. |
+| `requestedMaxAgeSeconds` / `withinRequestedAge` | Echoes the `maxAgeSeconds` you passed and whether the data meets it. Both `null` when you did not pass one. |
+| `region` / `profile` | Which account context produced the snapshot. `null` when unknown. |
+| `sources` | One entry per source this tool's answer rests on: `service`, `status` (`ok`/`failed`/`partial`/`disabled`), `error`. |
+| `iac` | Whether `cdk.out` has been synthed since the analysis: `status` (`changed`/`unchanged`/`unknown`), `synthedAt`, `analyzedAt`, `reason`. |
+
+**Reading it.** A source that is not `ok` means an empty result is "not read", not "none exist" — do not conclude a resource is absent, or that a queue has no DLQ or a secret has no rotation, from a response whose source failed. `get_table_schema` is the sharpest case: with a database listed as `failed` or `disabled`, `found: false` means "not looked for", not "no such table". An `iac.status` of `changed` means someone ran `cdk synth` after the analysis, so IaC-derived answers are behind; `unknown` means the check could not run and says nothing either way.
+
+Pass `maxAgeSeconds` for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh.
+
+`get_graph_summary` additionally marks every node with `source` and `sourceStatus`, so a node from a partly-read source is distinguishable from one read cleanly.
 
 Resource listings and findings cover resources that were actually extracted from your account. A queue, secret, or table that appears only as a code reference (for example `QueueUrl: process.env.QUEUE_URL`, which has no resolvable name) is kept in `get_graph_summary` with `placeholder: true` and excluded everywhere else — infrawise will not report "no DLQ" or "no rotation" for a resource whose configuration it never read.
 
@@ -218,7 +232,7 @@ Resource listings and findings cover resources that were actually extracted from
 
 No inputs required.
 
-Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations, a `freshness` object, and a `configured` flag. `freshness` reports `analyzedAt` (ISO timestamp of the loaded analysis), `ageSeconds`, and a `stale` flag (true once the analysis is older than 24h) with a `hint` to run `infrawise analyze`; all three are null/false when serving an empty graph. When `configured` is false the server booted without an infrawise.yaml (e.g. a remotely hosted instance with no access to your cloud account or code) so every tool returns empty results; a `setupHint` then explains how to run infrawise locally. `freshness` also carries `region` and `profile`, and an `incompleteSources` list naming any source that failed to extract (with its error) — while a source is listed there, treat an absence in its tool as unknown rather than as a clean result.
+Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations, and a `configured` flag. Freshness and source health come from the `dataHealth` block every tool carries; on this tool `dataHealth.sources` lists every source rather than one tool's. When `configured` is false the server booted without an infrawise.yaml (e.g. a remotely hosted instance with no access to your cloud account or code) so every tool returns empty results; a `setupHint` then explains how to run infrawise locally.
 
 **When to call:** At the start of any database or infrastructure task to understand what's in scope.
 
@@ -517,7 +531,7 @@ Behaviors are returned in CloudFront match order: ordered cache behaviors first,
 2. Include all `requiredAttributes` as `MessageAttributes` in the publish call — missing any will silently drop the message for that subscription
 
 **Text-to-SQL / query-writing agents (large databases):**
-1. `get_infra_overview` once per session → compact table inventory (names + database type); it also reports analysis freshness with a 24h stale flag
+1. `get_infra_overview` once per session → compact table inventory (names + database type); it also reports data health, including how long ago the infrastructure was read
 2. When the task needs specific tables: `get_table_schema` with just those names → columns, types, PKs, FKs for joins
 3. Never dump the full schema into the prompt — `get_graph_summary` is the escape hatch, not the default
 

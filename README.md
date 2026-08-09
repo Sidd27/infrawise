@@ -176,7 +176,7 @@ Add to your editor's MCP config:
 
 | Tool                         | What it provides                                                                                            |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, analysis `freshness` (age, stale flag, sources that failed to extract), `configured` flag |
+| `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, `configured` flag (data age and per-source status ride the `dataHealth` block on every response) |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
 | `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys/billing mode, cost signal (no row data) |
 | `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions; returns every same-named file as a separate match |
@@ -199,9 +199,9 @@ Add to your editor's MCP config:
 | `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover, cost signal (data never read) |
 | `get_cloudfront_overview`    | CloudFront distributions — per-behavior path patterns, origins (S3 vs custom, resolved API Gateway name), cache policy, viewer protocol policy |
 
-Tools take an optional `maxAgeSeconds`. A question like "does this queue have a DLQ right now" tolerates far less staleness than "what does this architecture look like", and before this they shared one 24h budget — the strict question silently inherited the lax answer. Exceeding the stated tolerance labels the response rather than hiding it.
+Every response carries a `dataHealth` block with a fixed shape: when the infrastructure was read and how long ago, the status of each source behind that answer, whether `cdk.out` has been synthed since, and the command that refreshes. Every key is always present, so nothing has to be inferred from a field's absence — an empty result you can't distinguish from a failed one reads as "no queues need a DLQ" when the truth is "SQS was never listed".
 
-Tools fail closed. If a source behind a tool could not be read — expired credentials, a missing IAM permission, or a service not enabled in `infrawise.yaml` — the response carries an `unavailable` block naming each affected source and its error instead of a bare empty list. An empty result you can't distinguish from a failed one is worse than no answer: it reads as "no queues need a DLQ" when the truth is "SQS was never listed". `infrawise analyze` and `infrawise check` print the same warning and stop calling a run clean when any source went unread.
+Infrawise reports; it doesn't rule. Pass `maxAgeSeconds` when a question is point-in-time and the answer tells you whether the data meets it. `infrawise analyze` and `infrawise check` print the same source warnings and stop calling a run clean when any source went unread.
 
 ---
 

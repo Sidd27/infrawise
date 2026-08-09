@@ -577,6 +577,13 @@ export interface AnalysisProvenance {
   sources: SourceStatus[];
   region?: string;
   profile?: string;
+  // When the infrastructure was actually read (ms epoch). Written only by a full
+  // analyze, so a code-only rebuild cannot reset it — the graph object being
+  // rebuilt says nothing about how old the cloud facts in it are.
+  analyzedAt: number;
+  // cdk.out location at analyze time, so the server can compare template mtimes
+  // against analyzedAt without being told the repo path.
+  cdkOutDir?: string;
 }
 
 // Higher is more severe. Sort descending for "worst first".

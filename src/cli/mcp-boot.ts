@@ -100,10 +100,12 @@ export function watchCode(
         hooks.onStart?.();
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, cfg);
-          // A code-only refresh reuses the cached cloud metadata, so the last
-          // full analysis's source outcomes still apply — carry them or a failed
-          // extractor silently becomes "clean" on the next file save.
-          setGraphState(graph, findings, Date.now(), readCache<AnalysisProvenance>('provenance'));
+          // A code-only refresh makes no AWS calls — it rebuilds the graph from
+          // cached cloud metadata. Passing Date.now() here used to reset the
+          // freshness clock on every file save, so a session reported seconds-old
+          // data about infrastructure read hours earlier. The cloud read time
+          // comes from provenance, which only a full analyze writes.
+          setGraphState(graph, findings, null, readCache<AnalysisProvenance>('provenance'));
           hooks.onDone(graph, findings);
         } catch (err) {
           hooks.onError?.(err);
