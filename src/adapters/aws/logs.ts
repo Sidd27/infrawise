@@ -57,33 +57,26 @@ export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGrou
 
   // Discover log groups
   const logGroups: Array<{ name: string; retentionDays?: number }> = [];
-  try {
-    const prefixes = cfg.logGroupPrefixes?.length
-      ? cfg.logGroupPrefixes
-      : [undefined as string | undefined];
-    for (const prefix of prefixes) {
-      let nextToken: string | undefined;
-      do {
-        const res = await client.send(
-          new DescribeLogGroupsCommand({
-            nextToken,
-            limit: Math.min(50, MAX_LOG_GROUPS - logGroups.length),
-            ...(prefix ? { logGroupNamePrefix: prefix } : {}),
-          }),
-        );
-        for (const lg of res.logGroups ?? []) {
-          logGroups.push({ name: lg.logGroupName ?? '', retentionDays: lg.retentionInDays });
-        }
-        nextToken = res.nextToken;
-        if (logGroups.length >= MAX_LOG_GROUPS) break;
-      } while (nextToken);
+  const prefixes = cfg.logGroupPrefixes?.length
+    ? cfg.logGroupPrefixes
+    : [undefined as string | undefined];
+  for (const prefix of prefixes) {
+    let nextToken: string | undefined;
+    do {
+      const res = await client.send(
+        new DescribeLogGroupsCommand({
+          nextToken,
+          limit: Math.min(50, MAX_LOG_GROUPS - logGroups.length),
+          ...(prefix ? { logGroupNamePrefix: prefix } : {}),
+        }),
+      );
+      for (const lg of res.logGroups ?? []) {
+        logGroups.push({ name: lg.logGroupName ?? '', retentionDays: lg.retentionInDays });
+      }
+      nextToken = res.nextToken;
       if (logGroups.length >= MAX_LOG_GROUPS) break;
-    }
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-    return summaries;
+    } while (nextToken);
+    if (logGroups.length >= MAX_LOG_GROUPS) break;
   }
 
   // Sample errors from each group — patterns only, never raw messages for unrelated groups

@@ -103,68 +103,62 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
   const client = new SQSClient(clientConfig(cfg));
   const queues: SQSQueueMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    const queueUrls: string[] = [];
-    do {
-      const res = await client.send(
-        new ListQueuesCommand({ NextToken: nextToken, MaxResults: 1000 }),
+  let nextToken: string | undefined;
+  const queueUrls: string[] = [];
+  do {
+    const res = await client.send(
+      new ListQueuesCommand({ NextToken: nextToken, MaxResults: 1000 }),
+    );
+    queueUrls.push(...(res.QueueUrls ?? []));
+    nextToken = res.NextToken;
+  } while (nextToken);
+
+  for (const url of queueUrls) {
+    try {
+      const attrs = await client.send(
+        new GetQueueAttributesCommand({
+          QueueUrl: url,
+          AttributeNames: [
+            'QueueArn',
+            'VisibilityTimeout',
+            'MessageRetentionPeriod',
+            'RedrivePolicy',
+            'KmsMasterKeyId',
+            'SqsManagedSseEnabled',
+            'ApproximateNumberOfMessages',
+            'ApproximateNumberOfMessagesNotVisible',
+          ],
+        }),
       );
-      queueUrls.push(...(res.QueueUrls ?? []));
-      nextToken = res.NextToken;
-    } while (nextToken);
+      const a = attrs.Attributes ?? {};
+      const arn = a['QueueArn'] ?? '';
+      const name = arn.split(':').pop() ?? url.split('/').pop() ?? url;
+      const redrivePolicy = a['RedrivePolicy'];
+      const dlqArn = redrivePolicy
+        ? (JSON.parse(redrivePolicy) as { deadLetterTargetArn?: string }).deadLetterTargetArn
+        : undefined;
+      const encrypted = !!(a['KmsMasterKeyId'] || a['SqsManagedSseEnabled'] === 'true');
+      const retentionSeconds = parseInt(a['MessageRetentionPeriod'] ?? '345600', 10);
+      const isFifo = name.endsWith('.fifo') || a['FifoQueue'] === 'true';
 
-    for (const url of queueUrls) {
-      try {
-        const attrs = await client.send(
-          new GetQueueAttributesCommand({
-            QueueUrl: url,
-            AttributeNames: [
-              'QueueArn',
-              'VisibilityTimeout',
-              'MessageRetentionPeriod',
-              'RedrivePolicy',
-              'KmsMasterKeyId',
-              'SqsManagedSseEnabled',
-              'ApproximateNumberOfMessages',
-              'ApproximateNumberOfMessagesNotVisible',
-            ],
-          }),
-        );
-        const a = attrs.Attributes ?? {};
-        const arn = a['QueueArn'] ?? '';
-        const name = arn.split(':').pop() ?? url.split('/').pop() ?? url;
-        const redrivePolicy = a['RedrivePolicy'];
-        const dlqArn = redrivePolicy
-          ? (JSON.parse(redrivePolicy) as { deadLetterTargetArn?: string }).deadLetterTargetArn
-          : undefined;
-        const encrypted = !!(a['KmsMasterKeyId'] || a['SqsManagedSseEnabled'] === 'true');
-        const retentionSeconds = parseInt(a['MessageRetentionPeriod'] ?? '345600', 10);
-        const isFifo = name.endsWith('.fifo') || a['FifoQueue'] === 'true';
-
-        queues.push({
-          name,
-          url,
-          arn,
-          hasDLQ: !!dlqArn,
-          dlqArn,
-          encrypted,
-          isFifo,
-          visibilityTimeoutSec: parseInt(a['VisibilityTimeout'] ?? '30', 10),
-          retentionDays: Math.round(retentionSeconds / 86400),
-          approximateMessages: parseInt(a['ApproximateNumberOfMessages'] ?? '0', 10),
-          approximateInflight: parseInt(a['ApproximateNumberOfMessagesNotVisible'] ?? '0', 10),
-        });
-      } catch (err) {
-        logger.warn(
-          `SQS attrs failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      queues.push({
+        name,
+        url,
+        arn,
+        hasDLQ: !!dlqArn,
+        dlqArn,
+        encrypted,
+        isFifo,
+        visibilityTimeoutSec: parseInt(a['VisibilityTimeout'] ?? '30', 10),
+        retentionDays: Math.round(retentionSeconds / 86400),
+        approximateMessages: parseInt(a['ApproximateNumberOfMessages'] ?? '0', 10),
+        approximateInflight: parseInt(a['ApproximateNumberOfMessagesNotVisible'] ?? '0', 10),
+      });
+    } catch (err) {
+      logger.warn(
+        `SQS attrs failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
   }
   return queues;
 }
@@ -179,64 +173,58 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
   const client = new SNSClient(clientConfig(cfg));
   const topics: SNSTopicMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    const topicArns: string[] = [];
-    do {
-      const res = await client.send(new ListTopicsCommand({ NextToken: nextToken }));
-      topicArns.push(...(res.Topics ?? []).map((t) => t.TopicArn ?? '').filter(Boolean));
-      nextToken = res.NextToken;
-    } while (nextToken);
+  let nextToken: string | undefined;
+  const topicArns: string[] = [];
+  do {
+    const res = await client.send(new ListTopicsCommand({ NextToken: nextToken }));
+    topicArns.push(...(res.Topics ?? []).map((t) => t.TopicArn ?? '').filter(Boolean));
+    nextToken = res.NextToken;
+  } while (nextToken);
 
-    for (const arn of topicArns) {
-      try {
-        const [attrsRes, subsRes] = await Promise.all([
-          client.send(new GetTopicAttributesCommand({ TopicArn: arn })),
-          client.send(new ListSubscriptionsByTopicCommand({ TopicArn: arn })),
-        ]);
-        const attrs = attrsRes.Attributes ?? {};
-        const subs = subsRes.Subscriptions ?? [];
+  for (const arn of topicArns) {
+    try {
+      const [attrsRes, subsRes] = await Promise.all([
+        client.send(new GetTopicAttributesCommand({ TopicArn: arn })),
+        client.send(new ListSubscriptionsByTopicCommand({ TopicArn: arn })),
+      ]);
+      const attrs = attrsRes.Attributes ?? {};
+      const subs = subsRes.Subscriptions ?? [];
 
-        const filterPolicies: SNSFilterPolicy[] = [];
-        for (const sub of subs) {
-          if (!sub.SubscriptionArn || sub.SubscriptionArn === 'PendingConfirmation') continue;
-          try {
-            const subAttrs = await client.send(
-              new GetSubscriptionAttributesCommand({ SubscriptionArn: sub.SubscriptionArn }),
-            );
-            const fp = subAttrs.Attributes?.['FilterPolicy'];
-            if (fp) {
-              const parsed = JSON.parse(fp) as Record<string, unknown>;
-              filterPolicies.push({
-                subscriptionArn: sub.SubscriptionArn,
-                protocol: sub.Protocol ?? 'unknown',
-                requiredAttributes: Object.keys(parsed),
-                scope: subAttrs.Attributes?.['FilterPolicyScope'] ?? 'MessageAttributes',
-              });
-            }
-          } catch {
-            // skip subscription if attributes fetch fails
+      const filterPolicies: SNSFilterPolicy[] = [];
+      for (const sub of subs) {
+        if (!sub.SubscriptionArn || sub.SubscriptionArn === 'PendingConfirmation') continue;
+        try {
+          const subAttrs = await client.send(
+            new GetSubscriptionAttributesCommand({ SubscriptionArn: sub.SubscriptionArn }),
+          );
+          const fp = subAttrs.Attributes?.['FilterPolicy'];
+          if (fp) {
+            const parsed = JSON.parse(fp) as Record<string, unknown>;
+            filterPolicies.push({
+              subscriptionArn: sub.SubscriptionArn,
+              protocol: sub.Protocol ?? 'unknown',
+              requiredAttributes: Object.keys(parsed),
+              scope: subAttrs.Attributes?.['FilterPolicyScope'] ?? 'MessageAttributes',
+            });
           }
+        } catch {
+          // skip subscription if attributes fetch fails
         }
-
-        topics.push({
-          name: arn.split(':').pop() ?? arn,
-          arn,
-          encrypted: !!attrs['KmsMasterKeyId'],
-          subscriptionCount: parseInt(attrs['SubscriptionsConfirmed'] ?? '0', 10),
-          subscriptionProtocols: [...new Set(subs.map((s) => s.Protocol ?? 'unknown'))],
-          filterPolicies,
-        });
-      } catch (err) {
-        logger.warn(
-          `SNS attrs failed for ${arn}: ${err instanceof Error ? err.message : String(err)}`,
-        );
       }
+
+      topics.push({
+        name: arn.split(':').pop() ?? arn,
+        arn,
+        encrypted: !!attrs['KmsMasterKeyId'],
+        subscriptionCount: parseInt(attrs['SubscriptionsConfirmed'] ?? '0', 10),
+        subscriptionProtocols: [...new Set(subs.map((s) => s.Protocol ?? 'unknown'))],
+        filterPolicies,
+      });
+    } catch (err) {
+      logger.warn(
+        `SNS attrs failed for ${arn}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
   }
   return topics;
 }
@@ -253,35 +241,29 @@ export async function extractSSMMetadata(
   const client = new SSMClient(clientConfig(cfg));
   const parameters: SSMParameterMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    do {
-      const res = await client.send(
-        new DescribeParametersCommand({
-          NextToken: nextToken,
-          MaxResults: 50,
-          ParameterFilters: cfg.paths?.length
-            ? [{ Key: 'Path', Values: cfg.paths, Option: 'Recursive' }]
-            : undefined,
-        }),
-      );
-      for (const p of res.Parameters ?? []) {
-        parameters.push({
-          name: p.Name ?? '',
-          type: p.Type ?? 'String',
-          tier: p.Tier ?? 'Standard',
-          lastModified: p.LastModifiedDate?.toISOString(),
-          description: p.Description,
-          keyId: p.KeyId,
-        });
-      }
-      nextToken = res.NextToken;
-    } while (nextToken && parameters.length < 500);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+  let nextToken: string | undefined;
+  do {
+    const res = await client.send(
+      new DescribeParametersCommand({
+        NextToken: nextToken,
+        MaxResults: 50,
+        ParameterFilters: cfg.paths?.length
+          ? [{ Key: 'Path', Values: cfg.paths, Option: 'Recursive' }]
+          : undefined,
+      }),
+    );
+    for (const p of res.Parameters ?? []) {
+      parameters.push({
+        name: p.Name ?? '',
+        type: p.Type ?? 'String',
+        tier: p.Tier ?? 'Standard',
+        lastModified: p.LastModifiedDate?.toISOString(),
+        description: p.Description,
+        keyId: p.KeyId,
+      });
+    }
+    nextToken = res.NextToken;
+  } while (nextToken && parameters.length < 500);
   return parameters;
 }
 
@@ -297,31 +279,25 @@ export async function extractSecretsMetadata(
   const client = new SecretsManagerClient(clientConfig(cfg));
   const secrets: SecretsManagerMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    do {
-      // ListSecrets never returns secret values
-      const res = await client.send(
-        new ListSecretsCommand({ NextToken: nextToken, MaxResults: 100 }),
-      );
-      for (const s of res.SecretList ?? []) {
-        secrets.push({
-          name: s.Name ?? '',
-          arn: s.ARN ?? '',
-          rotationEnabled: s.RotationEnabled ?? false,
-          rotationDays: s.RotationRules?.AutomaticallyAfterDays,
-          lastRotated: s.LastRotatedDate?.toISOString(),
-          lastAccessed: s.LastAccessedDate?.toISOString(),
-          description: s.Description,
-        });
-      }
-      nextToken = res.NextToken;
-    } while (nextToken && secrets.length < 200);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+  let nextToken: string | undefined;
+  do {
+    // ListSecrets never returns secret values
+    const res = await client.send(
+      new ListSecretsCommand({ NextToken: nextToken, MaxResults: 100 }),
+    );
+    for (const s of res.SecretList ?? []) {
+      secrets.push({
+        name: s.Name ?? '',
+        arn: s.ARN ?? '',
+        rotationEnabled: s.RotationEnabled ?? false,
+        rotationDays: s.RotationRules?.AutomaticallyAfterDays,
+        lastRotated: s.LastRotatedDate?.toISOString(),
+        lastAccessed: s.LastAccessedDate?.toISOString(),
+        description: s.Description,
+      });
+    }
+    nextToken = res.NextToken;
+  } while (nextToken && secrets.length < 200);
   return secrets;
 }
 
@@ -498,36 +474,30 @@ export async function extractEventBridgeMetadata(
   const client = new EventBridgeClient(clientConfig(cfg));
   const rules: EventBridgeRuleMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    do {
-      const res = await client.send(new ListRulesCommand({ NextToken: nextToken, Limit: 100 }));
-      for (const rule of res.Rules ?? []) {
-        if (!rule.Name) continue;
-        try {
-          const targetsRes = await client.send(new ListTargetsByRuleCommand({ Rule: rule.Name }));
-          const targetArns = (targetsRes.Targets ?? []).map((t) => t.Arn ?? '').filter(Boolean);
-          rules.push({
-            name: rule.Name,
-            arn: rule.Arn ?? '',
-            state: rule.State ?? 'UNKNOWN',
-            scheduleExpression: rule.ScheduleExpression,
-            eventPattern: rule.EventPattern,
-            targetArns,
-          });
-        } catch (err) {
-          logger.warn(
-            `EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+  let nextToken: string | undefined;
+  do {
+    const res = await client.send(new ListRulesCommand({ NextToken: nextToken, Limit: 100 }));
+    for (const rule of res.Rules ?? []) {
+      if (!rule.Name) continue;
+      try {
+        const targetsRes = await client.send(new ListTargetsByRuleCommand({ Rule: rule.Name }));
+        const targetArns = (targetsRes.Targets ?? []).map((t) => t.Arn ?? '').filter(Boolean);
+        rules.push({
+          name: rule.Name,
+          arn: rule.Arn ?? '',
+          state: rule.State ?? 'UNKNOWN',
+          scheduleExpression: rule.ScheduleExpression,
+          eventPattern: rule.EventPattern,
+          targetArns,
+        });
+      } catch (err) {
+        logger.warn(
+          `EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-      nextToken = res.NextToken;
-    } while (nextToken && rules.length < 500);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+    }
+    nextToken = res.NextToken;
+  } while (nextToken && rules.length < 500);
   return rules;
 }
 
@@ -542,62 +512,56 @@ export async function extractLambdaMetadata(
   const client = new LambdaClient(clientConfig(cfg));
   const functions: LambdaFunctionMetadata[] = [];
 
+  let marker: string | undefined;
+  do {
+    const res = await client.send(new ListFunctionsCommand({ Marker: marker, MaxItems: 50 }));
+    for (const fn of res.Functions ?? []) {
+      const name = fn.FunctionName ?? '';
+      if (includeFunctions?.length && !includeFunctions.includes(name)) continue;
+      functions.push({
+        name,
+        arn: fn.FunctionArn ?? '',
+        runtime: fn.Runtime,
+        handler: fn.Handler,
+        memoryMB: fn.MemorySize,
+        timeoutSec: fn.Timeout,
+        lastModified: fn.LastModified,
+        envVarKeys: Object.keys(fn.Environment?.Variables ?? {}),
+        layers: (fn.Layers ?? []).map((l) => l.Arn ?? '').filter(Boolean),
+        triggers: [],
+        roleArn: fn.Role,
+      });
+    }
+    marker = res.NextMarker;
+  } while (marker);
+
+  // Fetch all event source mappings in one paginated call and attach to functions
+  let triggersIncomplete: string | undefined;
+  let triggerMap: Map<string, LambdaTrigger[]>;
   try {
-    let marker: string | undefined;
-    do {
-      const res = await client.send(new ListFunctionsCommand({ Marker: marker, MaxItems: 50 }));
-      for (const fn of res.Functions ?? []) {
-        const name = fn.FunctionName ?? '';
-        if (includeFunctions?.length && !includeFunctions.includes(name)) continue;
-        functions.push({
-          name,
-          arn: fn.FunctionArn ?? '',
-          runtime: fn.Runtime,
-          handler: fn.Handler,
-          memoryMB: fn.MemorySize,
-          timeoutSec: fn.Timeout,
-          lastModified: fn.LastModified,
-          envVarKeys: Object.keys(fn.Environment?.Variables ?? {}),
-          layers: (fn.Layers ?? []).map((l) => l.Arn ?? '').filter(Boolean),
-          triggers: [],
-          roleArn: fn.Role,
-        });
-      }
-      marker = res.NextMarker;
-    } while (marker);
-
-    // Fetch all event source mappings in one paginated call and attach to functions
-    let triggersIncomplete: string | undefined;
-    let triggerMap: Map<string, LambdaTrigger[]>;
-    try {
-      triggerMap = await fetchAllEventSourceMappings(cfg);
-    } catch (err) {
-      if (!(err instanceof PartialExtractionError)) throw err;
-      triggerMap = err.data as Map<string, LambdaTrigger[]>;
-      triggersIncomplete = err.message;
-    }
-    for (const fn of functions) {
-      fn.triggers = triggerMap.get(fn.arn) ?? [];
-    }
-
-    // Batch IAM policy fetch per unique role ARN
-    const uniqueRoles = [...new Set(functions.map((f) => f.roleArn).filter(Boolean) as string[])];
-    const roleServices = new Map<string, string[] | undefined>();
-    await Promise.all(
-      uniqueRoles.map(async (arn) => {
-        roleServices.set(arn, await extractAllowedServices(arn, cfg));
-      }),
-    );
-    for (const fn of functions) {
-      if (fn.roleArn) fn.allowedServices = roleServices.get(fn.roleArn);
-    }
-
-    if (triggersIncomplete) throw new PartialExtractionError(triggersIncomplete, functions);
+    triggerMap = await fetchAllEventSourceMappings(cfg);
   } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
+    if (!(err instanceof PartialExtractionError)) throw err;
+    triggerMap = err.data as Map<string, LambdaTrigger[]>;
+    triggersIncomplete = err.message;
   }
+  for (const fn of functions) {
+    fn.triggers = triggerMap.get(fn.arn) ?? [];
+  }
+
+  // Batch IAM policy fetch per unique role ARN
+  const uniqueRoles = [...new Set(functions.map((f) => f.roleArn).filter(Boolean) as string[])];
+  const roleServices = new Map<string, string[] | undefined>();
+  await Promise.all(
+    uniqueRoles.map(async (arn) => {
+      roleServices.set(arn, await extractAllowedServices(arn, cfg));
+    }),
+  );
+  for (const fn of functions) {
+    if (fn.roleArn) fn.allowedServices = roleServices.get(fn.roleArn);
+  }
+
+  if (triggersIncomplete) throw new PartialExtractionError(triggersIncomplete, functions);
   return functions;
 }
 
@@ -613,39 +577,33 @@ export async function extractKinesisMetadata(
   const client = new KinesisClient(clientConfig(cfg));
   const streams: KinesisStreamMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    const names: string[] = [];
-    do {
-      const res = await client.send(new ListStreamsCommand({ NextToken: nextToken }));
-      names.push(...(res.StreamNames ?? []));
-      nextToken = res.NextToken;
-    } while (nextToken);
+  let nextToken: string | undefined;
+  const names: string[] = [];
+  do {
+    const res = await client.send(new ListStreamsCommand({ NextToken: nextToken }));
+    names.push(...(res.StreamNames ?? []));
+    nextToken = res.NextToken;
+  } while (nextToken);
 
-    for (const name of names) {
-      try {
-        const res = await client.send(new DescribeStreamSummaryCommand({ StreamName: name }));
-        const d = res.StreamDescriptionSummary;
-        if (!d) continue;
-        streams.push({
-          name,
-          arn: d.StreamARN ?? '',
-          status: d.StreamStatus ?? 'UNKNOWN',
-          shardCount: d.OpenShardCount,
-          retentionHours: d.RetentionPeriodHours,
-          encrypted: d.EncryptionType === 'KMS',
-          mode: d.StreamModeDetails?.StreamMode ?? 'PROVISIONED',
-        });
-      } catch (err) {
-        logger.warn(
-          `Kinesis describe failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+  for (const name of names) {
+    try {
+      const res = await client.send(new DescribeStreamSummaryCommand({ StreamName: name }));
+      const d = res.StreamDescriptionSummary;
+      if (!d) continue;
+      streams.push({
+        name,
+        arn: d.StreamARN ?? '',
+        status: d.StreamStatus ?? 'UNKNOWN',
+        shardCount: d.OpenShardCount,
+        retentionHours: d.RetentionPeriodHours,
+        encrypted: d.EncryptionType === 'KMS',
+        mode: d.StreamModeDetails?.StreamMode ?? 'PROVISIONED',
+      });
+    } catch (err) {
+      logger.warn(
+        `Kinesis describe failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
   }
   return streams;
 }
@@ -656,28 +614,22 @@ export async function extractMSKMetadata(cfg: AWSConfig = {}): Promise<MSKCluste
   const client = new KafkaClient(clientConfig(cfg));
   const clusters: MSKClusterMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    do {
-      const res = await client.send(new ListClustersV2Command({ NextToken: nextToken }));
-      for (const c of res.ClusterInfoList ?? []) {
-        if (!c.ClusterName) continue;
-        clusters.push({
-          name: c.ClusterName,
-          arn: c.ClusterArn ?? '',
-          state: c.State ?? 'UNKNOWN',
-          clusterType: c.ClusterType ?? 'PROVISIONED',
-          kafkaVersion: c.Provisioned?.CurrentBrokerSoftwareInfo?.KafkaVersion,
-          brokerNodes: c.Provisioned?.NumberOfBrokerNodes,
-        });
-      }
-      nextToken = res.NextToken;
-    } while (nextToken);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+  let nextToken: string | undefined;
+  do {
+    const res = await client.send(new ListClustersV2Command({ NextToken: nextToken }));
+    for (const c of res.ClusterInfoList ?? []) {
+      if (!c.ClusterName) continue;
+      clusters.push({
+        name: c.ClusterName,
+        arn: c.ClusterArn ?? '',
+        state: c.State ?? 'UNKNOWN',
+        clusterType: c.ClusterType ?? 'PROVISIONED',
+        kafkaVersion: c.Provisioned?.CurrentBrokerSoftwareInfo?.KafkaVersion,
+        brokerNodes: c.Provisioned?.NumberOfBrokerNodes,
+      });
+    }
+    nextToken = res.NextToken;
+  } while (nextToken);
   return clusters;
 }
 
@@ -689,49 +641,43 @@ export async function extractElastiCacheMetadata(
   const client = new ElastiCacheClient(clientConfig(cfg));
   const clusters: ElastiCacheClusterMetadata[] = [];
 
+  const failoverByGroup = new Map<string, string>();
   try {
-    const failoverByGroup = new Map<string, string>();
-    try {
-      let marker: string | undefined;
-      do {
-        const res = await client.send(new DescribeReplicationGroupsCommand({ Marker: marker }));
-        for (const g of res.ReplicationGroups ?? []) {
-          if (g.ReplicationGroupId) {
-            failoverByGroup.set(g.ReplicationGroupId, g.AutomaticFailover ?? 'disabled');
-          }
-        }
-        marker = res.Marker;
-      } while (marker);
-    } catch {
-      /* replication groups are optional context */
-    }
-
     let marker: string | undefined;
     do {
-      const res = await client.send(new DescribeCacheClustersCommand({ Marker: marker }));
-      for (const c of res.CacheClusters ?? []) {
-        if (!c.CacheClusterId) continue;
-        clusters.push({
-          id: c.CacheClusterId,
-          engine: c.Engine ?? 'unknown',
-          engineVersion: c.EngineVersion ?? '',
-          nodeType: c.CacheNodeType ?? '',
-          numNodes: c.NumCacheNodes ?? 0,
-          transitEncryption: c.TransitEncryptionEnabled ?? false,
-          atRestEncryption: c.AtRestEncryptionEnabled ?? false,
-          replicationGroupId: c.ReplicationGroupId,
-          automaticFailover: c.ReplicationGroupId
-            ? failoverByGroup.get(c.ReplicationGroupId)
-            : undefined,
-        });
+      const res = await client.send(new DescribeReplicationGroupsCommand({ Marker: marker }));
+      for (const g of res.ReplicationGroups ?? []) {
+        if (g.ReplicationGroupId) {
+          failoverByGroup.set(g.ReplicationGroupId, g.AutomaticFailover ?? 'disabled');
+        }
       }
       marker = res.Marker;
     } while (marker);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
+  } catch {
+    /* replication groups are optional context */
   }
+
+  let marker: string | undefined;
+  do {
+    const res = await client.send(new DescribeCacheClustersCommand({ Marker: marker }));
+    for (const c of res.CacheClusters ?? []) {
+      if (!c.CacheClusterId) continue;
+      clusters.push({
+        id: c.CacheClusterId,
+        engine: c.Engine ?? 'unknown',
+        engineVersion: c.EngineVersion ?? '',
+        nodeType: c.CacheNodeType ?? '',
+        numNodes: c.NumCacheNodes ?? 0,
+        transitEncryption: c.TransitEncryptionEnabled ?? false,
+        atRestEncryption: c.AtRestEncryptionEnabled ?? false,
+        replicationGroupId: c.ReplicationGroupId,
+        automaticFailover: c.ReplicationGroupId
+          ? failoverByGroup.get(c.ReplicationGroupId)
+          : undefined,
+      });
+    }
+    marker = res.Marker;
+  } while (marker);
   return clusters;
 }
 
@@ -743,82 +689,76 @@ export async function extractCognitoMetadata(
   const client = new CognitoIdentityProviderClient(clientConfig(cfg));
   const pools: CognitoUserPoolMetadata[] = [];
 
-  try {
-    let nextToken: string | undefined;
-    const poolRefs: Array<{ id: string; name: string }> = [];
-    do {
-      const res = await client.send(
-        new ListUserPoolsCommand({ MaxResults: 60, NextToken: nextToken }),
-      );
-      for (const p of res.UserPools ?? []) {
-        if (p.Id && p.Name) poolRefs.push({ id: p.Id, name: p.Name });
-      }
-      nextToken = res.NextToken;
-    } while (nextToken);
-
-    for (const ref of poolRefs) {
-      try {
-        const poolRes = await client.send(new DescribeUserPoolCommand({ UserPoolId: ref.id }));
-        const clients: CognitoAppClientMetadata[] = [];
-        let clientToken: string | undefined;
-        do {
-          const clientsRes = await client.send(
-            new ListUserPoolClientsCommand({
-              UserPoolId: ref.id,
-              MaxResults: 60,
-              NextToken: clientToken,
-            }),
-          );
-          for (const c of clientsRes.UserPoolClients ?? []) {
-            if (!c.ClientId) continue;
-            try {
-              const detail = await client.send(
-                new DescribeUserPoolClientCommand({ UserPoolId: ref.id, ClientId: c.ClientId }),
-              );
-              const d = detail.UserPoolClient;
-              if (!d) continue;
-              clients.push({
-                clientName: d.ClientName ?? c.ClientName ?? '',
-                clientId: c.ClientId,
-                authFlows: d.ExplicitAuthFlows ?? [],
-                oauthFlows: d.AllowedOAuthFlows ?? [],
-                oauthScopes: d.AllowedOAuthScopes ?? [],
-                callbackUrls: d.CallbackURLs ?? [],
-                generatesSecret: !!d.ClientSecret,
-                accessTokenValidity: d.AccessTokenValidity,
-                idTokenValidity: d.IdTokenValidity,
-                refreshTokenValidity: d.RefreshTokenValidity,
-                tokenValidityUnits: d.TokenValidityUnits
-                  ? {
-                      accessToken: d.TokenValidityUnits.AccessToken,
-                      idToken: d.TokenValidityUnits.IdToken,
-                      refreshToken: d.TokenValidityUnits.RefreshToken,
-                    }
-                  : undefined,
-              });
-            } catch {
-              /* skip client on describe failure */
-            }
-          }
-          clientToken = clientsRes.NextToken;
-        } while (clientToken);
-
-        pools.push({
-          name: ref.name,
-          id: ref.id,
-          mfaConfiguration: poolRes.UserPool?.MfaConfiguration,
-          clients,
-        });
-      } catch (err) {
-        logger.warn(
-          `Cognito describe failed for ${ref.name}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+  let nextToken: string | undefined;
+  const poolRefs: Array<{ id: string; name: string }> = [];
+  do {
+    const res = await client.send(
+      new ListUserPoolsCommand({ MaxResults: 60, NextToken: nextToken }),
+    );
+    for (const p of res.UserPools ?? []) {
+      if (p.Id && p.Name) poolRefs.push({ id: p.Id, name: p.Name });
     }
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
+    nextToken = res.NextToken;
+  } while (nextToken);
+
+  for (const ref of poolRefs) {
+    try {
+      const poolRes = await client.send(new DescribeUserPoolCommand({ UserPoolId: ref.id }));
+      const clients: CognitoAppClientMetadata[] = [];
+      let clientToken: string | undefined;
+      do {
+        const clientsRes = await client.send(
+          new ListUserPoolClientsCommand({
+            UserPoolId: ref.id,
+            MaxResults: 60,
+            NextToken: clientToken,
+          }),
+        );
+        for (const c of clientsRes.UserPoolClients ?? []) {
+          if (!c.ClientId) continue;
+          try {
+            const detail = await client.send(
+              new DescribeUserPoolClientCommand({ UserPoolId: ref.id, ClientId: c.ClientId }),
+            );
+            const d = detail.UserPoolClient;
+            if (!d) continue;
+            clients.push({
+              clientName: d.ClientName ?? c.ClientName ?? '',
+              clientId: c.ClientId,
+              authFlows: d.ExplicitAuthFlows ?? [],
+              oauthFlows: d.AllowedOAuthFlows ?? [],
+              oauthScopes: d.AllowedOAuthScopes ?? [],
+              callbackUrls: d.CallbackURLs ?? [],
+              generatesSecret: !!d.ClientSecret,
+              accessTokenValidity: d.AccessTokenValidity,
+              idTokenValidity: d.IdTokenValidity,
+              refreshTokenValidity: d.RefreshTokenValidity,
+              tokenValidityUnits: d.TokenValidityUnits
+                ? {
+                    accessToken: d.TokenValidityUnits.AccessToken,
+                    idToken: d.TokenValidityUnits.IdToken,
+                    refreshToken: d.TokenValidityUnits.RefreshToken,
+                  }
+                : undefined,
+            });
+          } catch {
+            /* skip client on describe failure */
+          }
+        }
+        clientToken = clientsRes.NextToken;
+      } while (clientToken);
+
+      pools.push({
+        name: ref.name,
+        id: ref.id,
+        mfaConfiguration: poolRes.UserPool?.MfaConfiguration,
+        clients,
+      });
+    } catch (err) {
+      logger.warn(
+        `Cognito describe failed for ${ref.name}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
   return pools;
 }
@@ -829,33 +769,27 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
   const client = new RDSClient(clientConfig(cfg));
   const instances: RDSInstanceMetadata[] = [];
 
-  try {
-    let marker: string | undefined;
-    do {
-      const res = await client.send(
-        new DescribeDBInstancesCommand({ Marker: marker, MaxRecords: 100 }),
-      );
-      for (const db of res.DBInstances ?? []) {
-        instances.push({
-          dbInstanceIdentifier: db.DBInstanceIdentifier ?? '',
-          engine: db.Engine ?? '',
-          engineVersion: db.EngineVersion ?? '',
-          instanceClass: db.DBInstanceClass ?? '',
-          publiclyAccessible: db.PubliclyAccessible ?? false,
-          storageEncrypted: db.StorageEncrypted ?? false,
-          backupRetentionDays: db.BackupRetentionPeriod ?? 0,
-          deletionProtection: db.DeletionProtection ?? false,
-          multiAZ: db.MultiAZ ?? false,
-          dbInstanceStatus: db.DBInstanceStatus ?? '',
-        });
-      }
-      marker = res.Marker;
-    } while (marker && instances.length < 200);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+  let marker: string | undefined;
+  do {
+    const res = await client.send(
+      new DescribeDBInstancesCommand({ Marker: marker, MaxRecords: 100 }),
+    );
+    for (const db of res.DBInstances ?? []) {
+      instances.push({
+        dbInstanceIdentifier: db.DBInstanceIdentifier ?? '',
+        engine: db.Engine ?? '',
+        engineVersion: db.EngineVersion ?? '',
+        instanceClass: db.DBInstanceClass ?? '',
+        publiclyAccessible: db.PubliclyAccessible ?? false,
+        storageEncrypted: db.StorageEncrypted ?? false,
+        backupRetentionDays: db.BackupRetentionPeriod ?? 0,
+        deletionProtection: db.DeletionProtection ?? false,
+        multiAZ: db.MultiAZ ?? false,
+        dbInstanceStatus: db.DBInstanceStatus ?? '',
+      });
+    }
+    marker = res.Marker;
+  } while (marker && instances.length < 200);
   return instances;
 }
 
@@ -891,68 +825,62 @@ export async function extractCloudFrontMetadata(
   const client = new CloudFrontClient({ ...clientConfig(cfg), region: 'us-east-1' });
   const distributions: CloudFrontDistributionMetadata[] = [];
 
-  try {
-    const policyNames = await cachePolicyNames(client);
+  const policyNames = await cachePolicyNames(client);
 
-    let marker: string | undefined;
-    do {
-      const res = await client.send(new ListDistributionsCommand({ Marker: marker }));
-      for (const d of res.DistributionList?.Items ?? []) {
-        if (!d.Id) continue;
+  let marker: string | undefined;
+  do {
+    const res = await client.send(new ListDistributionsCommand({ Marker: marker }));
+    for (const d of res.DistributionList?.Items ?? []) {
+      if (!d.Id) continue;
 
-        const origins: CloudFrontOriginMetadata[] = (d.Origins?.Items ?? []).map((o) => ({
-          id: o.Id ?? '',
-          domainName: o.DomainName ?? '',
-          originType: o.S3OriginConfig ? 's3' : 'custom',
-          originPath: o.OriginPath || undefined,
-        }));
+      const origins: CloudFrontOriginMetadata[] = (d.Origins?.Items ?? []).map((o) => ({
+        id: o.Id ?? '',
+        domainName: o.DomainName ?? '',
+        originType: o.S3OriginConfig ? 's3' : 'custom',
+        originPath: o.OriginPath || undefined,
+      }));
 
-        const toBehavior = (
-          b: {
-            PathPattern?: string;
-            TargetOriginId?: string;
-            ViewerProtocolPolicy?: string;
-            CachePolicyId?: string;
-            AllowedMethods?: { Items?: string[] };
-          },
-          isDefault: boolean,
-        ): CloudFrontBehaviorMetadata => ({
-          pathPattern: isDefault ? '*' : (b.PathPattern ?? '*'),
-          targetOriginId: b.TargetOriginId ?? '',
-          viewerProtocolPolicy: b.ViewerProtocolPolicy ?? 'unknown',
-          cachePolicy: b.CachePolicyId
-            ? (policyNames.get(b.CachePolicyId) ?? b.CachePolicyId)
-            : undefined,
-          allowedMethods: b.AllowedMethods?.Items,
-          isDefault,
-        });
+      const toBehavior = (
+        b: {
+          PathPattern?: string;
+          TargetOriginId?: string;
+          ViewerProtocolPolicy?: string;
+          CachePolicyId?: string;
+          AllowedMethods?: { Items?: string[] };
+        },
+        isDefault: boolean,
+      ): CloudFrontBehaviorMetadata => ({
+        pathPattern: isDefault ? '*' : (b.PathPattern ?? '*'),
+        targetOriginId: b.TargetOriginId ?? '',
+        viewerProtocolPolicy: b.ViewerProtocolPolicy ?? 'unknown',
+        cachePolicy: b.CachePolicyId
+          ? (policyNames.get(b.CachePolicyId) ?? b.CachePolicyId)
+          : undefined,
+        allowedMethods: b.AllowedMethods?.Items,
+        isDefault,
+      });
 
-        // Ordered cache behaviors are matched first, in order; the default
-        // behavior is the fallback, so it belongs last.
-        const behaviors = [
-          ...(d.CacheBehaviors?.Items ?? []).map((b) => toBehavior(b, false)),
-          ...(d.DefaultCacheBehavior ? [toBehavior(d.DefaultCacheBehavior, true)] : []),
-        ];
+      // Ordered cache behaviors are matched first, in order; the default
+      // behavior is the fallback, so it belongs last.
+      const behaviors = [
+        ...(d.CacheBehaviors?.Items ?? []).map((b) => toBehavior(b, false)),
+        ...(d.DefaultCacheBehavior ? [toBehavior(d.DefaultCacheBehavior, true)] : []),
+      ];
 
-        distributions.push({
-          id: d.Id,
-          domainName: d.DomainName ?? '',
-          comment: d.Comment || undefined,
-          enabled: d.Enabled ?? false,
-          aliases: d.Aliases?.Items ?? [],
-          origins,
-          behaviors,
-        });
-      }
-      marker = res.DistributionList?.IsTruncated ? res.DistributionList.NextMarker : undefined;
-    } while (marker);
+      distributions.push({
+        id: d.Id,
+        domainName: d.DomainName ?? '',
+        comment: d.Comment || undefined,
+        enabled: d.Enabled ?? false,
+        aliases: d.Aliases?.Items ?? [],
+        origins,
+        behaviors,
+      });
+    }
+    marker = res.DistributionList?.IsTruncated ? res.DistributionList.NextMarker : undefined;
+  } while (marker);
 
-    logger.debug(`Extracted ${distributions.length} CloudFront distribution(s)`);
-  } catch (err) {
-    // Fail closed: the caller records this source as unread rather than
-    // letting an empty list read as "this account has none".
-    throw err;
-  }
+  logger.debug(`Extracted ${distributions.length} CloudFront distribution(s)`);
 
   return distributions;
 }
