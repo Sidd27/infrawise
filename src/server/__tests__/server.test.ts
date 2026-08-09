@@ -626,7 +626,7 @@ describe('MCP Server — fail closed on unread sources', () => {
     try {
       const data = await callTool(client, 'get_infra_overview');
       expect(data.freshness.incompleteSources).toEqual([
-        { service: 'sqs', error: 'AccessDenied: sqs:ListQueues' },
+        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
       ]);
       expect(data.freshness.region).toBe('us-east-1');
       expect(data.freshness.profile).toBe('prod');

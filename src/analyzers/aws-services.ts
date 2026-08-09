@@ -455,3 +455,58 @@ export async function LambdaMissingIAMPermissionsAnalyzer(graph: SystemGraph): P
   }
   return findings;
 }
+
+// A batch-polling trigger without ReportBatchItemFailures reports the whole batch
+// as failed when any single record throws, so records that already succeeded are
+// redelivered. Invisible in handler code; shows up in production as duplicates.
+export async function MissingPartialBatchResponseAnalyzer(graph: SystemGraph): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  for (const node of graph.nodes) {
+    if (node.type !== 'lambda') continue;
+    for (const trigger of node.triggers ?? []) {
+      if (trigger.type !== 'sqs' && trigger.type !== 'kinesis' && trigger.type !== 'dynamodb')
+        continue;
+      // A batch of one has nothing to partially fail. `undefined` means the
+      // mapping was never read, so it is not evidence the setting is missing.
+      if (trigger.reportsBatchItemFailures !== false) continue;
+      if ((trigger.batchSize ?? 1) <= 1) continue;
+      findings.push({
+        severity: 'medium',
+        issue: `Lambda "${node.name}" processes "${trigger.sourceName}" in batches without partial batch response`,
+        description: `The event source mapping for "${trigger.sourceName}" has a batch size of ${trigger.batchSize} but does not set ReportBatchItemFailures. If one record in a batch throws, the entire batch is reported as failed and every record in it is redelivered, including the ones that already succeeded. One poison message replays its whole batch until the queue's retry limit.`,
+        recommendation: `Set FunctionResponseTypes to ["ReportBatchItemFailures"] on the event source mapping, and return { batchItemFailures: [{ itemIdentifier: <messageId> }] } from the handler for the records that failed. Until both are in place, the handler must be idempotent.`,
+        metadata: {
+          functionName: node.name,
+          sourceName: trigger.sourceName,
+          batchSize: trigger.batchSize,
+        },
+      });
+    }
+  }
+  return findings;
+}
+
+// The default 4-day retention is the window before an unprocessed message is
+// deleted with no record of it. On a queue with no DLQ that window is the only
+// thing standing between a failure and silent data loss.
+export async function ShortRetentionNoDLQAnalyzer(graph: SystemGraph): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const dlqTargets = new Set<string>();
+  for (const node of graph.nodes) {
+    if (node.type === 'queue' && node.dlqArn) dlqTargets.add(node.dlqArn.split(':').pop() ?? '');
+  }
+
+  for (const node of graph.nodes) {
+    if (node.type !== 'queue' || node.placeholder) continue;
+    if (node.hasDLQ || dlqTargets.has(node.name)) continue;
+    if (node.retentionDays === undefined || node.retentionDays > 4) continue;
+    findings.push({
+      severity: 'medium',
+      issue: `Queue "${node.name}" keeps failed messages for only ${node.retentionDays} day(s) and has no DLQ`,
+      description: `"${node.name}" retains messages for ${node.retentionDays} day(s), the default, and has no redrive policy. A message the consumer cannot process is retried until that window expires and is then deleted permanently. Over a weekend or a holiday, the window can close before anyone looks.`,
+      recommendation: `Add a DLQ so failures are captured rather than aged out, or raise MessageRetentionPeriod to 14 days to widen the window for noticing. A DLQ is the real fix; retention only buys time.`,
+      metadata: { queueName: node.name, retentionDays: node.retentionDays },
+    });
+  }
+  return findings;
+}

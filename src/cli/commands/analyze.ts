@@ -2,7 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadConfig, formatError, writeCache, readCache, setCacheDir } from '../../core/index.js';
+import {
+  loadConfig,
+  formatError,
+  writeCache,
+  readCache,
+  setCacheDir,
+  PartialExtractionError,
+} from '../../core/index.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
@@ -129,6 +136,14 @@ async function extract<T>(
     return result;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
+    // Partial: the extractor kept usable data but lost a piece of it. Report the
+    // gap without throwing the rest away.
+    if (err instanceof PartialExtractionError) {
+      const result = err.data as T;
+      log.warn(`${label} incomplete`, error);
+      sourceStatuses.push({ service, status: 'partial', error });
+      return result;
+    }
     log.warn(`${label} skipped`, error);
     sourceStatuses.push({ service, status: 'failed', error });
     return undefined;
@@ -168,6 +183,7 @@ function buildAnalyzers(
           A.UnencryptedQueueAnalyzer,
           A.LargeQueueBacklogAnalyzer,
           A.VisibilityTimeoutMismatchAnalyzer,
+          A.ShortRetentionNoDLQAnalyzer,
         ]
       : []),
     ...(config.secretsManager?.enabled === true ? [A.MissingSecretRotationAnalyzer] : []),
@@ -179,6 +195,7 @@ function buildAnalyzers(
           A.LambdaMissingTriggerDLQAnalyzer,
           A.LambdaMissingIAMPermissionsAnalyzer,
           A.LambdaHighMemoryAnalyzer,
+          A.MissingPartialBatchResponseAnalyzer,
         ]
       : []),
     ...(config.rds?.enabled === true

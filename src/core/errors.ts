@@ -27,6 +27,20 @@ export class InfrawiseError extends Error {
   }
 }
 
+// Thrown when an extractor read most of what it needed but lost one part, so the
+// data is worth keeping while the gap still has to be reported. Discarding a
+// whole service over a partial failure loses more than it protects; silently
+// keeping it is the false-negative this exists to prevent.
+export class PartialExtractionError<T> extends Error {
+  constructor(
+    message: string,
+    public readonly data: T,
+  ) {
+    super(message);
+    this.name = 'PartialExtractionError';
+  }
+}
+
 export function formatError(err: unknown): string {
   if (err instanceof InfrawiseError) {
     return err.format();

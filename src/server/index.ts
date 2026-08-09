@@ -85,6 +85,8 @@ function sourceState(service: string | undefined): SourceStatus | undefined {
 }
 
 const UNAVAILABLE_HINT: Record<SourceStatus['status'], string> = {
+  partial:
+    'This source was read but one part of it was lost, so some detail is missing rather than absent. Do not treat a missing attribute here as evidence it is unset — re-run `infrawise analyze` to fill the gap.',
   failed:
     'This source failed to extract, so an empty result here means "not read", not "none exist". Do not conclude anything is absent or misconfigured from this response — re-run `infrawise analyze` with credentials that can read it.',
   disabled:
@@ -106,8 +108,8 @@ function unavailability(tool: { service?: string; sources?: string[] } | undefin
   // source at all — on a tool spanning several (get_table_schema), naming the
   // three databases a DynamoDB-only project never configured is noise, and a
   // field that cries wolf stops being read.
-  const failed = known.filter((s) => s.status === 'failed');
-  const report = failed.length > 0 ? failed : known.every((s) => s.status !== 'ok') ? known : [];
+  const broken = known.filter((s) => s.status === 'failed' || s.status === 'partial');
+  const report = broken.length > 0 ? broken : known.every((s) => s.status !== 'ok') ? known : [];
   if (report.length === 0) return {};
   return {
     unavailable: {
@@ -116,19 +118,25 @@ function unavailability(tool: { service?: string; sources?: string[] } | undefin
         status: s.status,
         ...(s.error ? { error: s.error } : {}),
       })),
-      hint: failed.length > 0 ? UNAVAILABLE_HINT.failed : UNAVAILABLE_HINT.disabled,
+      hint: broken.length > 0 ? UNAVAILABLE_HINT[broken[0].status] : UNAVAILABLE_HINT.disabled,
     },
   };
 }
 
 function freshness() {
-  const incomplete = (provenance?.sources ?? []).filter((s) => s.status === 'failed');
+  const incomplete = (provenance?.sources ?? []).filter(
+    (s) => s.status === 'failed' || s.status === 'partial',
+  );
   const sourceInfo = {
     ...(provenance?.region ? { region: provenance.region } : {}),
     ...(provenance?.profile ? { profile: provenance.profile } : {}),
     ...(incomplete.length
       ? {
-          incompleteSources: incomplete.map((s) => ({ service: s.service, error: s.error })),
+          incompleteSources: incomplete.map((s) => ({
+            service: s.service,
+            status: s.status,
+            error: s.error,
+          })),
           incompleteHint:
             'These sources failed to extract. Treat any absence in their tools as unknown, not as a clean result.',
         }
@@ -395,6 +403,10 @@ export function createMcpServer(): McpServer {
           type: t.type,
           source: t.sourceName,
           eventShape: t.eventShape,
+          ...(t.batchSize !== undefined ? { batchSize: t.batchSize } : {}),
+          ...(t.reportsBatchItemFailures !== undefined
+            ? { reportsBatchItemFailures: t.reportsBatchItemFailures }
+            : {}),
           ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
         })),
         issues: relatedFindings.map((f) => ({
@@ -665,6 +677,10 @@ export function createMcpServer(): McpServer {
               source: t.sourceName,
               eventShape: t.eventShape,
               state: t.state,
+              ...(t.batchSize !== undefined ? { batchSize: t.batchSize } : {}),
+              ...(t.reportsBatchItemFailures !== undefined
+                ? { reportsBatchItemFailures: t.reportsBatchItemFailures }
+                : {}),
             })),
             findings: lambdaFindings
               .filter((f) => (f.metadata as Record<string, unknown>).functionName === l.name)

@@ -9,6 +9,8 @@ import {
   LambdaDefaultMemoryAnalyzer,
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
+  MissingPartialBatchResponseAnalyzer,
+  ShortRetentionNoDLQAnalyzer,
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
   S3UnencryptedAnalyzer,
@@ -994,5 +996,119 @@ describe('CloudFrontInsecureViewerProtocolAnalyzer', () => {
 
   it('ignores a disabled distribution', async () => {
     expect(await analyzer(distribution('allow-all', false))).toHaveLength(0);
+  });
+});
+
+describe('MissingPartialBatchResponseAnalyzer', () => {
+  const lambda = (trigger: Record<string, unknown>): SystemGraph => ({
+    nodes: [
+      {
+        id: 'lambda:aws:processOrders',
+        type: 'lambda',
+        name: 'processOrders',
+        triggers: [
+          {
+            type: 'sqs',
+            sourceArn: 'arn:aws:sqs:::orders',
+            sourceName: 'orders',
+            eventShape: 'e',
+            ...trigger,
+          },
+        ],
+      },
+    ],
+    edges: [],
+  });
+
+  it('flags a batch trigger that does not report partial failures', async () => {
+    const findings = await MissingPartialBatchResponseAnalyzer(
+      lambda({ batchSize: 10, reportsBatchItemFailures: false }),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].description).toContain('batch size of 10');
+  });
+
+  it('stays quiet when partial batch response is configured', async () => {
+    const findings = await MissingPartialBatchResponseAnalyzer(
+      lambda({ batchSize: 10, reportsBatchItemFailures: true }),
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  it('stays quiet for a batch of one, which cannot partially fail', async () => {
+    const findings = await MissingPartialBatchResponseAnalyzer(
+      lambda({ batchSize: 1, reportsBatchItemFailures: false }),
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  it('claims nothing when the mapping was never read', async () => {
+    const findings = await MissingPartialBatchResponseAnalyzer(lambda({ batchSize: 10 }));
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('ShortRetentionNoDLQAnalyzer', () => {
+  const queue = (extra: Record<string, unknown>): SystemGraph => ({
+    nodes: [
+      {
+        id: 'queue:aws:orders',
+        type: 'queue',
+        name: 'orders',
+        provider: 'aws',
+        hasDLQ: false,
+        encrypted: true,
+        ...extra,
+      },
+    ],
+    edges: [],
+  });
+
+  it('flags default retention on a queue with no DLQ', async () => {
+    const findings = await ShortRetentionNoDLQAnalyzer(queue({ retentionDays: 4 }));
+    expect(findings).toHaveLength(1);
+  });
+
+  it('stays quiet when retention is long', async () => {
+    const findings = await ShortRetentionNoDLQAnalyzer(queue({ retentionDays: 14 }));
+    expect(findings).toHaveLength(0);
+  });
+
+  it('stays quiet when a DLQ exists', async () => {
+    const findings = await ShortRetentionNoDLQAnalyzer(queue({ retentionDays: 4, hasDLQ: true }));
+    expect(findings).toHaveLength(0);
+  });
+
+  it('does not flag a queue that is itself a DLQ target', async () => {
+    const findings = await ShortRetentionNoDLQAnalyzer({
+      nodes: [
+        {
+          id: 'queue:aws:orders',
+          type: 'queue',
+          name: 'orders',
+          provider: 'aws',
+          hasDLQ: true,
+          dlqArn: 'arn:aws:sqs:us-east-1:1:orders-dlq',
+          encrypted: true,
+          retentionDays: 4,
+        },
+        {
+          id: 'queue:aws:orders-dlq',
+          type: 'queue',
+          name: 'orders-dlq',
+          provider: 'aws',
+          hasDLQ: false,
+          encrypted: true,
+          retentionDays: 4,
+        },
+      ],
+      edges: [],
+    });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('claims nothing when retention was never read', async () => {
+    const findings = await ShortRetentionNoDLQAnalyzer(queue({}));
+    expect(findings).toHaveLength(0);
   });
 });

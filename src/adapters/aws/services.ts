@@ -83,7 +83,7 @@ import type {
   CloudFrontOriginMetadata,
   CloudFrontBehaviorMetadata,
 } from '../../types.js';
-import { logger } from '../../core/index.js';
+import { logger, PartialExtractionError } from '../../core/index.js';
 
 export interface AWSConfig {
   region?: string;
@@ -430,7 +430,12 @@ const EVENT_SHAPES: Record<string, string> = {
   unknown: 'event  // unknown trigger type',
 };
 
-function triggerFromArn(arn: string, batchSize?: number, state?: string): LambdaTrigger {
+function triggerFromArn(
+  arn: string,
+  batchSize?: number,
+  state?: string,
+  reportsBatchItemFailures?: boolean,
+): LambdaTrigger {
   let type: LambdaTrigger['type'] = 'unknown';
   if (arn.includes(':sqs:')) type = 'sqs';
   else if (arn.includes(':dynamodb:')) type = 'dynamodb';
@@ -440,7 +445,15 @@ function triggerFromArn(arn: string, batchSize?: number, state?: string): Lambda
   else if (arn.includes(':s3:')) type = 's3';
 
   const sourceName = arn.split(':').pop() ?? arn;
-  return { type, sourceArn: arn, sourceName, eventShape: EVENT_SHAPES[type], batchSize, state };
+  return {
+    type,
+    sourceArn: arn,
+    sourceName,
+    eventShape: EVENT_SHAPES[type],
+    batchSize,
+    state,
+    reportsBatchItemFailures,
+  };
 }
 
 async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, LambdaTrigger[]>> {
@@ -455,7 +468,13 @@ async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, 
       );
       for (const m of res.EventSourceMappings ?? []) {
         if (!m.FunctionArn || !m.EventSourceArn) continue;
-        const trigger = triggerFromArn(m.EventSourceArn, m.BatchSize, m.State);
+        // FunctionResponseTypes rides this same response — no extra call needed.
+        const trigger = triggerFromArn(
+          m.EventSourceArn,
+          m.BatchSize,
+          m.State,
+          (m.FunctionResponseTypes ?? []).includes('ReportBatchItemFailures'),
+        );
         const existing = triggerMap.get(m.FunctionArn) ?? [];
         existing.push(trigger);
         triggerMap.set(m.FunctionArn, existing);
@@ -463,8 +482,11 @@ async function fetchAllEventSourceMappings(cfg: AWSConfig): Promise<Map<string, 
       marker = res.NextMarker;
     } while (marker);
   } catch (err) {
-    logger.warn(
-      `Event source mappings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    // Keep whatever mappings were paginated before the failure, but say so:
+    // an empty triggers array otherwise reads as "this Lambda has no trigger".
+    throw new PartialExtractionError(
+      `event source mappings incomplete: ${err instanceof Error ? err.message : String(err)}`,
+      triggerMap,
     );
   }
   return triggerMap;
@@ -545,7 +567,15 @@ export async function extractLambdaMetadata(
     } while (marker);
 
     // Fetch all event source mappings in one paginated call and attach to functions
-    const triggerMap = await fetchAllEventSourceMappings(cfg);
+    let triggersIncomplete: string | undefined;
+    let triggerMap: Map<string, LambdaTrigger[]>;
+    try {
+      triggerMap = await fetchAllEventSourceMappings(cfg);
+    } catch (err) {
+      if (!(err instanceof PartialExtractionError)) throw err;
+      triggerMap = err.data as Map<string, LambdaTrigger[]>;
+      triggersIncomplete = err.message;
+    }
     for (const fn of functions) {
       fn.triggers = triggerMap.get(fn.arn) ?? [];
     }
@@ -561,6 +591,8 @@ export async function extractLambdaMetadata(
     for (const fn of functions) {
       if (fn.roleArn) fn.allowedServices = roleServices.get(fn.roleArn);
     }
+
+    if (triggersIncomplete) throw new PartialExtractionError(triggersIncomplete, functions);
   } catch (err) {
     // Fail closed: the caller records this source as unread rather than
     // letting an empty list read as "this account has none".

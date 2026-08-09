@@ -234,6 +234,7 @@ ORDERS_QUEUE_ARN=$($AWS sqs get-queue-attributes \
   --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
 
 # orders-queue triggers processOrders — queue has no DLQ (triggers LambdaMissingTriggerDLQAnalyzer)
+# and the mapping has no FunctionResponseTypes, so MissingPartialBatchResponseAnalyzer fires too
 if [ -n "$ORDERS_QUEUE_ARN" ]; then
   $AWS lambda create-event-source-mapping \
     --function-name processOrders \
@@ -249,10 +250,13 @@ REPORT_TRIGGER_QUEUE_ARN=$($AWS sqs get-queue-attributes \
   --attribute-names QueueArn \
   --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
 if [ -n "$REPORT_TRIGGER_QUEUE_ARN" ]; then
+  # This one sets ReportBatchItemFailures, so MissingPartialBatchResponseAnalyzer
+  # must stay quiet about it while still flagging processOrders above.
   $AWS lambda create-event-source-mapping \
     --function-name generateReport \
     --event-source-arn "$REPORT_TRIGGER_QUEUE_ARN" \
     --batch-size 5 \
+    --function-response-types ReportBatchItemFailures \
     --no-cli-pager 2>/dev/null || true
 fi
 

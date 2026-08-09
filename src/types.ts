@@ -378,6 +378,9 @@ export interface LambdaTrigger {
   eventShape: string;
   batchSize?: number;
   state?: string;
+  // SQS/Kinesis/DynamoDB streams only — whether the mapping is set to
+  // ReportBatchItemFailures. Without it, one failing record fails its whole batch.
+  reportsBatchItemFailures?: boolean;
   events?: string[];
   // eventbridge only
   ruleName?: string;
@@ -561,7 +564,7 @@ export type Analyzer = (graph: SystemGraph) => Promise<Finding[]>;
 // every "no DLQ" / "rotation disabled" answer built on that is a false negative.
 export interface SourceStatus {
   service: string;
-  status: 'ok' | 'failed' | 'disabled';
+  status: 'ok' | 'failed' | 'partial' | 'disabled';
   error?: string;
 }
 

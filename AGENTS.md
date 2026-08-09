@@ -127,7 +127,7 @@ source .env                 # sets AWS_PROFILE=localstack — required every ses
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 34+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
+Expected: 37+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
 
 ### Floci
 
@@ -254,7 +254,7 @@ Analyze a single function for infrastructure issues, including trigger event sha
 |---|---|---|
 | `function` | string | yes |
 
-Returns: **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched, **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
+Returns: **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched, **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), `batchSize` and `reportsBatchItemFailures` on batch-polling triggers, EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
 
 Function nodes are file-scoped, so one name can legitimately match several files. Every candidate is returned rather than the first, so a same-named function in a scratch or experiments directory never silently stands in for the real one.
 
@@ -330,7 +330,7 @@ No inputs required.
 
 Returns: per-queue — name, provider, DLQ status, encryption, isFifo (bool), visibilityTimeoutSec, approximate message count, retention days, oldestMessageAgeSec (only when runtime signals are enabled), findings.
 
-**When to call:** When reviewing messaging architecture, debugging backlogs, checking DLQ coverage, or verifying that the queue's visibility timeout is at least 6× the consumer Lambda's timeout (mismatches cause duplicate processing). When `isFifo` is true, all `SendMessage` calls must include a `MessageGroupId` — omitting it causes a runtime error.
+**When to call:** When reviewing messaging architecture, debugging backlogs, checking DLQ coverage, or verifying that the queue's visibility timeout is at least 6× the consumer Lambda's timeout (mismatches cause duplicate processing). A queue with no DLQ and the default 4-day retention is flagged separately: that window is the only thing between a failure and silent deletion. When `isFifo` is true, all `SendMessage` calls must include a `MessageGroupId` — omitting it causes a runtime error.
 
 ---
 
@@ -376,7 +376,7 @@ All Lambda functions with configuration metadata and event source triggers.
 
 No inputs required.
 
-Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications), recentThrottles/recentErrors (only when runtime signals are enabled), `costSignal` (present when memory is 3008 MB+ and runtime signals are off — not enough evidence for a Finding, so it's advisory only; when signals are on and throttles are 0, this becomes a low-severity Finding instead, see `findings`), findings.
+Returns: per-function — name, runtime, memory (MB), timeout (sec), env var key names (values never included), **roleArn** (execution role ARN), **triggers** (type, source name, correct handler event shape — includes S3 bucket notifications — plus `batchSize` and `reportsBatchItemFailures` for batch-polling sources), recentThrottles/recentErrors (only when runtime signals are enabled), `costSignal` (present when memory is 3008 MB+ and runtime signals are off — not enough evidence for a Finding, so it's advisory only; when signals are on and throttles are 0, this becomes a low-severity Finding instead, see `findings`), findings.
 
 **When to call:** When reviewing Lambda config, checking for default memory (128 MB), high timeouts, or understanding what triggers each function and what event shape to use in the handler. S3-triggered Lambdas show `event.Records[0].s3.object.key` as the event shape.
 
