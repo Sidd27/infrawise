@@ -23,6 +23,7 @@ import {
   LambdaClient,
   ListFunctionsCommand,
   ListEventSourceMappingsCommand,
+  GetFunctionConcurrencyCommand,
 } from '@aws-sdk/client-lambda';
 import {
   EventBridgeClient,
@@ -548,6 +549,28 @@ export async function extractLambdaMetadata(
   for (const fn of functions) {
     fn.triggers = triggerMap.get(fn.arn) ?? [];
   }
+
+  // Reserved concurrency, only for functions on a poll-based trigger. This is one
+  // call per function, so it is scoped to the ones where unbounded scaling
+  // actually matters: a queue or stream can hand a function more work than the
+  // account (or the database behind it) can absorb. An API-triggered function
+  // does not have that shape, and is not worth an extra API call per analyze.
+  const POLL_TRIGGERS = new Set(['sqs', 'kinesis', 'dynamodb', 'msk']);
+  const polled = functions.filter((f) => f.triggers.some((t) => POLL_TRIGGERS.has(t.type)));
+  await Promise.all(
+    polled.map(async (fn) => {
+      try {
+        const res = await client.send(new GetFunctionConcurrencyCommand({ FunctionName: fn.name }));
+        // Absent in the response means no reservation is configured, which is a
+        // real answer. Leaving it undefined would say "never looked".
+        fn.reservedConcurrency = res.ReservedConcurrentExecutions ?? null;
+      } catch (err) {
+        logger.debug(
+          `Reserved concurrency unavailable for ${fn.name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }),
+  );
 
   // Batch IAM policy fetch per unique role ARN
   const uniqueRoles = [...new Set(functions.map((f) => f.roleArn).filter(Boolean) as string[])];

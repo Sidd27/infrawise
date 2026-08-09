@@ -196,6 +196,7 @@ function buildAnalyzers(
           A.LambdaMissingIAMPermissionsAnalyzer,
           A.LambdaHighMemoryAnalyzer,
           A.MissingPartialBatchResponseAnalyzer,
+          A.LambdaUnboundedConcurrencyAnalyzer,
         ]
       : []),
     ...(config.rds?.enabled === true

@@ -98,6 +98,7 @@ export type GraphNode = (
       allowedServices?: string[];
       recentThrottles?: number;
       recentErrors?: number;
+      reservedConcurrency?: number | null;
     }
   | {
       id: string;
@@ -402,6 +403,10 @@ export interface LambdaFunctionMetadata {
   allowedServices?: string[]; // service prefixes the execution role allows, e.g. ['dynamodb', 's3']
   recentThrottles?: number;
   recentErrors?: number;
+  // null = read, no reserved concurrency configured. undefined = never read.
+  // The two must stay distinguishable or "unbounded" gets asserted about a
+  // function whose concurrency was never fetched.
+  reservedConcurrency?: number | null;
 }
 
 export interface LogGroupSummary {

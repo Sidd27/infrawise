@@ -230,6 +230,7 @@ export function buildGraph(
       allowedServices: fn.allowedServices,
       recentThrottles: fn.recentThrottles,
       recentErrors: fn.recentErrors,
+      reservedConcurrency: fn.reservedConcurrency,
     });
 
     // Add trigger edges from source → lambda (only for enabled/active mappings)

@@ -672,6 +672,9 @@ export function createMcpServer(): McpServer {
             recentThrottles: l.recentThrottles,
             recentErrors: l.recentErrors,
             ...(costSignal ? { costSignal } : {}),
+            ...(l.reservedConcurrency !== undefined
+              ? { reservedConcurrency: l.reservedConcurrency }
+              : {}),
             triggers: (l.triggers ?? []).map((t) => ({
               type: t.type,
               source: t.sourceName,

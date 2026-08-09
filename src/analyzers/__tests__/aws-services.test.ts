@@ -10,6 +10,7 @@ import {
   LambdaHighTimeoutAnalyzer,
   LambdaMissingTriggerDLQAnalyzer,
   MissingPartialBatchResponseAnalyzer,
+  LambdaUnboundedConcurrencyAnalyzer,
   ShortRetentionNoDLQAnalyzer,
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
@@ -1109,6 +1110,55 @@ describe('ShortRetentionNoDLQAnalyzer', () => {
 
   it('claims nothing when retention was never read', async () => {
     const findings = await ShortRetentionNoDLQAnalyzer(queue({}));
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('LambdaUnboundedConcurrencyAnalyzer', () => {
+  const fn = (extra: Record<string, unknown>): SystemGraph => ({
+    nodes: [
+      {
+        id: 'lambda:aws:processOrders',
+        type: 'lambda',
+        name: 'processOrders',
+        triggers: [
+          { type: 'sqs', sourceArn: 'arn:aws:sqs:::orders', sourceName: 'orders', eventShape: 'e' },
+        ],
+        ...extra,
+      },
+    ],
+    edges: [],
+  });
+
+  it('flags a polled function with no reservation', async () => {
+    const findings = await LambdaUnboundedConcurrencyAnalyzer(fn({ reservedConcurrency: null }));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('verify');
+  });
+
+  it('stays quiet when a reservation is set', async () => {
+    const findings = await LambdaUnboundedConcurrencyAnalyzer(fn({ reservedConcurrency: 10 }));
+    expect(findings).toHaveLength(0);
+  });
+
+  it('claims nothing when concurrency was never read', async () => {
+    const findings = await LambdaUnboundedConcurrencyAnalyzer(fn({}));
+    expect(findings).toHaveLength(0);
+  });
+
+  it('ignores a function with no poll-based trigger', async () => {
+    const findings = await LambdaUnboundedConcurrencyAnalyzer({
+      nodes: [
+        {
+          id: 'lambda:aws:api',
+          type: 'lambda',
+          name: 'api',
+          reservedConcurrency: null,
+          triggers: [{ type: 's3', sourceArn: 'arn:aws:s3:::b', sourceName: 'b', eventShape: 'e' }],
+        },
+      ],
+      edges: [],
+    });
     expect(findings).toHaveLength(0);
   });
 });

@@ -510,3 +510,32 @@ export async function ShortRetentionNoDLQAnalyzer(graph: SystemGraph): Promise<F
   }
   return findings;
 }
+
+// A poll-based trigger hands a function as much work as the source produces.
+// Without a reservation the function scales into the shared account pool, which
+// is both a way to starve every other function during a backlog and a way to
+// open more connections than the database behind it will accept.
+//
+// Severity is `verify`, not a defect grade: plenty of functions are meant to
+// scale freely, and only the owner knows whether this one is. Surfacing the
+// condition is honest; calling it a fault would be noise on every triggered
+// Lambda in the account.
+export async function LambdaUnboundedConcurrencyAnalyzer(graph: SystemGraph): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const POLL = new Set(['sqs', 'kinesis', 'dynamodb', 'msk']);
+  for (const node of graph.nodes) {
+    if (node.type !== 'lambda' || node.placeholder) continue;
+    // undefined means concurrency was never read — not evidence it is unset.
+    if (node.reservedConcurrency !== null) continue;
+    const trigger = (node.triggers ?? []).find((t) => POLL.has(t.type));
+    if (!trigger) continue;
+    findings.push({
+      severity: 'verify',
+      issue: `Lambda "${node.name}" polls "${trigger.sourceName}" with no reserved concurrency`,
+      description: `"${node.name}" is driven by ${trigger.type} source "${trigger.sourceName}" and has no reserved concurrency, so it scales against the account's shared pool. A backlog on that source can consume concurrency other functions need, and open more connections than any database behind this one is configured to accept.`,
+      recommendation: `If this function talks to a database or a rate-limited API, set reserved concurrency to something the downstream can absorb. If it is meant to scale freely and nothing downstream will buckle, no change is needed — this is a check on intent, not a defect.`,
+      metadata: { functionName: node.name, sourceName: trigger.sourceName },
+    });
+  }
+  return findings;
+}
