@@ -123,6 +123,45 @@ function unavailability(tool: { service?: string; sources?: string[] } | undefin
   };
 }
 
+// Which extraction source a node came from, derived from its own shape rather
+// than stamped on every node at build time. Lets a caller see that a node came
+// from a source that only partly succeeded, instead of every node in the graph
+// looking equally well-read.
+const NODE_SOURCE: Record<string, string> = {
+  queue: 'sqs',
+  topic: 'sns',
+  secret: 'secretsManager',
+  parameter: 'ssm',
+  lambda: 'lambda',
+  eventbridge_rule: 'eventbridge',
+  bucket: 's3',
+  api: 'apiGateway',
+  log_group: 'cloudwatchLogs',
+  user_pool: 'cognito',
+  stream: 'kinesis',
+  kafka_cluster: 'msk',
+  cache_cluster: 'elasticache',
+  distribution: 'cloudfront',
+  database_instance: 'rds',
+};
+
+function nodeSource(node: SystemGraph['nodes'][number]): string | undefined {
+  if (node.type === 'table') return node.databaseType;
+  return NODE_SOURCE[node.type];
+}
+
+// Annotates nodes whose source did not fully succeed. Nodes from a healthy
+// source are returned untouched, so the field only ever appears where it means
+// something.
+function withProvenance(nodes: SystemGraph['nodes']) {
+  if (!provenance) return nodes;
+  return nodes.map((n) => {
+    const state = sourceState(nodeSource(n));
+    if (!state || state.status === 'ok') return n;
+    return { ...n, source: state.service, sourceStatus: state.status };
+  });
+}
+
 function freshness() {
   const incomplete = (provenance?.sources ?? []).filter(
     (s) => s.status === 'failed' || s.status === 'partial',
@@ -180,10 +219,31 @@ function logged<T extends Record<string, unknown>>(
     const hasArgs = Object.keys(args).length > 0;
     logger.info(`→ ${name}${hasArgs ? `  ${JSON.stringify(args)}` : ''}`);
     const result = await fn(args);
-    const flag = unavailability(TOOLS.find((t) => t.name === name));
-    if (!('unavailable' in flag)) return result;
+    const flag = {
+      ...unavailability(TOOLS.find((t) => t.name === name)),
+      ...tooOld(args.maxAgeSeconds),
+    };
+    if (Object.keys(flag).length === 0) return result;
     const payload = JSON.parse(result.content[0].text) as object;
     return toText({ ...flag, ...payload });
+  };
+}
+
+// A caller that states an age tolerance is asking a point-in-time question. The
+// answer still comes back — refusing outright would be less useful than a
+// labelled one — but it is labelled as older than the caller was willing to
+// accept, so it cannot be quoted as current. Nothing here re-reads AWS: a tool
+// that silently made cloud calls on read would be a different product.
+function tooOld(maxAgeSeconds: unknown) {
+  if (typeof maxAgeSeconds !== 'number' || analyzedAt === null) return {};
+  const ageSeconds = Math.round((Date.now() - analyzedAt) / 1000);
+  if (ageSeconds <= maxAgeSeconds) return {};
+  return {
+    staleForRequest: {
+      ageSeconds,
+      requestedMaxAgeSeconds: maxAgeSeconds,
+      hint: `This analysis is ${ageSeconds}s old and you asked for at most ${maxAgeSeconds}s. Treat the values below as possibly out of date — run \`infrawise analyze\` before relying on them for a point-in-time claim.`,
+    },
   };
 }
 
@@ -225,7 +285,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. The `freshness` field reports when the analysis ran (`analyzedAt`, `ageSeconds`) and a `stale` flag with a refresh hint once the data is older than 24h, plus `incompleteSources` naming any source that failed to extract — while a source is listed there, treat an absence in its tool as unknown rather than as a clean result.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_infra_overview', async () => {
       const tables = getTableNodes(currentGraph);
@@ -293,11 +360,18 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns every node (tables, functions, lambdas, queues, etc.), every edge (query, scan, triggers, publishes_to), and all findings. Use this when you need to trace relationships across multiple services or require the complete finding set — not just high-severity ones. For a quick overview use get_infra_overview instead.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_graph_summary', async () =>
       toText({
-        nodes: currentGraph.nodes,
+        nodes: withProvenance(currentGraph.nodes),
         edges: currentGraph.edges,
         findings: currentFindings,
         summary: {
@@ -544,7 +618,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only. When runtime signals are enabled, oldestMessageAgeSec reports the age of the oldest message from CloudWatch.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_queue_details', async () => {
       const queues = getQueueNodes(currentGraph);
@@ -576,7 +657,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all SNS topics with subscription count, encryption status, and filter policies. Filter policies list the message attributes each subscription requires — publishers must include these attributes or messages are silently dropped. Call this before writing any SNS publish code or when reviewing event fan-out patterns.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_topic_details', async () => {
       const topics = getTopicNodes(currentGraph);
@@ -598,7 +686,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all Secrets Manager secrets with rotation status, rotation interval, and referencedKeys — key names (e.g. "password", "apiKey") inferred from application code that parses the secret, never the values. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or before writing code that reads a secret so you use the correct key name instead of guessing.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_secrets_overview', async () => {
       const secrets = getSecretNodes(currentGraph);
@@ -627,7 +722,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all SSM Parameter Store parameters with type (String, SecureString, StringList) and tier (Standard, Advanced). Parameter values are never returned. Call this when checking which config parameters exist for a service or verifying parameter types.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_parameter_overview', async () => {
       const parameters = getParameterNodes(currentGraph);
@@ -649,7 +751,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_lambda_overview', async () => {
       const lambdas = getLambdaNodes(currentGraph);
@@ -699,7 +808,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all EventBridge rules with name, ENABLED/DISABLED state, schedule expression (rate/cron rules), event pattern (event-driven rules), and target Lambda function names. Call this when checking what schedule or event triggers a Lambda, or when reviewing rule coverage across the account.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_eventbridge_details', async () => {
       const rules = getEventBridgeRuleNodes(currentGraph);
@@ -726,7 +842,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all S3 buckets with versioning status, encryption, public access configuration, and security findings. Call this when checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers to confirm the bucket name. Do NOT call when you only need a quick infrastructure count — use get_infra_overview for that. Object contents are never included.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_s3_overview', async () => {
       const buckets = getBucketNodes(currentGraph);
@@ -755,7 +878,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all API Gateway APIs (REST, HTTP, WebSocket) with their routes, HTTP methods, paths, and the Lambda function each route invokes. Call this before writing any API handler to understand which Lambda handles a route, or when reviewing API surface area and Lambda integration coverage.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_api_routes', async () => {
       const apis = getAPINodes(currentGraph);
@@ -871,7 +1001,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included. A costSignal note appears on clusters with more than 3 nodes.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_cache_overview', async () => {
       const caches = getCacheClusterNodes(currentGraph);
@@ -908,7 +1045,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all CloudFront distributions with, per distribution: id, comment, domain name, alias domains, enabled state, origins (type s3 or custom, domain name, and the resolved API Gateway name when the origin is an execute-api endpoint), and every cache behavior with its path pattern, target origin, cache policy name, viewer protocol policy, and allowed methods. Behaviors are listed in CloudFront match order — ordered behaviors first, the default behavior last. Call this to answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement across a multi-API front door.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_cloudfront_overview', async () => {
       const distributions = getDistributionNodes(currentGraph);
@@ -963,7 +1107,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all Kinesis data streams (status, shard count, retention hours, encryption, capacity mode) and Amazon MSK clusters (state, cluster type, Kafka version, broker count). Call this when writing Kinesis producer or consumer code, checking whether a stream is PROVISIONED or ON_DEMAND before writing PutRecord calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings extracted from application code, use get_topic_details instead.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_stream_details', async () => {
       const streams = getStreamNodes(currentGraph);
@@ -995,7 +1146,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all Cognito user pools with MFA configuration and every app client config: allowed auth flows, OAuth flows/scopes, callback URLs, token validity, and whether the client has a secret (SDK auth calls must send SECRET_HASH when true). Client secret values are never returned. Call this before writing any Cognito sign-in, sign-up, or token-refresh code to use the correct auth flow and client settings. Do NOT call to look up users or tokens — infrawise never reads user data.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_cognito_overview', async () => {
       const pools = getUserPoolNodes(currentGraph);
@@ -1017,7 +1175,14 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack. CDK outputs carry `stale: true` with a `staleReason` when their cdk.out template is no longer instantiated in the CDK app or predates the last `cdk synth` — do not rely on a stale export without re-synthesizing.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('get_stack_outputs', async () => {
       const outputs = getStackOutputNodes(currentGraph);

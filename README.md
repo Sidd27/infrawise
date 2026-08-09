@@ -199,6 +199,8 @@ Add to your editor's MCP config:
 | `get_cache_overview`         | ElastiCache clusters — engine, encryption in transit/at rest, replication group, failover, cost signal (data never read) |
 | `get_cloudfront_overview`    | CloudFront distributions — per-behavior path patterns, origins (S3 vs custom, resolved API Gateway name), cache policy, viewer protocol policy |
 
+Tools take an optional `maxAgeSeconds`. A question like "does this queue have a DLQ right now" tolerates far less staleness than "what does this architecture look like", and before this they shared one 24h budget — the strict question silently inherited the lax answer. Exceeding the stated tolerance labels the response rather than hiding it.
+
 Tools fail closed. If a source behind a tool could not be read — expired credentials, a missing IAM permission, or a service not enabled in `infrawise.yaml` — the response carries an `unavailable` block naming each affected source and its error instead of a bare empty list. An empty result you can't distinguish from a failed one is worse than no answer: it reads as "no queues need a DLQ" when the truth is "SQS was never listed". `infrawise analyze` and `infrawise check` print the same warning and stop calling a run clean when any source went unread.
 
 ---

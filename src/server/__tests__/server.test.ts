@@ -646,3 +646,71 @@ describe('MCP Server — fail closed on unread sources', () => {
     }
   });
 });
+
+describe('MCP Server — per-call age tolerance and node provenance', () => {
+  async function clientAt(ageMs: number, prov: unknown = null) {
+    setGraphState(
+      testGraph,
+      testFindings,
+      Date.now() - ageMs,
+      prov as Parameters<typeof setGraphState>[3],
+    );
+    const mcp = createMcpServer();
+    const [st, ct] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(st);
+    const c = new Client({ name: 'test', version: '1.0.0' });
+    await c.connect(ct);
+    return c;
+  }
+
+  it('labels an answer older than the caller asked for', async () => {
+    const client = await clientAt(600_000);
+    try {
+      const data = await callTool(client, 'get_queue_details', { maxAgeSeconds: 60 });
+      expect(data.staleForRequest.requestedMaxAgeSeconds).toBe(60);
+      expect(data.staleForRequest.ageSeconds).toBeGreaterThanOrEqual(600);
+      expect(data.queues).toHaveLength(1);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('stays quiet when the analysis is within tolerance', async () => {
+    const client = await clientAt(5_000);
+    try {
+      const data = await callTool(client, 'get_queue_details', { maxAgeSeconds: 3600 });
+      expect(data.staleForRequest).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('leaves the default 24h behaviour alone when no tolerance is given', async () => {
+    const client = await clientAt(600_000);
+    try {
+      const data = await callTool(client, 'get_queue_details');
+      expect(data.staleForRequest).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('marks graph nodes whose source did not fully succeed', async () => {
+    const client = await clientAt(1000, {
+      sources: [
+        { service: 'sqs', status: 'partial', error: 'attributes incomplete' },
+        { service: 'lambda', status: 'ok' },
+      ],
+    });
+    try {
+      const data = await callTool(client, 'get_graph_summary');
+      const queue = data.nodes.find((n: { type: string }) => n.type === 'queue');
+      const lambda = data.nodes.find((n: { type: string }) => n.type === 'lambda');
+      expect(queue.sourceStatus).toBe('partial');
+      expect(queue.source).toBe('sqs');
+      expect(lambda.sourceStatus).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+});
