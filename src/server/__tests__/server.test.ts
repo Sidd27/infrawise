@@ -521,8 +521,9 @@ describe('MCP Server — fail closed on unread sources', () => {
     const client = await clientWithProvenance();
     try {
       const data = await callTool(client, 'get_queue_details');
-      expect(data.unavailable.status).toBe('failed');
-      expect(data.unavailable.error).toContain('AccessDenied');
+      expect(data.unavailable.sources).toEqual([
+        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
+      ]);
       expect(data.unavailable.hint).toContain('not read');
       expect(data.queues).toEqual([]);
     } finally {
@@ -534,9 +535,79 @@ describe('MCP Server — fail closed on unread sources', () => {
     const client = await clientWithProvenance();
     try {
       const data = await callTool(client, 'get_s3_overview');
-      expect(data.unavailable.status).toBe('disabled');
+      expect(data.unavailable.sources[0].status).toBe('disabled');
     } finally {
       await client.close();
+    }
+  });
+
+  it('flags a secondary source failing even when the primary one succeeded', async () => {
+    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
+      sources: [
+        { service: 'kinesis', status: 'ok' },
+        { service: 'msk', status: 'failed', error: 'AccessDenied: kafka:ListClusters' },
+      ],
+    });
+    const mcp = createMcpServer();
+    const [st, ct] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(st);
+    const c = new Client({ name: 'test', version: '1.0.0' });
+    await c.connect(ct);
+    try {
+      const data = await callTool(c, 'get_stream_details');
+      expect(data.unavailable.sources).toEqual([
+        { service: 'msk', status: 'failed', error: 'AccessDenied: kafka:ListClusters' },
+      ]);
+      expect(data.kafkaClusters).toEqual([]);
+    } finally {
+      await c.close();
+    }
+  });
+
+  it('does not cry wolf about databases a project never configured', async () => {
+    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
+      sources: [
+        { service: 'dynamodb', status: 'ok' },
+        { service: 'postgres', status: 'disabled' },
+        { service: 'mysql', status: 'disabled' },
+        { service: 'mongodb', status: 'disabled' },
+      ],
+    });
+    const mcp = createMcpServer();
+    const [st, ct] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(st);
+    const c = new Client({ name: 'test', version: '1.0.0' });
+    await c.connect(ct);
+    try {
+      const data = await callTool(c, 'get_table_schema', { tables: ['orders'] });
+      expect(data.unavailable).toBeUndefined();
+    } finally {
+      await c.close();
+    }
+  });
+
+  it('warns get_table_schema when a database failed, so found:false is not trusted', async () => {
+    setGraphState({ nodes: [], edges: [] }, [], Date.now(), {
+      sources: [
+        { service: 'dynamodb', status: 'ok' },
+        { service: 'postgres', status: 'failed', error: 'password authentication failed' },
+        { service: 'mysql', status: 'disabled' },
+        { service: 'mongodb', status: 'disabled' },
+      ],
+    });
+    const mcp = createMcpServer();
+    const [st, ct] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(st);
+    const c = new Client({ name: 'test', version: '1.0.0' });
+    await c.connect(ct);
+    try {
+      const data = await callTool(c, 'get_table_schema', { tables: ['orders'] });
+      expect(data.tables[0].found).toBe(false);
+      expect(data.unavailable.sources).toEqual([
+        { service: 'postgres', status: 'failed', error: 'password authentication failed' },
+      ]);
+    } finally {
+      await c.close();
     }
   });
 

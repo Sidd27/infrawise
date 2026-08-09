@@ -92,15 +92,31 @@ const UNAVAILABLE_HINT: Record<SourceStatus['status'], string> = {
   ok: '',
 };
 
-function unavailability(service: string | undefined) {
-  const state = sourceState(service);
-  if (!state || state.status === 'ok') return {};
+// A tool can draw on more than one source (get_stream_details reads Kinesis and
+// MSK; get_table_schema spans all four database types). Every one of them has to
+// be checked, or a tool stays silent about the half it could not read.
+function unavailability(tool: { service?: string; sources?: string[] } | undefined) {
+  if (!tool) return {};
+  const known = [tool.service, ...(tool.sources ?? [])]
+    .map(sourceState)
+    .filter((s): s is SourceStatus => s !== undefined);
+  if (known.length === 0) return {};
+
+  // A failure always gets reported. "Disabled" only when the tool has no usable
+  // source at all — on a tool spanning several (get_table_schema), naming the
+  // three databases a DynamoDB-only project never configured is noise, and a
+  // field that cries wolf stops being read.
+  const failed = known.filter((s) => s.status === 'failed');
+  const report = failed.length > 0 ? failed : known.every((s) => s.status !== 'ok') ? known : [];
+  if (report.length === 0) return {};
   return {
     unavailable: {
-      source: service,
-      status: state.status,
-      ...(state.error ? { error: state.error } : {}),
-      hint: UNAVAILABLE_HINT[state.status],
+      sources: report.map((s) => ({
+        service: s.service,
+        status: s.status,
+        ...(s.error ? { error: s.error } : {}),
+      })),
+      hint: failed.length > 0 ? UNAVAILABLE_HINT.failed : UNAVAILABLE_HINT.disabled,
     },
   };
 }
@@ -156,7 +172,7 @@ function logged<T extends Record<string, unknown>>(
     const hasArgs = Object.keys(args).length > 0;
     logger.info(`→ ${name}${hasArgs ? `  ${JSON.stringify(args)}` : ''}`);
     const result = await fn(args);
-    const flag = unavailability(TOOLS.find((t) => t.name === name)?.service);
+    const flag = unavailability(TOOLS.find((t) => t.name === name));
     if (!('unavailable' in flag)) return result;
     const payload = JSON.parse(result.content[0].text) as object;
     return toText({ ...flag, ...payload });
@@ -166,10 +182,10 @@ function logged<T extends Record<string, unknown>>(
 // Every tool this server registers, with the config key that gates it (if any).
 // Single source for the server card and the CLI's startup box — keep in step
 // with the registerTool calls below.
-export const TOOLS: ReadonlyArray<{ name: string; service?: string }> = [
+export const TOOLS: ReadonlyArray<{ name: string; service?: string; sources?: string[] }> = [
   { name: 'get_infra_overview' },
   { name: 'get_graph_summary' },
-  { name: 'get_table_schema' },
+  { name: 'get_table_schema', sources: ['dynamodb', 'postgres', 'mysql', 'mongodb'] },
   { name: 'analyze_function' },
   { name: 'suggest_gsi', service: 'dynamodb' },
   { name: 'postgres_index_suggestions', service: 'postgres' },
@@ -186,7 +202,7 @@ export const TOOLS: ReadonlyArray<{ name: string; service?: string }> = [
   { name: 'get_log_errors', service: 'cloudwatchLogs' },
   { name: 'get_stack_outputs', service: 'terraform' },
   { name: 'get_cognito_overview', service: 'cognito' },
-  { name: 'get_stream_details', service: 'kinesis' },
+  { name: 'get_stream_details', service: 'kinesis', sources: ['msk'] },
   { name: 'get_cache_overview', service: 'elasticache' },
   { name: 'get_cloudfront_overview', service: 'cloudfront' },
 ];
