@@ -5,7 +5,13 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding, GraphEdge } from '../types.js';
+import type {
+  SystemGraph,
+  Finding,
+  GraphEdge,
+  AnalysisProvenance,
+  SourceStatus,
+} from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(
@@ -54,18 +60,66 @@ const STALE_AGE_MS = 24 * 60 * 60 * 1000;
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
 
+// Per-source extraction outcomes for the loaded analysis. Empty when the
+// analysis predates provenance tracking, which is treated as "no claim" rather
+// than "everything succeeded" — an old cache must not assert completeness.
+let provenance: AnalysisProvenance | null = null;
+
 export function setGraphState(
   graph: SystemGraph,
   findings: Finding[],
   analyzedAtMs: number | null = Date.now(),
+  sourceProvenance: AnalysisProvenance | null = null,
 ): void {
   currentGraph = graph;
   currentFindings = findings;
   analyzedAt = analyzedAtMs;
+  provenance = sourceProvenance;
+}
+
+// The evidence a tool would need to justify an absence. A source that failed or
+// was never enabled cannot support "there are none" — only "I did not look".
+function sourceState(service: string | undefined): SourceStatus | undefined {
+  if (!service || !provenance) return undefined;
+  return provenance.sources.find((s) => s.service === service);
+}
+
+const UNAVAILABLE_HINT: Record<SourceStatus['status'], string> = {
+  failed:
+    'This source failed to extract, so an empty result here means "not read", not "none exist". Do not conclude anything is absent or misconfigured from this response — re-run `infrawise analyze` with credentials that can read it.',
+  disabled:
+    'This source is not enabled in infrawise.yaml, so it was never read. An empty result here says nothing about what exists in the account.',
+  ok: '',
+};
+
+function unavailability(service: string | undefined) {
+  const state = sourceState(service);
+  if (!state || state.status === 'ok') return {};
+  return {
+    unavailable: {
+      source: service,
+      status: state.status,
+      ...(state.error ? { error: state.error } : {}),
+      hint: UNAVAILABLE_HINT[state.status],
+    },
+  };
 }
 
 function freshness() {
-  if (analyzedAt === null) return { analyzedAt: null, ageSeconds: null, stale: false };
+  const incomplete = (provenance?.sources ?? []).filter((s) => s.status === 'failed');
+  const sourceInfo = {
+    ...(provenance?.region ? { region: provenance.region } : {}),
+    ...(provenance?.profile ? { profile: provenance.profile } : {}),
+    ...(incomplete.length
+      ? {
+          incompleteSources: incomplete.map((s) => ({ service: s.service, error: s.error })),
+          incompleteHint:
+            'These sources failed to extract. Treat any absence in their tools as unknown, not as a clean result.',
+        }
+      : {}),
+  };
+  if (analyzedAt === null)
+    return { analyzedAt: null, ageSeconds: null, stale: false, ...sourceInfo };
   const ageMs = Date.now() - analyzedAt;
   const stale = ageMs > STALE_AGE_MS;
   return {
@@ -73,6 +127,7 @@ function freshness() {
     ageSeconds: Math.round(ageMs / 1000),
     stale,
     ...(stale ? { hint: 'Analysis is stale — run `infrawise analyze` to refresh.' } : {}),
+    ...sourceInfo,
   };
 }
 
@@ -89,6 +144,10 @@ function toText(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
+// Wraps every tool handler. Besides logging, this is where a tool whose backing
+// source failed or was never enabled gets marked `unavailable` — done here, once,
+// so a tool added later cannot forget to fail closed. TOOLS is the mapping from
+// tool name to the config service that gates it.
 function logged<T extends Record<string, unknown>>(
   name: string,
   fn: (args: T) => Promise<ReturnType<typeof toText>>,
@@ -96,7 +155,11 @@ function logged<T extends Record<string, unknown>>(
   return async (args: T) => {
     const hasArgs = Object.keys(args).length > 0;
     logger.info(`→ ${name}${hasArgs ? `  ${JSON.stringify(args)}` : ''}`);
-    return fn(args);
+    const result = await fn(args);
+    const flag = unavailability(TOOLS.find((t) => t.name === name)?.service);
+    if (!('unavailable' in flag)) return result;
+    const payload = JSON.parse(result.content[0].text) as object;
+    return toText({ ...flag, ...payload });
   };
 }
 

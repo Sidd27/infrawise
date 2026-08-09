@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
 import { setGraphState, setConfigured } from '../server/index.js';
-import type { SystemGraph, Finding, InfrawiseConfig } from '../types.js';
+import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -43,7 +43,12 @@ export async function loadGraphState(
       'Cached analysis loaded',
       `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
     );
-    setGraphState(cachedGraph, cachedFindings, readCacheTimestamp('graph'));
+    setGraphState(
+      cachedGraph,
+      cachedFindings,
+      readCacheTimestamp('graph'),
+      readCache<AnalysisProvenance>('provenance', CACHE_TTL_MS),
+    );
   } else if (config) {
     logs.warn('No cache found — running analysis now...');
     await runAnalyze({ repo: process.cwd(), config: configPath, silent });
@@ -51,6 +56,7 @@ export async function loadGraphState(
       readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] },
       readCache<Finding[]>('findings') ?? [],
       readCacheTimestamp('graph'),
+      readCache<AnalysisProvenance>('provenance'),
     );
   } else {
     setGraphState({ nodes: [], edges: [] }, [], null);
@@ -94,7 +100,10 @@ export function watchCode(
         hooks.onStart?.();
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, cfg);
-          setGraphState(graph, findings);
+          // A code-only refresh reuses the cached cloud metadata, so the last
+          // full analysis's source outcomes still apply — carry them or a failed
+          // extractor silently becomes "clean" on the next file save.
+          setGraphState(graph, findings, Date.now(), readCache<AnalysisProvenance>('provenance'));
           hooks.onDone(graph, findings);
         } catch (err) {
           hooks.onError?.(err);

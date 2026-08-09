@@ -162,7 +162,9 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
       }
     }
   } catch (err) {
-    logger.warn(`SQS list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return queues;
 }
@@ -232,7 +234,9 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
       }
     }
   } catch (err) {
-    logger.warn(`SNS list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return topics;
 }
@@ -274,7 +278,9 @@ export async function extractSSMMetadata(
       nextToken = res.NextToken;
     } while (nextToken && parameters.length < 500);
   } catch (err) {
-    logger.warn(`SSM list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return parameters;
 }
@@ -312,7 +318,9 @@ export async function extractSecretsMetadata(
       nextToken = res.NextToken;
     } while (nextToken && secrets.length < 200);
   } catch (err) {
-    logger.warn(`Secrets Manager list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return secrets;
 }
@@ -494,7 +502,9 @@ export async function extractEventBridgeMetadata(
       nextToken = res.NextToken;
     } while (nextToken && rules.length < 500);
   } catch (err) {
-    logger.warn(`EventBridge list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return rules;
 }
@@ -552,7 +562,9 @@ export async function extractLambdaMetadata(
       if (fn.roleArn) fn.allowedServices = roleServices.get(fn.roleArn);
     }
   } catch (err) {
-    logger.warn(`Lambda list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return functions;
 }
@@ -599,7 +611,9 @@ export async function extractKinesisMetadata(
       }
     }
   } catch (err) {
-    logger.warn(`Kinesis list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return streams;
 }
@@ -628,7 +642,9 @@ export async function extractMSKMetadata(cfg: AWSConfig = {}): Promise<MSKCluste
       nextToken = res.NextToken;
     } while (nextToken);
   } catch (err) {
-    logger.warn(`MSK list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return clusters;
 }
@@ -680,7 +696,9 @@ export async function extractElastiCacheMetadata(
       marker = res.Marker;
     } while (marker);
   } catch (err) {
-    logger.warn(`ElastiCache list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return clusters;
 }
@@ -766,7 +784,9 @@ export async function extractCognitoMetadata(
       }
     }
   } catch (err) {
-    logger.warn(`Cognito list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return pools;
 }
@@ -800,7 +820,9 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
       marker = res.Marker;
     } while (marker && instances.length < 200);
   } catch (err) {
-    logger.warn(`RDS list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return instances;
 }
@@ -895,9 +917,9 @@ export async function extractCloudFrontMetadata(
 
     logger.debug(`Extracted ${distributions.length} CloudFront distribution(s)`);
   } catch (err) {
-    logger.warn(
-      `CloudFront extraction failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
 
   return distributions;
@@ -920,6 +942,8 @@ export async function extractAPIGatewayMetadata(
   cfg: AWSConfig = {},
 ): Promise<APIGatewayMetadata[]> {
   const results: APIGatewayMetadata[] = [];
+  let restFailed: unknown;
+  let v2Failed: unknown;
   const ccfg = clientConfig(cfg);
 
   // REST APIs (v1)
@@ -960,6 +984,7 @@ export async function extractAPIGatewayMetadata(
       results.push({ name: api.name, id: api.id, type: 'REST', routes });
     }
   } catch (err) {
+    restFailed = err;
     logger.warn(
       `API Gateway REST list failed: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -1017,8 +1042,14 @@ export async function extractAPIGatewayMetadata(
       results.push({ name: api.name, id: api.id, type: apiType, routes });
     }
   } catch (err) {
+    v2Failed = err;
     logger.debug(`API Gateway v2 list failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  // REST and v2 are independent APIs — one failing still leaves real data from
+  // the other, so only a total miss is reported as unread. Half-read results
+  // stay available rather than being thrown away.
+  if (restFailed && v2Failed) throw restFailed;
 
   return results;
 }

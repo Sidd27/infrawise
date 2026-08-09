@@ -204,6 +204,8 @@ Test: `pnpm test` → vitest
 
 Infrawise exposes 22 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
+Every tool gated on a cloud service reports `unavailable` when the source behind it failed to extract or was never enabled in infrawise.yaml. When that field is present, an empty list means "not read", not "none exist" — do not conclude a resource is absent, or that a queue has no DLQ / a secret has no rotation, from a response carrying it. `get_infra_overview` lists the same failures under `freshness.incompleteSources`.
+
 Resource listings and findings cover resources that were actually extracted from your account. A queue, secret, or table that appears only as a code reference (for example `QueueUrl: process.env.QUEUE_URL`, which has no resolvable name) is kept in `get_graph_summary` with `placeholder: true` and excluded everywhere else — infrawise will not report "no DLQ" or "no rotation" for a resource whose configuration it never read.
 
 ### `get_infra_overview`
@@ -212,7 +214,7 @@ Resource listings and findings cover resources that were actually extracted from
 
 No inputs required.
 
-Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations, a `freshness` object, and a `configured` flag. `freshness` reports `analyzedAt` (ISO timestamp of the loaded analysis), `ageSeconds`, and a `stale` flag (true once the analysis is older than 24h) with a `hint` to run `infrawise analyze`; all three are null/false when serving an empty graph. When `configured` is false the server booted without an infrawise.yaml (e.g. a remotely hosted instance with no access to your cloud account or code) so every tool returns empty results; a `setupHint` then explains how to run infrawise locally.
+Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, buckets), list of databases, services, and buckets, high-severity findings with recommendations, a `freshness` object, and a `configured` flag. `freshness` reports `analyzedAt` (ISO timestamp of the loaded analysis), `ageSeconds`, and a `stale` flag (true once the analysis is older than 24h) with a `hint` to run `infrawise analyze`; all three are null/false when serving an empty graph. When `configured` is false the server booted without an infrawise.yaml (e.g. a remotely hosted instance with no access to your cloud account or code) so every tool returns empty results; a `setupHint` then explains how to run infrawise locally. `freshness` also carries `region` and `profile`, and an `incompleteSources` list naming any source that failed to extract (with its error) — while a source is listed there, treat an absence in its tool as unknown rather than as a clean result.
 
 **When to call:** At the start of any database or infrastructure task to understand what's in scope.
 

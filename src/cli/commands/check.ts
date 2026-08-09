@@ -1,7 +1,7 @@
 import * as path from 'path';
 import chalk from 'chalk';
 import { readCache, setCacheDir } from '../../core/index.js';
-import { SEVERITY_ORDER, type Finding } from '../../types.js';
+import { SEVERITY_ORDER, type Finding, type AnalysisProvenance } from '../../types.js';
 import { printFinding, log, printHeader } from '../utils.js';
 import { runAnalyze } from './analyze.js';
 
@@ -25,11 +25,27 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
 
   const violations = findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold);
 
+  // A source that failed to extract produces no findings, which is not the same
+  // as producing no problems. Say so before any pass/fail line, so a green check
+  // on half-read infrastructure cannot be mistaken for a clean one.
+  const failedSources = (readCache<AnalysisProvenance>('provenance')?.sources ?? []).filter(
+    (s) => s.status === 'failed',
+  );
+  if (failedSources.length > 0) {
+    console.log('');
+    log.warn(
+      'Incomplete analysis',
+      `${failedSources.length} source(s) failed to extract — findings below do not cover them`,
+    );
+    for (const s of failedSources) log.warn(`  ${s.service}`, s.error ?? 'extraction failed');
+  }
+
   console.log('');
   if (violations.length === 0) {
     log.success(
       'Check passed',
-      `no ${failOn}+ findings (${findings.length} total below threshold)`,
+      `no ${failOn}+ findings (${findings.length} total below threshold)` +
+        (failedSources.length > 0 ? ` — but ${failedSources.length} source(s) went unread` : ''),
     );
     console.log('');
     return;

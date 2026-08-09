@@ -38,6 +38,8 @@ import { printFinding, printSummaryBox, log, printHeader } from '../utils.js';
 import { SEVERITY_ORDER } from '../../types.js';
 import type {
   Analyzer,
+  AnalysisProvenance,
+  SourceStatus,
   SystemGraph,
   Finding,
   ServicesMeta,
@@ -99,23 +101,36 @@ function mkSpinner(text: string) {
   return ora({ text: chalk.dim(text), color: 'cyan' }).start();
 }
 
+// Outcome of every extractor in the current run. Reset at the top of runAnalyze
+// and persisted with the graph so the MCP layer can tell "nothing there" apart
+// from "never read it".
+let sourceStatuses: SourceStatus[] = [];
+
 // Runs one extractor, printing a static completion line (never a spinner, so many
 // can run concurrently without corrupting each other's output). Warns and returns
 // undefined on failure so a single service never aborts the whole analysis, and
-// never rejects — safe to pass straight into Promise.all.
+// never rejects — safe to pass straight into Promise.all. The failure is recorded
+// rather than only logged: a warning on a terminal nobody read is not a signal.
 async function extract<T>(
   enabled: boolean | undefined,
+  service: string,
   label: string,
   fn: () => Promise<T>,
   summarize: (result: T) => string,
 ): Promise<T | undefined> {
-  if (!enabled) return undefined;
+  if (!enabled) {
+    sourceStatuses.push({ service, status: 'disabled' });
+    return undefined;
+  }
   try {
     const result = await fn();
     log.success(label, summarize(result));
+    sourceStatuses.push({ service, status: 'ok' });
     return result;
   } catch (err) {
-    log.warn(`${label} skipped`, err instanceof Error ? err.message : String(err));
+    const error = err instanceof Error ? err.message : String(err);
+    log.warn(`${label} skipped`, error);
+    sourceStatuses.push({ service, status: 'failed', error });
     return undefined;
   }
 }
@@ -204,6 +219,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     process.exit(1);
   }
 
+  sourceStatuses = [];
   const repoPath = options.repo ?? process.cwd();
   const minSeverity = options.severity ? (SEVERITY_ORDER[options.severity] ?? 1) : 0;
   const awsCfg = {
@@ -298,84 +314,98 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   ] = await Promise.all([
     extract(
       config.dynamodb?.enabled === true,
+      'dynamodb',
       'DynamoDB',
       () => extractDynamoMetadata(config),
       (r) => `${r.length} table(s)`,
     ),
     extract(
       !!pgConn,
+      'postgres',
       'PostgreSQL',
       () => extractPostgresMetadata(pgConn ?? ''),
       (r) => `${r.length} table(s)`,
     ),
     extract(
       !!mysqlConn,
+      'mysql',
       'MySQL',
       () => extractMySQLMetadata(mysqlConn ?? ''),
       (r) => `${r.length} table(s)`,
     ),
     extract(
       !!mongoConn,
+      'mongodb',
       'MongoDB',
       () => extractMongoMetadata(mongoConn ?? '', config.mongodb?.databases),
       (r) => `${r.length} collection(s)`,
     ),
     extract(
       config.sqs?.enabled === true,
+      'sqs',
       'SQS',
       () => extractSQSMetadata(awsCfg),
       (r) => `${r.length} queue(s)`,
     ),
     extract(
       config.sns?.enabled === true,
+      'sns',
       'SNS',
       () => extractSNSMetadata(awsCfg),
       (r) => `${r.length} topic(s)`,
     ),
     extract(
       config.ssm?.enabled === true,
+      'ssm',
       'SSM',
       () => extractSSMMetadata({ ...awsCfg, paths: config.ssm?.paths }),
       (r) => `${r.length} parameter(s)  (metadata only, no values)`,
     ),
     extract(
       config.secretsManager?.enabled === true,
+      'secretsManager',
       'Secrets Manager',
       () => extractSecretsMetadata(awsCfg),
       (r) => `${r.length} secret(s)  (names/rotation only, no values)`,
     ),
     extract(
       config.lambda?.enabled === true,
+      'lambda',
       'Lambda',
       () => extractLambdaMetadata(awsCfg, config.lambda?.includeFunctions),
       (r) => `${r.length} function(s)`,
     ),
     extract(
       config.eventbridge?.enabled === true,
+      'eventbridge',
       'EventBridge',
       () => extractEventBridgeMetadata(awsCfg),
       (r) => `${r.length} rule(s)`,
     ),
     extract(
       config.rds?.enabled === true,
+      'rds',
       'RDS',
       () => extractRDSMetadata(awsCfg),
       (r) => `${r.length} instance(s)`,
     ),
     extract(
       config.s3?.enabled === true,
+      's3',
       'S3',
       () => extractS3Metadata(awsCfg),
       (r) => `${r.length} bucket(s)`,
     ),
     extract(
       config.apiGateway?.enabled === true,
+      'apiGateway',
       'API Gateway',
       () => extractAPIGatewayMetadata(awsCfg),
       (r) => `${r.length} API(s), ${r.reduce((sum, api) => sum + api.routes.length, 0)} route(s)`,
     ),
     extract(
       config.cloudfront?.enabled === true,
+      'cloudfront',
       'CloudFront',
       () => extractCloudFrontMetadata(awsCfg),
       (r) =>
@@ -383,30 +413,35 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     ),
     extract(
       config.cognito?.enabled === true,
+      'cognito',
       'Cognito',
       () => extractCognitoMetadata(awsCfg),
       (r) => `${r.length} user pool(s)`,
     ),
     extract(
       config.kinesis?.enabled === true,
+      'kinesis',
       'Kinesis',
       () => extractKinesisMetadata(awsCfg),
       (r) => `${r.length} stream(s)`,
     ),
     extract(
       config.msk?.enabled === true,
+      'msk',
       'MSK',
       () => extractMSKMetadata(awsCfg),
       (r) => `${r.length} cluster(s)`,
     ),
     extract(
       config.elasticache?.enabled === true,
+      'elasticache',
       'ElastiCache',
       () => extractElastiCacheMetadata(awsCfg),
       (r) => `${r.length} cluster(s)`,
     ),
     extract(
       cwLogs?.enabled,
+      'cloudwatchLogs',
       'CloudWatch Logs',
       () =>
         extractLogsMetadata({
@@ -509,6 +544,11 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       mongoMeta,
       servicesMeta,
     } satisfies CachedMeta);
+    writeCache('provenance', {
+      sources: sourceStatuses,
+      region: config.aws?.region,
+      profile: config.aws?.profile,
+    } satisfies AnalysisProvenance);
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────
@@ -518,13 +558,30 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         ? findings.filter((f: Finding) => (SEVERITY_ORDER[f.severity] ?? 0) >= minSeverity)
         : findings;
 
+    const failed = sourceStatuses.filter((s) => s.status === 'failed');
+    if (failed.length > 0) {
+      console.log('');
+      log.warn(
+        'Incomplete analysis',
+        `${failed.length} source(s) could not be read — nothing below covers them`,
+      );
+      for (const s of failed) log.warn(`  ${s.service}`, s.error ?? 'extraction failed');
+    }
+
     console.log('');
     if (displayFindings.length === 0) {
+      // Never claim clean when a source went unread — that is the false negative
+      // the whole provenance record exists to prevent.
       const msg =
-        minSeverity > 0
-          ? `No ${options.severity} (or higher) severity issues found.`
-          : 'Your infrastructure looks clean.';
-      console.log(`  ${chalk.green.bold('✓ No issues found!')}  ${chalk.dim(msg)}`);
+        failed.length > 0
+          ? `No issues in what could be read — ${failed.length} source(s) unread, so this is not a clean bill of health.`
+          : minSeverity > 0
+            ? `No ${options.severity} (or higher) severity issues found.`
+            : 'Your infrastructure looks clean.';
+      const headline = failed.length > 0 ? '✓ No issues found' : '✓ No issues found!';
+      console.log(
+        `  ${(failed.length > 0 ? chalk.yellow.bold : chalk.green.bold)(headline)}  ${chalk.dim(msg)}`,
+      );
     } else {
       const filterNote = minSeverity > 0 ? chalk.dim(` (${options.severity}+ only)`) : '';
       console.log(

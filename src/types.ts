@@ -555,6 +555,22 @@ export interface Finding {
 
 export type Analyzer = (graph: SystemGraph) => Promise<Finding[]>;
 
+// Per-source outcome of one analysis run, keyed by the same config service key
+// the MCP tools are gated on. Without this, a source that failed to extract and
+// a source with genuinely nothing in it produce an identical empty result, and
+// every "no DLQ" / "rotation disabled" answer built on that is a false negative.
+export interface SourceStatus {
+  service: string;
+  status: 'ok' | 'failed' | 'disabled';
+  error?: string;
+}
+
+export interface AnalysisProvenance {
+  sources: SourceStatus[];
+  region?: string;
+  profile?: string;
+}
+
 // Higher is more severe. Sort descending for "worst first".
 export const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1, verify: 0 };
 

@@ -495,3 +495,83 @@ describe('get_cloudfront_overview', () => {
     expect(behaviors[1].isDefault).toBe(true);
   });
 });
+
+describe('MCP Server — fail closed on unread sources', () => {
+  const provenance = {
+    sources: [
+      { service: 'sqs', status: 'failed' as const, error: 'AccessDenied: sqs:ListQueues' },
+      { service: 'lambda', status: 'ok' as const },
+      { service: 's3', status: 'disabled' as const },
+    ],
+    region: 'us-east-1',
+    profile: 'prod',
+  };
+
+  async function clientWithProvenance() {
+    setGraphState({ nodes: [], edges: [] }, [], Date.now(), provenance);
+    const mcp = createMcpServer();
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    await mcp.connect(serverTransport);
+    const c = new Client({ name: 'test', version: '1.0.0' });
+    await c.connect(clientTransport);
+    return c;
+  }
+
+  it('marks a tool unavailable when its source failed to extract', async () => {
+    const client = await clientWithProvenance();
+    try {
+      const data = await callTool(client, 'get_queue_details');
+      expect(data.unavailable.status).toBe('failed');
+      expect(data.unavailable.error).toContain('AccessDenied');
+      expect(data.unavailable.hint).toContain('not read');
+      expect(data.queues).toEqual([]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('marks a tool unavailable when its source was never enabled', async () => {
+    const client = await clientWithProvenance();
+    try {
+      const data = await callTool(client, 'get_s3_overview');
+      expect(data.unavailable.status).toBe('disabled');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('leaves a healthy source unflagged', async () => {
+    const client = await clientWithProvenance();
+    try {
+      const data = await callTool(client, 'get_lambda_overview');
+      expect(data.unavailable).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('reports failed sources in the overview freshness block', async () => {
+    const client = await clientWithProvenance();
+    try {
+      const data = await callTool(client, 'get_infra_overview');
+      expect(data.freshness.incompleteSources).toEqual([
+        { service: 'sqs', error: 'AccessDenied: sqs:ListQueues' },
+      ]);
+      expect(data.freshness.region).toBe('us-east-1');
+      expect(data.freshness.profile).toBe('prod');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('claims nothing when the analysis predates provenance tracking', async () => {
+    const client = await makeClient(testGraph, testFindings);
+    try {
+      const data = await callTool(client, 'get_queue_details');
+      expect(data.unavailable).toBeUndefined();
+      expect(data.freshness?.incompleteSources).toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+});

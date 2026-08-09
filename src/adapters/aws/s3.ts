@@ -8,7 +8,6 @@ import {
 } from '@aws-sdk/client-s3';
 import { fromIni } from '@aws-sdk/credential-providers';
 import type { S3BucketMetadata, S3EventNotification } from '../../types.js';
-import { logger } from '../../core/index.js';
 
 interface AWSConfig {
   region?: string;
@@ -97,7 +96,9 @@ export async function extractS3Metadata(cfg: AWSConfig = {}): Promise<S3BucketMe
       });
     }
   } catch (err) {
-    logger.warn(`S3 list failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
   }
   return buckets;
 }

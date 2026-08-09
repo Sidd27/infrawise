@@ -80,9 +80,9 @@ export async function extractLogsMetadata(cfg: LogsConfig = {}): Promise<LogGrou
       if (logGroups.length >= MAX_LOG_GROUPS) break;
     }
   } catch (err) {
-    logger.warn(
-      `CloudWatch Logs discovery failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    // Fail closed: the caller records this source as unread rather than
+    // letting an empty list read as "this account has none".
+    throw err;
     return summaries;
   }
 
