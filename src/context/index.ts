@@ -802,6 +802,25 @@ function scanTypeScriptRepository(resolvedPath: string): ExtractedOperation[] {
     // Skip node_modules and dist
     if (filePath.includes('node_modules') || filePath.includes('/dist/')) continue;
 
+    // A handler that builds a `batchItemFailures` array is telling SQS/Kinesis
+    // which records failed — which only has an effect if the event source
+    // mapping is set to ReportBatchItemFailures. Recorded here so an analyzer
+    // can catch the mismatch; matching the property name is enough, no need to
+    // trace control flow to the return statement.
+    for (const prop of [
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAssignment),
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.ShorthandPropertyAssignment),
+    ]) {
+      if (prop.getName() !== 'batchItemFailures') continue;
+      operations.push({
+        functionName: getEnclosingFunctionName(prop),
+        operationType: 'batch_item_failures_response',
+        serviceType: 'lambda',
+        target: '',
+        filePath,
+      });
+    }
+
     const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
 
     for (const callExpr of callExpressions) {

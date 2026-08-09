@@ -18,7 +18,7 @@ export type GraphNode = (
       billingMode?: 'PROVISIONED' | 'PAY_PER_REQUEST';
       provisionedThroughput?: { readCapacityUnits: number; writeCapacityUnits: number };
     }
-  | { id: string; type: 'function'; name: string; file: string }
+  | { id: string; type: 'function'; name: string; file: string; returnsBatchItemFailures?: true }
   | { id: string; type: 'index'; name: string }
   | { id: string; type: 'query'; operation: string }
   | {

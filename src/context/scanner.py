@@ -229,6 +229,15 @@ class Visitor(ast.NodeVisitor):
             return self.resolve_string(node.args[0])
         return None
 
+    # A handler building a `batchItemFailures` key is reporting per-record failures,
+    # which only takes effect if the event source mapping sets
+    # ReportBatchItemFailures. Recorded so an analyzer can catch the mismatch.
+    def visit_Dict(self, node):
+        for key in node.keys:
+            if isinstance(key, ast.Constant) and key.value == 'batchItemFailures':
+                self.add('batch_item_failures_response', 'lambda', '')
+        self.generic_visit(node)
+
     def visit_Assign(self, node):
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             name = node.targets[0].id

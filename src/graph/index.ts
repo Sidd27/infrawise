@@ -432,9 +432,27 @@ export function buildGraph(
     );
   }
 
+  // Which code functions build a partial batch response. Collected up front so
+  // the function node carries it regardless of operation order.
+  const partialBatchHandlers = new Set(
+    operations
+      .filter((o) => o.operationType === 'batch_item_failures_response')
+      .map((o) => `function:${o.filePath}:${o.functionName}`),
+  );
+
   for (const op of operations) {
     const funcNodeId = `function:${op.filePath}:${op.functionName}`;
-    addNode({ id: funcNodeId, type: 'function', name: op.functionName, file: op.filePath });
+    addNode({
+      id: funcNodeId,
+      type: 'function',
+      name: op.functionName,
+      file: op.filePath,
+      ...(partialBatchHandlers.has(funcNodeId) ? { returnsBatchItemFailures: true as const } : {}),
+    });
+
+    // Marker only — carries no target, so it must not fall through to the
+    // lambda-invoke branch and synthesize an empty placeholder node.
+    if (op.operationType === 'batch_item_failures_response') continue;
 
     // AWS service operations create edges to service nodes
     if (op.serviceType === 'sqs') {

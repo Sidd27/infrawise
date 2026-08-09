@@ -539,3 +539,38 @@ export async function LambdaUnboundedConcurrencyAnalyzer(graph: SystemGraph): Pr
   }
   return findings;
 }
+
+// The other direction of the partial-batch contract. A handler that returns
+// batchItemFailures is doing the right thing, but the mapping decides whether
+// anyone listens: with ReportBatchItemFailures unset, the array is discarded and
+// the whole batch is retried anyway. This one is worse than the missing setting
+// alone, because the code looks correct and the tests pass.
+export async function BatchResponseMismatchAnalyzer(graph: SystemGraph): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const handlers = new Set(
+    graph.nodes
+      .filter((n) => n.type === 'function' && n.returnsBatchItemFailures)
+      .map((n) => (n.type === 'function' ? n.name : '')),
+  );
+  if (handlers.size === 0) return findings;
+
+  const POLL = new Set(['sqs', 'kinesis', 'dynamodb']);
+  for (const node of graph.nodes) {
+    if (node.type !== 'lambda' || node.placeholder) continue;
+    if (!handlers.has(node.name)) continue;
+    for (const trigger of node.triggers ?? []) {
+      if (!POLL.has(trigger.type)) continue;
+      // Only an explicit false is evidence. undefined means the mapping was
+      // never read, and this finding would be an accusation without evidence.
+      if (trigger.reportsBatchItemFailures !== false) continue;
+      findings.push({
+        severity: 'high',
+        issue: `Lambda "${node.name}" returns batchItemFailures but its "${trigger.sourceName}" mapping ignores it`,
+        description: `The handler for "${node.name}" builds a batchItemFailures array, so the code is written to report individual failed records. The event source mapping for "${trigger.sourceName}" does not set ReportBatchItemFailures, so that response is discarded and the entire batch is retried on any failure. The code reads as correct and its unit tests pass; only the mapping tells the truth.`,
+        recommendation: `Set FunctionResponseTypes to ["ReportBatchItemFailures"] on the "${trigger.sourceName}" event source mapping. The handler side is already done.`,
+        metadata: { functionName: node.name, sourceName: trigger.sourceName },
+      });
+    }
+  }
+  return findings;
+}

@@ -21,3 +21,19 @@ export async function connectToDb() {
   const { password } = JSON.parse(res.SecretString ?? '{}');
   return password;
 }
+
+// BAD: reports per-record failures the mapping throws away -> BatchResponseMismatchAnalyzer.
+// The seeded event source mapping for processOrders sets no FunctionResponseTypes, so this
+// batchItemFailures array is discarded and the whole batch is redelivered on any failure.
+// The code below is correct in isolation, which is exactly why the mismatch is worth flagging.
+export const processOrders = async (event: { Records: { messageId: string }[] }) => {
+  const batchItemFailures: { itemIdentifier: string }[] = [];
+  for (const record of event.Records) {
+    try {
+      await ddb.send(new ScanCommand({ TableName: 'orders' }));
+    } catch {
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+    }
+  }
+  return { batchItemFailures };
+};

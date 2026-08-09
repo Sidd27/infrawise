@@ -127,7 +127,7 @@ source .env                 # sets AWS_PROFILE=localstack — required every ses
 infrawise analyze --config infrawise.yaml
 ```
 
-Expected: 37+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
+Expected: 39+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
 
 ### Floci
 

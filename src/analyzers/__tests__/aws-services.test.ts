@@ -11,6 +11,7 @@ import {
   LambdaMissingTriggerDLQAnalyzer,
   MissingPartialBatchResponseAnalyzer,
   LambdaUnboundedConcurrencyAnalyzer,
+  BatchResponseMismatchAnalyzer,
   ShortRetentionNoDLQAnalyzer,
   S3PublicAccessAnalyzer,
   S3MissingVersioningAnalyzer,
@@ -1160,5 +1161,52 @@ describe('LambdaUnboundedConcurrencyAnalyzer', () => {
       edges: [],
     });
     expect(findings).toHaveLength(0);
+  });
+});
+
+describe('BatchResponseMismatchAnalyzer', () => {
+  const graph = (reports: boolean | undefined, handlerReturns: boolean): SystemGraph => ({
+    nodes: [
+      {
+        id: 'lambda:aws:processOrders',
+        type: 'lambda',
+        name: 'processOrders',
+        triggers: [
+          {
+            type: 'sqs',
+            sourceArn: 'arn:aws:sqs:::orders',
+            sourceName: 'orders',
+            eventShape: 'e',
+            ...(reports === undefined ? {} : { reportsBatchItemFailures: reports }),
+          },
+        ],
+      },
+      {
+        id: 'function:handler.ts:processOrders',
+        type: 'function',
+        name: 'processOrders',
+        file: 'handler.ts',
+        ...(handlerReturns ? { returnsBatchItemFailures: true as const } : {}),
+      },
+    ],
+    edges: [],
+  });
+
+  it('flags a handler reporting failures the mapping discards', async () => {
+    const findings = await BatchResponseMismatchAnalyzer(graph(false, true));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('high');
+  });
+
+  it('stays quiet when the mapping honours the response', async () => {
+    expect(await BatchResponseMismatchAnalyzer(graph(true, true))).toHaveLength(0);
+  });
+
+  it('stays quiet when the handler does not report failures', async () => {
+    expect(await BatchResponseMismatchAnalyzer(graph(false, false))).toHaveLength(0);
+  });
+
+  it('claims nothing when the mapping was never read', async () => {
+    expect(await BatchResponseMismatchAnalyzer(graph(undefined, true))).toHaveLength(0);
   });
 });
