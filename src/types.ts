@@ -93,8 +93,9 @@ export type GraphNode = (
       type: 'bucket';
       name: string;
       provider: string;
-      versioned?: boolean;
-      encrypted?: boolean;
+      // null when the sub-resource call failed: not read, as distinct from off.
+      versioned?: boolean | null;
+      encrypted?: boolean | null;
       publicAccessBlocked?: boolean | null;
     }
   | {
@@ -476,8 +477,9 @@ export interface S3BucketMetadata {
   name: string;
   arn: string;
   createdAt?: string;
-  versioned: boolean;
-  encrypted: boolean;
+  // null when the call failed: not read, as distinct from off.
+  versioned: boolean | null;
+  encrypted: boolean | null;
   publicAccessBlocked: boolean | null;
   notifications: S3EventNotification[];
 }

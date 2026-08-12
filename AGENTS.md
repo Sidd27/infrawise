@@ -425,7 +425,7 @@ All S3 buckets with versioning status, encryption, public access configuration, 
 
 No inputs required.
 
-Returns: per-bucket — name, provider, versioned (bool), encrypted (bool), publicAccessBlocked (bool), findings.
+Returns: per-bucket — name, provider, versioned, encrypted, publicAccessBlocked, findings. The three flags are `true`/`false` when read, and `null` when the sub-resource call failed — "not read", never "not configured". S3 answers "no encryption configured" and "no public access block" with an error rather than an empty body, so those two specific errors are reported as `false`, which is a fact rather than an absence. Buckets are listed with full pagination; no cap.
 
 **When to call:** When checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers. Check public access blocked status before assuming bucket contents are private.
 

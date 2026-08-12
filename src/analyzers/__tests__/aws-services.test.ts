@@ -683,6 +683,28 @@ describe('S3PublicAccessAnalyzer', () => {
     expect(findings[0].metadata?.bucketName).toBe('assets');
   });
 
+  it('stays silent on a bucket whose config was never read', async () => {
+    // A failed sub-resource call leaves these null. Reporting on null would
+    // publish a security finding about a bucket nothing was learned about.
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'bucket:aws:unread',
+          type: 'bucket',
+          name: 'unread',
+          provider: 'aws',
+          versioned: null,
+          encrypted: null,
+          publicAccessBlocked: null,
+        },
+      ],
+      edges: [],
+    };
+    expect(await S3PublicAccessAnalyzer(graph)).toHaveLength(0);
+    expect(await S3UnencryptedAnalyzer(graph)).toHaveLength(0);
+    expect(await S3MissingVersioningAnalyzer(graph)).toHaveLength(0);
+  });
+
   it('does not flag bucket with public access blocked', async () => {
     const graph: SystemGraph = {
       nodes: [
