@@ -106,6 +106,9 @@ analysis:
   hotPartitionThreshold: 5
   hotPartitionThresholds: # per-table overrides
     high-traffic-table: 12
+
+freshness:
+  suggestRefreshAfterHours: 6 # when MCP responses start hinting to re-analyze
 ```
 
 ## Key explanations
@@ -121,6 +124,8 @@ analysis:
 **`runtimeSignals`** (opt-in) fetches CloudWatch metrics for the analysis window: Lambda throttle and error counts, and the age of the oldest message per SQS queue. Powers the throttling and stale-queue findings.
 
 **`analysis`** tunes code-correlation analysis: `hotPartitionThreshold` sets how many distinct code paths on one table trigger the hot-partition finding (overridable per table via `hotPartitionThresholds`).
+
+**`freshness`** tunes the refresh hint on MCP responses: past `suggestRefreshAfterHours` (default 6), every response sets `dataHealth.suggestRefresh: true`. It changes nothing about the data returned — see [Data freshness and staleness](/infrawise/reference/data-freshness/) for what that hint does and does not tell you.
 
 ## Environment variable substitution
 

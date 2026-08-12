@@ -674,6 +674,9 @@ export interface InfrawiseConfig {
     hotPartitionThreshold?: number;
     hotPartitionThresholds?: Record<string, number>;
   };
+  freshness?: {
+    suggestRefreshAfterHours?: number;
+  };
 }
 
 // ─── Cache ───────────────────────────────────────────────────────────────────

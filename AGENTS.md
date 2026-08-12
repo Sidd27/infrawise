@@ -211,7 +211,7 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 | Field | Meaning |
 |---|---|
 | `analyzedAt` / `ageSeconds` | When the infrastructure was **read**, and how long ago. Not when the graph was rebuilt — editing code rebuilds the graph without re-reading AWS, and does not move this. |
-| `suggestRefresh` | True past 6h. A coarse backstop only; judge `ageSeconds` against the question you are answering. |
+| `suggestRefresh` | True past the configured threshold — 6h by default, tunable via `freshness.suggestRefreshAfterHours`. A coarse backstop only; judge `ageSeconds` against the question you are answering. |
 | `refreshWith` | The command that refreshes: `infrawise analyze`. Always present, states how, never whether. |
 | `requestedMaxAgeSeconds` / `withinRequestedAge` | Echoes the `maxAgeSeconds` you passed and whether the data meets it. Both `null` when you did not pass one. |
 | `region` / `profile` | Which account context produced the snapshot. `null` when unknown. |
@@ -220,7 +220,7 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 
 **Reading it.** A source that is not `ok` means an empty result is "not read", not "none exist" — do not conclude a resource is absent, or that a queue has no DLQ or a secret has no rotation, from a response whose source failed. `get_table_schema` is the sharpest case: with a database listed as `failed` or `disabled`, `found: false` means "not looked for", not "no such table". An `iac.status` of `changed` means someone ran `cdk synth` after the analysis, so IaC-derived answers are behind; `unknown` means the check could not run and says nothing either way.
 
-Pass `maxAgeSeconds` for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh.
+Pass `maxAgeSeconds` for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Age is a proxy for drift, not drift itself: a three-day-old snapshot of an untouched account is accurate, a five-minute-old one taken before a `terraform apply` is not. Full treatment in [How Infrawise handles staleness](https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/); field reference in [Data freshness](https://sidd27.github.io/infrawise/reference/data-freshness/).
 
 `get_graph_summary` additionally marks every node with `source` and `sourceStatus`, so a node from a partly-read source is distinguishable from one read cleanly.
 

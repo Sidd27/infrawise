@@ -203,6 +203,8 @@ Every response carries a `dataHealth` block with a fixed shape: when the infrast
 
 Infrawise reports; it doesn't rule. Pass `maxAgeSeconds` when a question is point-in-time and the answer tells you whether the data meets it. `infrawise analyze` and `infrawise check` print the same source warnings and stop calling a run clean when any source went unread.
 
+Age is a proxy for drift, not drift itself — a three-day-old snapshot of an untouched account is accurate, and a five-minute-old one taken before a `terraform apply` isn't. [How Infrawise handles staleness](https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/) covers where that proxy misleads and what to do about it; the [data freshness reference](https://sidd27.github.io/infrawise/reference/data-freshness/) is the field-by-field table and the `freshness` config key.
+
 ---
 
 ## CLI reference
@@ -367,6 +369,9 @@ analysis:
   hotPartitionThreshold: 5
   hotPartitionThresholds:
     high-traffic-table: 12
+
+freshness:
+  suggestRefreshAfterHours: 6 # when MCP responses start hinting to re-analyze
 ```
 
 ### AWS setup

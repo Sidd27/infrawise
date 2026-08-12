@@ -86,6 +86,11 @@ export const InfrawiseConfigSchema = z.object({
         .default({}),
     })
     .optional(),
+  freshness: z
+    .object({
+      suggestRefreshAfterHours: z.number().positive().optional().default(6),
+    })
+    .optional(),
 });
 
 export type ValidatedConfig = z.infer<typeof InfrawiseConfigSchema>;

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
-import { setGraphState, setConfigured } from '../server/index.js';
+import { setGraphState, setConfigured, setSuggestRefreshAfterHours } from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
 
@@ -34,6 +34,7 @@ export async function loadGraphState(
     );
   }
   setConfigured(config !== undefined);
+  setSuggestRefreshAfterHours(config?.freshness?.suggestRefreshAfterHours);
 
   const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
   const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);

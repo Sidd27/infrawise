@@ -48,10 +48,15 @@ let currentFindings: Finding[] = [];
 // judge how stale the facts are and decide to refresh.
 let analyzedAt: number | null = null;
 // The one verdict infrawise still renders. `ageSeconds` is the fact the caller
-// decides on; this is a coarse backstop for when it does not. Deliberately well
+// decides on; this is a coarse backstop for when it does not. Defaults well
 // below the 24h cache TTL — a working day is long enough for infrastructure to
-// move underneath a session.
-const SUGGEST_REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
+// move underneath a session — and `freshness.suggestRefreshAfterHours` tunes it
+// to how fast a given account actually changes.
+let suggestRefreshAfterMs = 6 * 60 * 60 * 1000;
+
+export function setSuggestRefreshAfterHours(hours: number | undefined): void {
+  if (hours !== undefined) suggestRefreshAfterMs = hours * 60 * 60 * 1000;
+}
 // False when the server booted without an infrawise.yaml (e.g. a hosted MCP
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
@@ -185,8 +190,7 @@ function dataHealth(
       ageSeconds,
       // Never claim freshness we cannot vouch for: with no analysis loaded this
       // stays true rather than defaulting to "no need".
-      suggestRefresh:
-        analyzedAt === null ? true : Date.now() - analyzedAt > SUGGEST_REFRESH_AFTER_MS,
+      suggestRefresh: analyzedAt === null ? true : Date.now() - analyzedAt > suggestRefreshAfterMs,
       refreshWith: 'infrawise analyze',
       requestedMaxAgeSeconds: requested,
       withinRequestedAge:

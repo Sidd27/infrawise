@@ -4,7 +4,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer, createMcpServer, setGraphState } from '../index.js';
+import {
+  createServer,
+  createMcpServer,
+  setGraphState,
+  setSuggestRefreshAfterHours,
+} from '../index.js';
 import type { SystemGraph, Finding } from '../../types.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
@@ -597,6 +602,23 @@ describe('MCP Server — dataHealth envelope', () => {
       expect((await callTool(old, 'get_queue_details')).dataHealth.suggestRefresh).toBe(true);
     } finally {
       await old.close();
+    }
+  });
+
+  it('honours a configured suggestRefreshAfterHours, then restores the default', async () => {
+    setSuggestRefreshAfterHours(1);
+    const client = await clientWith(prov({ analyzedAt: Date.now() - 2 * 3600_000 }));
+    try {
+      expect((await callTool(client, 'get_queue_details')).dataHealth.suggestRefresh).toBe(true);
+    } finally {
+      await client.close();
+      setSuggestRefreshAfterHours(6);
+    }
+    const still = await clientWith(prov({ analyzedAt: Date.now() - 2 * 3600_000 }));
+    try {
+      expect((await callTool(still, 'get_queue_details')).dataHealth.suggestRefresh).toBe(false);
+    } finally {
+      await still.close();
     }
   });
 

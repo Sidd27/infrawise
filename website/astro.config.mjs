@@ -59,13 +59,15 @@ export default defineConfig({
 						{ label: 'Configuration',         slug: 'reference/configuration' },
 						{ label: 'CLI reference',         slug: 'reference/cli'           },
 						{ label: 'MCP tools',             slug: 'reference/mcp-tools'    },
+						{ label: 'Data freshness',        slug: 'reference/data-freshness' },
 						{ label: 'Analysis capabilities', slug: 'guides/analysis'         },
 					],
 				},
 				{
 					label: 'Guides',
 					items: [
-						{ label: 'LocalStack demo', slug: 'guides/localstack-demo' },
+						{ label: 'Handling staleness', slug: 'guides/how-infrawise-handles-staleness' },
+						{ label: 'LocalStack demo',    slug: 'guides/localstack-demo' },
 					],
 				},
 				{
