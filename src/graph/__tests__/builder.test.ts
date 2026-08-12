@@ -33,7 +33,10 @@ const mockDynamoMeta: DynamoTableMetadata[] = [
     tableName: 'Orders',
     partitionKey: 'orderId',
     sortKey: 'createdAt',
-    indexes: ['StatusIndex', 'UserIndex'],
+    indexes: [
+      { name: 'StatusIndex', indexType: 'GSI', partitionKey: 'status', sortKey: 'createdAt' },
+      { name: 'UserIndex', indexType: 'GSI', partitionKey: 'userId' },
+    ],
   },
   {
     tableName: 'Users',

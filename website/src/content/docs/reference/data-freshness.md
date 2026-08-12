@@ -41,7 +41,11 @@ An `iac.status` of `changed` means `cdk synth` ran after the analysis, so IaC-de
 | Refresh hint | 6h | yes | The value of `suggestRefresh` on every response. Changes nothing about the data returned |
 | `maxAgeSeconds` | none | per call | A caller-supplied tolerance. Sets `requestedMaxAgeSeconds` and `withinRequestedAge` |
 
-`maxAgeSeconds` is **advisory**: exceeding it does not withhold data or fail the call. The result still comes back, marked. Nothing re-reads AWS on a tool call — refreshing is `infrawise analyze`.
+`maxAgeSeconds` is **advisory**: exceeding it does not withhold data or fail the call. The result still comes back, marked. No tool call re-reads AWS — refreshing is `infrawise analyze`.
+
+## Reloading a running server
+
+`infrawise analyze` writes its result to the cache, and a running MCP server rechecks that cache on every tool call — one stat of a local file, cheaper than the response it guards. A new analysis is therefore visible to the next call, with no restart and no editor reconnect. Running `analyze` in a second terminal while your editor session stays open is the intended refresh loop.
 
 ## Configuration
 

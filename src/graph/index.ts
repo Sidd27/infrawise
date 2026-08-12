@@ -46,9 +46,17 @@ export function buildGraph(
       billingMode: table.billingMode,
       provisionedThroughput: table.provisionedThroughput,
     });
-    for (const indexName of table.indexes) {
-      const indexNodeId = `index:${table.tableName}:${indexName}`;
-      addNode({ id: indexNodeId, type: 'index', name: indexName });
+    for (const idx of table.indexes) {
+      const indexNodeId = `index:${table.tableName}:${idx.name}`;
+      addNode({
+        id: indexNodeId,
+        type: 'index',
+        name: idx.name,
+        indexType: idx.indexType,
+        partitionKey: idx.partitionKey,
+        sortKey: idx.sortKey,
+        projectionType: idx.projectionType,
+      });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
@@ -486,7 +494,7 @@ export function buildGraph(
 
     if (op.serviceType === 'kafka') {
       const topicId = `topic:kafka:${op.target}`;
-      addNode({ id: topicId, type: 'topic', name: op.target, provider: 'kafka', encrypted: false });
+      addNode({ id: topicId, type: 'topic', name: op.target, provider: 'kafka', encrypted: null });
       const edgeType = op.operationType === 'subscribe' ? 'subscribes_to' : 'publishes_to';
       edges.push({ from: funcNodeId, to: topicId, type: edgeType });
       continue;

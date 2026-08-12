@@ -19,7 +19,17 @@ export type GraphNode = (
       provisionedThroughput?: { readCapacityUnits: number; writeCapacityUnits: number };
     }
   | { id: string; type: 'function'; name: string; file: string; returnsBatchItemFailures?: true }
-  | { id: string; type: 'index'; name: string }
+  | {
+      id: string;
+      type: 'index';
+      name: string;
+      // DynamoDB only: what the index is keyed on decides whether a query can
+      // use it. A name alone forces the caller to guess from the convention.
+      indexType?: 'GSI' | 'LSI';
+      partitionKey?: string;
+      sortKey?: string;
+      projectionType?: string;
+    }
   | { id: string; type: 'query'; operation: string }
   | {
       id: string;
@@ -41,7 +51,9 @@ export type GraphNode = (
       name: string;
       provider: string;
       subscriptionCount?: number;
-      encrypted: boolean;
+      // null for a topic discovered in code (Kafka): an AST scan cannot observe
+      // broker TLS, and false would assert something nobody read.
+      encrypted: boolean | null;
       filterPolicies?: Array<{
         subscriptionArn: string;
         protocol: string;
@@ -212,7 +224,11 @@ export type GraphEdge =
   | { from: string; to: string; type: 'reads_secret' }
   | { from: string; to: string; type: 'reads_parameter' }
   | { from: string; to: string; type: 'triggers' }
-  | { from: string; to: string; type: 'routes_to' };
+  | { from: string; to: string; type: 'routes_to' }
+  // Deployed Lambda → the source function that implements it. Resolved by the
+  // linkers, which is the only way to bridge a stack-prefixed deployed name to
+  // a plain function name in the repo.
+  | { from: string; to: string; type: 'implemented_by'; confidence: 'proven' | 'inferred' };
 
 export interface SystemGraph {
   nodes: GraphNode[];
@@ -221,11 +237,19 @@ export interface SystemGraph {
 
 // ─── Database metadata ───────────────────────────────────────────────────────
 
+export interface DynamoIndexMetadata {
+  name: string;
+  indexType: 'GSI' | 'LSI';
+  partitionKey?: string;
+  sortKey?: string;
+  projectionType?: string;
+}
+
 export interface DynamoTableMetadata {
   tableName: string;
   partitionKey?: string;
   sortKey?: string;
-  indexes: string[];
+  indexes: DynamoIndexMetadata[];
   billingMode?: 'PROVISIONED' | 'PAY_PER_REQUEST';
   provisionedThroughput?: { readCapacityUnits: number; writeCapacityUnits: number };
 }

@@ -312,21 +312,26 @@ interface PolicyDoc {
   Statement?: Array<{ Effect?: string; Action?: string | string[] }>;
 }
 
-function servicesFromDoc(doc: PolicyDoc): string[] {
-  const out = new Set<string>();
+// An explicit Deny always beats an Allow in IAM evaluation, so a service named
+// in both is not permitted. Reading only Allow reported the one case where the
+// call is guaranteed to fail at runtime as permitted.
+function servicesFromDoc(doc: PolicyDoc): { allowed: string[]; denied: string[] } {
+  const allowed = new Set<string>();
+  const denied = new Set<string>();
   for (const stmt of doc.Statement ?? []) {
-    if (stmt.Effect !== 'Allow') continue;
+    if (stmt.Effect !== 'Allow' && stmt.Effect !== 'Deny') continue;
+    const into = stmt.Effect === 'Allow' ? allowed : denied;
     const actions = Array.isArray(stmt.Action) ? stmt.Action : stmt.Action ? [stmt.Action] : [];
     for (const a of actions) {
       if (a === '*') {
-        out.add('*');
+        into.add('*');
         continue;
       }
       const prefix = a.split(':')[0].toLowerCase();
-      if (prefix) out.add(prefix);
+      if (prefix) into.add(prefix);
     }
   }
-  return [...out];
+  return { allowed: [...allowed], denied: [...denied] };
 }
 
 async function extractAllowedServices(
@@ -336,6 +341,7 @@ async function extractAllowedServices(
   const client = new IAMClient(clientConfig(cfg));
   const roleName = roleArn.split('/').pop() ?? roleArn;
   const services = new Set<string>();
+  const denies = new Set<string>();
 
   try {
     let marker: string | undefined;
@@ -355,7 +361,9 @@ async function extractAllowedServices(
           const doc = ver.PolicyVersion?.Document;
           if (doc) {
             const parsed = JSON.parse(decodeURIComponent(doc)) as PolicyDoc;
-            for (const s of servicesFromDoc(parsed)) services.add(s);
+            const { allowed, denied } = servicesFromDoc(parsed);
+            for (const s of allowed) services.add(s);
+            for (const s of denied) denies.add(s);
           }
         } catch {
           /* skip unparseable policy */
@@ -376,7 +384,9 @@ async function extractAllowedServices(
           );
           if (inline.PolicyDocument) {
             const parsed = JSON.parse(decodeURIComponent(inline.PolicyDocument)) as PolicyDoc;
-            for (const s of servicesFromDoc(parsed)) services.add(s);
+            const { allowed, denied } = servicesFromDoc(parsed);
+            for (const s of allowed) services.add(s);
+            for (const s of denied) denies.add(s);
           }
         } catch {
           /* skip */
@@ -385,7 +395,7 @@ async function extractAllowedServices(
       iMarker = res.Marker;
     } while (iMarker);
 
-    return [...services];
+    return [...services].filter((s) => !denies.has(s) && !denies.has('*'));
   } catch (err) {
     logger.debug(
       `IAM fetch skipped for ${roleName}: ${err instanceof Error ? err.message : String(err)}`,

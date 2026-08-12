@@ -102,6 +102,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   // File watch — re-run code analysis on save (needs a config to drive analyzers)
   if (config) {
     const repoPath = process.cwd();
+
     let refreshSpin: ReturnType<typeof ora> | null = null;
     watchCode(repoPath, config, path.resolve(options.config ?? 'infrawise.yaml'), {
       onConfigChange: () =>

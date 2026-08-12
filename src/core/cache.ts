@@ -22,8 +22,15 @@ export function writeCache<T>(key: string, data: T): void {
     data,
     version: CACHE_VERSION,
   };
+  // Write-then-rename: rename is atomic within a directory, so a reader never
+  // observes a half-written entry. The MCP server watches this directory and
+  // reloads on change — a torn read there fails the JSON parse, is swallowed as
+  // "no cache", and leaves the server serving the previous analysis with no
+  // error anywhere.
   const filePath = path.join(cacheDir, `${key}.json`);
-  fs.writeFileSync(filePath, JSON.stringify(entry), 'utf-8');
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(entry), 'utf-8');
+  fs.renameSync(tmpPath, filePath);
 }
 
 function readEntry<T>(key: string): CacheEntry<T> | null {
@@ -36,11 +43,18 @@ function readEntry<T>(key: string): CacheEntry<T> | null {
   }
 }
 
-export function readCache<T>(key: string, maxAgeMs = 3600000): T | null {
+// One TTL for every entry. This was a per-call parameter with a 1h default, and
+// every caller that took the default was a bug: the graph expired at 24h while
+// metadata, provenance and CI findings expired at 1h, so a long session served a
+// graph whose companion entries had silently gone null. The entries describe one
+// analysis and expire as one.
+export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function readCache<T>(key: string): T | null {
   const entry = readEntry<T>(key);
   if (!entry) return null;
   if (entry.version !== CACHE_VERSION) return null;
-  if (Date.now() - entry.timestamp > maxAgeMs) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) return null;
   return entry.data;
 }
 

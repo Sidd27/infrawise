@@ -141,7 +141,12 @@ cp .env.example .env
 
 `demo/floci/seed/aws-seed.sh` sources the LocalStack seed unchanged, then adds the Floci-only services. Keep the shared resources in the LocalStack seed so both demos stay in step; put anything LocalStack community cannot emulate in the Floci seed.
 
-Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), CloudFront (1 distribution, `/api/*` allow-all finding), API Gateway v2 (1 HTTP API, 4 routes). Two local-file fixtures need no emulator and are the regression cases for per-stack CDK staleness and route-to-Lambda attribution:
+Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), CloudFront (1 distribution, `/api/*` allow-all finding), API Gateway v2 (1 HTTP API, 4 routes). Around 59 findings total.
+
+`demo/floci/app/` is scanned as application code and covers the two things only a code scan can show:
+
+- `orders.ts` exports `handler`, and `terraform/main.tf` declares the deployed Lambda `processOrders` with handler `orders.handler`. The two names share no string, so `analyze_function` with `handler` must return `resolvedLambda: { lambda: "processOrders", confidence: "proven" }` along with that Lambda's SQS and S3 triggers. An empty `triggers` array there is the regression.
+- `events.ts` produces to and consumes from the Kafka topic `order-placed`, which must appear in `get_topic_details` with `provider: "kafka"`, its producer and consumer function names, and `encrypted: null` — never `false`, which would assert broker TLS state no scan ever read. Two local-file fixtures need no emulator and are the regression cases for per-stack CDK staleness and route-to-Lambda attribution:
 
 - `demo/floci/cdk.out/` — `manifest.json` lists only `PaymentsStack`; `LegacyBillingStack.template.json` is an orphan, so its resources are excluded and its output returns `stale: true`
 - the HTTP API integrations use a bare function ARN and an aliased ARN, the two forms CDK's `HttpLambdaIntegration` emits — `get_api_routes` must name both Lambdas and return `null` for the integration-less route
@@ -220,7 +225,9 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 
 **Reading it.** A source that is not `ok` means an empty result is "not read", not "none exist" — do not conclude a resource is absent, or that a queue has no DLQ or a secret has no rotation, from a response whose source failed. `get_table_schema` is the sharpest case: with a database listed as `failed` or `disabled`, `found: false` means "not looked for", not "no such table". An `iac.status` of `changed` means someone ran `cdk synth` after the analysis, so IaC-derived answers are behind; `unknown` means the check could not run and says nothing either way.
 
-Pass `maxAgeSeconds` for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Age is a proxy for drift, not drift itself: a three-day-old snapshot of an untouched account is accurate, a five-minute-old one taken before a `terraform apply` is not. Full treatment in [How Infrawise handles staleness](https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/); field reference in [Data freshness](https://sidd27.github.io/infrawise/reference/data-freshness/).
+Pass `maxAgeSeconds` for point-in-time questions ("does queue X have a DLQ right now") and omit it for architecture questions where a day-old snapshot is fine. It is advisory — the answer comes back either way, with `withinRequestedAge` reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Age is a proxy for drift, not drift itself: a three-day-old snapshot of an untouched account is accurate, a five-minute-old one taken before a `terraform apply` is not. Full treatment in [How Infrawise handles staleness](https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/); field reference in [Data freshness](https://sidd27.github.io/infrawise/reference/data-freshness/).
+
+A running MCP server checks the cache on every tool call, so an `infrawise analyze` in another terminal is visible to the next call the assistant makes — no restart, no reconnect.
 
 `get_graph_summary` additionally marks every node with `source` and `sourceStatus`, so a node from a partly-read source is distinguishable from one read cleanly.
 
@@ -258,7 +265,7 @@ Column-level schema for specific tables or collections, on demand. **Row data is
 |---|---|---|
 | `tables` | string[] (1-20) | yes |
 
-Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes, DynamoDB partitionKey/sortKey/billingMode/provisionedThroughput, MongoDB estimatedCount. DynamoDB matches include a `costSignal` string when `billingMode` is `PROVISIONED` (no billing API — a config-level heuristic, not real utilization data). Unknown names return up to 5 `suggestions`.
+Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes (DynamoDB indexes carry `indexType`, `partitionKey`, `sortKey` and `projectionType`, so you can tell whether an index covers a query before writing it), DynamoDB partitionKey/sortKey/billingMode/provisionedThroughput, MongoDB estimatedCount. DynamoDB matches include a `costSignal` string when `billingMode` is `PROVISIONED` (no billing API — a config-level heuristic, not real utilization data). Unknown names return up to 5 `suggestions`.
 
 **When to call:** After `get_infra_overview`, when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables. This is the progressive-disclosure path for large databases — fetch only the schemas you need instead of dumping everything with `get_graph_summary`.
 
@@ -272,7 +279,7 @@ Analyze a single function for infrastructure issues, including trigger event sha
 |---|---|---|
 | `function` | string | yes |
 
-Returns: **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched, **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), `batchSize` and `reportsBatchItemFailures` on batch-polling triggers, EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
+Returns: **resolvedLambda** (`{ lambda, confidence }`) when the deployed Lambda name differs from the function name and the link was resolved from IaC or name normalization — this is how a Lambda deployed as `processOrders` still returns triggers when you ask about the `handler` function in `orders.ts`, **candidateLambdas** when several Lambdas share one handler path (`index.handler` across a stack) so no single one can be attributed — triggers are withheld and the candidates named instead of guessing, **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched, **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), `batchSize` and `reportsBatchItemFailures` on batch-polling triggers, EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
 
 Function nodes are file-scoped, so one name can legitimately match several files. Every candidate is returned rather than the first, so a same-named function in a scratch or experiments directory never silently stands in for the real one.
 
@@ -289,9 +296,9 @@ Ready-to-use GSI definition for a DynamoDB table.
 | `table` | string | yes |
 | `attribute` | string | yes |
 
-Returns: index name, partition key, projection type, billing mode, rationale, recommendation.
+Returns: `alreadyIndexed` plus either `existingIndex` (name, indexType, partitionKey, sortKey, projectionType) when an index on the table is already keyed on that attribute, or a proposed `index` (name, partition key, projection type, billing mode) with rationale and recommendation.
 
-**When to call:** When a query pattern needs a GSI that doesn't exist, or analyzer flags a missing GSI.
+**When to call:** When a query pattern needs a GSI that doesn't exist, or analyzer flags a missing GSI. When `alreadyIndexed` is true, use `existingIndex.name` as the `IndexName` in your Query rather than creating a second index — a duplicate GSI costs write capacity on every write to the table.
 
 ---
 
@@ -358,7 +365,7 @@ All SNS topics with subscription metadata and filter policies.
 
 No inputs required.
 
-Returns: per-topic — name, provider, subscription count, encryption status, filterPolicies (array of `{ subscriptionArn, protocol, requiredAttributes, scope }`). `requiredAttributes` lists the message attribute keys that subscription's filter policy requires — any publish call missing these attributes will have its message silently dropped by that subscription.
+Returns: per-topic — name, provider, subscription count, encryption status (`null` for a Kafka topic discovered in code: an AST scan cannot observe broker TLS), `producers` and `consumers` (function names that publish to / subscribe from the topic, from the code scan), filterPolicies (array of `{ subscriptionArn, protocol, requiredAttributes, scope }`). `requiredAttributes` lists the message attribute keys that subscription's filter policy requires — any publish call missing these attributes will have its message silently dropped by that subscription.
 
 **When to call:** Before writing any SNS publish code to know which message attributes are required. Also when reviewing event fan-out patterns or subscription coverage.
 

@@ -1,11 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
-import { setGraphState, setConfigured, setSuggestRefreshAfterHours } from '../server/index.js';
+import { setGraphState, setServerConfig, setSnapshotLoader } from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
 export interface BootLog {
@@ -33,34 +32,30 @@ export async function loadGraphState(
       `starting with empty graph (no config loaded: ${err instanceof Error ? err.message : String(err)})`,
     );
   }
-  setConfigured(config !== undefined);
-  setSuggestRefreshAfterHours(config?.freshness?.suggestRefreshAfterHours);
+  setServerConfig(config);
+  setSnapshotLoader(reloadFromCache);
 
-  const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
-  const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
+  const cachedGraph = readCache<SystemGraph>('graph');
+  const cachedFindings = readCache<Finding[]>('findings');
 
   if (cachedGraph && cachedFindings) {
     logs.ok(
       'Cached analysis loaded',
       `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
     );
-    setGraphState(
-      cachedGraph,
-      cachedFindings,
-      readCacheTimestamp('graph'),
-      readCache<AnalysisProvenance>('provenance', CACHE_TTL_MS),
-    );
+    loadedAt = readCacheTimestamp('graph');
+    setGraphState(cachedGraph, cachedFindings, readCache<AnalysisProvenance>('provenance'));
   } else if (config) {
     logs.warn('No cache found — running analysis now...');
     await runAnalyze({ repo: process.cwd(), config: configPath, silent });
+    loadedAt = readCacheTimestamp('graph');
     setGraphState(
       readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] },
       readCache<Finding[]>('findings') ?? [],
-      readCacheTimestamp('graph'),
       readCache<AnalysisProvenance>('provenance'),
     );
   } else {
-    setGraphState({ nodes: [], edges: [] }, [], null);
+    setGraphState({ nodes: [], edges: [] }, []);
   }
 
   return config;
@@ -71,6 +66,25 @@ export interface WatchHooks {
   onStart?(): void;
   onDone(graph: SystemGraph, findings: Finding[]): void;
   onError?(err: unknown): void;
+}
+
+// The analysis this process has already loaded. `infrawise analyze` in another
+// terminal rewrites the cache, and the server must notice: a session that keeps
+// serving its boot snapshot looks exactly like infrastructure that never moved,
+// which is indistinguishable from a correct answer.
+let loadedAt: number | null = null;
+
+// Pulled on every tool call. A stat of one local file, so the check is cheaper
+// than the JSON it guards; returns null when nothing moved.
+export function reloadFromCache(): { graph: SystemGraph; findings: Finding[] } | null {
+  const writtenAt = readCacheTimestamp('graph');
+  if (writtenAt === null || writtenAt === loadedAt) return null;
+  const graph = readCache<SystemGraph>('graph');
+  const findings = readCache<Finding[]>('findings');
+  if (!graph || !findings) return null;
+  loadedAt = writtenAt;
+  setGraphState(graph, findings, readCache<AnalysisProvenance>('provenance'));
+  return { graph, findings };
 }
 
 // Debounced re-analysis on source change. Never throws: fs.watch has no
@@ -101,12 +115,6 @@ export function watchCode(
         hooks.onStart?.();
         try {
           const { graph, findings } = await runCodeRefresh(repoPath, cfg);
-          // A code-only refresh makes no AWS calls — it rebuilds the graph from
-          // cached cloud metadata. Passing Date.now() here used to reset the
-          // freshness clock on every file save, so a session reported seconds-old
-          // data about infrastructure read hours earlier. The cloud read time
-          // comes from provenance, which only a full analyze writes.
-          setGraphState(graph, findings, null, readCache<AnalysisProvenance>('provenance'));
           hooks.onDone(graph, findings);
         } catch (err) {
           hooks.onError?.(err);

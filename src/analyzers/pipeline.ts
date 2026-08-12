@@ -4,6 +4,21 @@ import { type LambdaCodeLink, compositeLink } from './linkers.js';
 
 const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 
+// The linkers already resolve deployed Lambda names to source functions for
+// finding generation. Writing them into the graph is what lets the MCP layer
+// answer "what triggers the handler I am editing" when the deployed name is
+// stack-prefixed and shares no string with the function name.
+export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] = []): void {
+  for (const link of compositeLink(iacLambdas, graph)) {
+    graph.edges.push({
+      from: link.lambdaId,
+      to: link.functionId,
+      type: 'implemented_by',
+      confidence: link.confidence,
+    });
+  }
+}
+
 export async function PipelineAnalyzer(
   graph: SystemGraph,
   iacLambdas: IaCLambda[] = [],

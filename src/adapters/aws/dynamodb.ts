@@ -5,7 +5,7 @@ import {
   type TableDescription,
 } from '@aws-sdk/client-dynamodb';
 import { fromIni } from '@aws-sdk/credential-providers';
-import type { DynamoTableMetadata, InfrawiseConfig } from '../../types.js';
+import type { DynamoIndexMetadata, DynamoTableMetadata, InfrawiseConfig } from '../../types.js';
 import { InfrawiseError, logger } from '../../core/index.js';
 
 function createDynamoClient(config: InfrawiseConfig): DynamoDBClient {
@@ -25,21 +25,27 @@ function parseTableDescription(desc: TableDescription): DynamoTableMetadata {
   const partitionKey = desc.KeySchema?.find((k) => k.KeyType === 'HASH')?.AttributeName;
   const sortKey = desc.KeySchema?.find((k) => k.KeyType === 'RANGE')?.AttributeName;
 
-  const indexes: string[] = [];
-
-  // Global secondary indexes
-  if (desc.GlobalSecondaryIndexes) {
-    for (const gsi of desc.GlobalSecondaryIndexes) {
-      if (gsi.IndexName) indexes.push(gsi.IndexName);
+  // KeySchema comes back on the same DescribeTable call. Keeping only the name
+  // would leave a caller unable to tell whether an index covers its query.
+  const indexes: DynamoIndexMetadata[] = [];
+  const collectIndexes = (
+    list: NonNullable<TableDescription['GlobalSecondaryIndexes' | 'LocalSecondaryIndexes']>,
+    indexType: 'GSI' | 'LSI',
+  ) => {
+    for (const idx of list) {
+      if (!idx.IndexName) continue;
+      indexes.push({
+        name: idx.IndexName,
+        indexType,
+        partitionKey: idx.KeySchema?.find((k) => k.KeyType === 'HASH')?.AttributeName,
+        sortKey: idx.KeySchema?.find((k) => k.KeyType === 'RANGE')?.AttributeName,
+        projectionType: idx.Projection?.ProjectionType,
+      });
     }
-  }
+  };
 
-  // Local secondary indexes
-  if (desc.LocalSecondaryIndexes) {
-    for (const lsi of desc.LocalSecondaryIndexes) {
-      if (lsi.IndexName) indexes.push(lsi.IndexName);
-    }
-  }
+  if (desc.GlobalSecondaryIndexes) collectIndexes(desc.GlobalSecondaryIndexes, 'GSI');
+  if (desc.LocalSecondaryIndexes) collectIndexes(desc.LocalSecondaryIndexes, 'LSI');
 
   const billingMode = desc.BillingModeSummary?.BillingMode;
   const provisionedThroughput =

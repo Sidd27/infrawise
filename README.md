@@ -180,7 +180,7 @@ Add to your editor's MCP config:
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
 | `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys/billing mode, cost signal (no row data) |
 | `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions; returns every same-named file as a separate match |
-| `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute                                                           |
+| `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute — names the existing index instead when one already covers it |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
 | `mysql_index_suggestions`    | Exact `ALTER TABLE ADD INDEX` SQL for your MySQL table                                                      |
@@ -201,7 +201,7 @@ Add to your editor's MCP config:
 
 Every response carries a `dataHealth` block with a fixed shape: when the infrastructure was read and how long ago, the status of each source behind that answer, whether `cdk.out` has been synthed since, and the command that refreshes. Every key is always present, so nothing has to be inferred from a field's absence — an empty result you can't distinguish from a failed one reads as "no queues need a DLQ" when the truth is "SQS was never listed".
 
-Infrawise reports; it doesn't rule. Pass `maxAgeSeconds` when a question is point-in-time and the answer tells you whether the data meets it. `infrawise analyze` and `infrawise check` print the same source warnings and stop calling a run clean when any source went unread.
+Infrawise reports; it doesn't rule. Pass `maxAgeSeconds` when a question is point-in-time and the answer tells you whether the data meets it (advisory — the data still comes back, marked). A running server rechecks the cache on each tool call, so an open session picks up a fresh `infrawise analyze` on its next question, without a restart. `infrawise analyze` and `infrawise check` print the same source warnings and stop calling a run clean when any source went unread.
 
 Age is a proxy for drift, not drift itself — a three-day-old snapshot of an untouched account is accurate, and a five-minute-old one taken before a `terraform apply` isn't. [How Infrawise handles staleness](https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/) covers where that proxy misleads and what to do about it; the [data freshness reference](https://sidd27.github.io/infrawise/reference/data-freshness/) is the field-by-field table and the `freshness` config key.
 

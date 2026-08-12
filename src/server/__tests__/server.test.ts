@@ -4,12 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import {
-  createServer,
-  createMcpServer,
-  setGraphState,
-  setSuggestRefreshAfterHours,
-} from '../index.js';
+import { createServer, createMcpServer, setGraphState, setServerConfig } from '../index.js';
 import type { SystemGraph, Finding } from '../../types.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
@@ -139,9 +134,12 @@ describe('MCP Server — tool results', () => {
     expect(data.summary.findings.medium).toBe(1);
     expect(data.highFindings).toHaveLength(1);
     expect(data.highFindings[0].issue).toBe('Full table scan');
-    expect(data.dataHealth.suggestRefresh).toBe(false);
-    expect(typeof data.dataHealth.analyzedAt).toBe('string');
-    expect(data.dataHealth.ageSeconds).toBeGreaterThanOrEqual(0);
+    // No provenance loaded, so there is no cloud read time to report. Freshness
+    // is derived from provenance alone: absent it, the honest answer is "no
+    // claim" rather than a timestamp describing when this graph object was built.
+    expect(data.dataHealth.analyzedAt).toBeNull();
+    expect(data.dataHealth.ageSeconds).toBeNull();
+    expect(data.dataHealth.suggestRefresh).toBe(true);
   });
 
   it('get_graph_summary returns all nodes and edges', async () => {
@@ -211,6 +209,84 @@ describe('MCP Server — tool results', () => {
     expect(data.index.name).toBe('Orders-userId-index');
     expect(data.index.partitionKey).toBe('userId');
     expect(data.found).toBe(true);
+  });
+
+  it('suggest_gsi names the existing index instead of proposing a duplicate', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+        {
+          id: 'index:Orders:Orders-userId-index',
+          type: 'index',
+          name: 'Orders-userId-index',
+          indexType: 'GSI',
+          partitionKey: 'userId',
+        },
+      ],
+      edges: [
+        { from: 'table:dynamo:Orders', to: 'index:Orders:Orders-userId-index', type: 'uses_index' },
+      ],
+    };
+    const c = await makeClient(graph, []);
+    try {
+      const data = await callTool(c, 'suggest_gsi', { table: 'Orders', attribute: 'userId' });
+      expect(data.alreadyIndexed).toBe(true);
+      expect(data.existingIndex.name).toBe('Orders-userId-index');
+      expect(data.index).toBeUndefined();
+      const other = await callTool(c, 'suggest_gsi', { table: 'Orders', attribute: 'status' });
+      expect(other.alreadyIndexed).toBe(false);
+      expect(other.index.name).toBe('Orders-status-index');
+    } finally {
+      await c.close();
+    }
+  });
+
+  it('analyze_function resolves triggers through the lambda-to-code link', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:src/handler.ts:processOrder',
+          type: 'function',
+          name: 'processOrder',
+          file: 'src/handler.ts',
+        },
+        {
+          id: 'lambda:aws:payments-prod-processOrder',
+          type: 'lambda',
+          name: 'payments-prod-processOrder',
+          runtime: 'nodejs22.x',
+          memoryMB: 512,
+          timeoutSec: 30,
+          triggers: [
+            {
+              type: 'sqs',
+              sourceName: 'orders',
+              sourceArn: 'arn:aws:sqs:us-east-1:1:orders',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
+      ],
+      edges: [
+        {
+          from: 'lambda:aws:payments-prod-processOrder',
+          to: 'function:src/handler.ts:processOrder',
+          type: 'implemented_by',
+          confidence: 'proven',
+        },
+      ],
+    };
+    const c = await makeClient(graph, []);
+    try {
+      const data = await callTool(c, 'analyze_function', { function: 'processOrder' });
+      expect(data.found).toBe(true);
+      expect(data.triggers).toHaveLength(1);
+      expect(data.triggers[0].eventShape).toBe('event.Records[0].body');
+      expect(data.resolvedLambda.lambda).toBe('payments-prod-processOrder');
+      expect(data.resolvedLambda.confidence).toBe('proven');
+    } finally {
+      await c.close();
+    }
   });
 
   it('suggest_gsi sanitizes special characters in attribute name', async () => {
@@ -518,7 +594,7 @@ describe('MCP Server — dataHealth envelope', () => {
   });
 
   async function clientWith(provenance: unknown) {
-    setGraphState(testGraph, testFindings, null, provenance as Parameters<typeof setGraphState>[3]);
+    setGraphState(testGraph, testFindings, provenance as Parameters<typeof setGraphState>[2]);
     const mcp = createMcpServer();
     const [st, ct] = InMemoryTransport.createLinkedPair();
     await mcp.connect(st);
@@ -605,14 +681,29 @@ describe('MCP Server — dataHealth envelope', () => {
     }
   });
 
+  it('reports the configured cloudwatchLogs window, not a fixed 24', async () => {
+    setServerConfig({ project: 'test', cloudwatchLogs: { enabled: true, windowHours: 6 } });
+    const client = await clientWith(prov());
+    try {
+      // The adapter scans this window; a hardcoded 24 here would state a window
+      // nobody used, and an agent reasoning about error rates divides by it.
+      expect((await callTool(client, 'get_log_errors')).windowHours).toBe(6);
+    } finally {
+      await client.close();
+      setServerConfig({ project: 'test' });
+    }
+  });
+
   it('honours a configured suggestRefreshAfterHours, then restores the default', async () => {
-    setSuggestRefreshAfterHours(1);
+    setServerConfig({ project: 'test', freshness: { suggestRefreshAfterHours: 1 } });
     const client = await clientWith(prov({ analyzedAt: Date.now() - 2 * 3600_000 }));
     try {
       expect((await callTool(client, 'get_queue_details')).dataHealth.suggestRefresh).toBe(true);
     } finally {
       await client.close();
-      setSuggestRefreshAfterHours(6);
+      // A config with no freshness key: restores the default without also
+      // marking the server unconfigured for the tests that follow.
+      setServerConfig({ project: 'test' });
     }
     const still = await clientWith(prov({ analyzedAt: Date.now() - 2 * 3600_000 }));
     try {
@@ -689,7 +780,7 @@ describe('MCP Server — cdk.out synth detection', () => {
   };
 
   async function clientWith(provenance: unknown) {
-    setGraphState(testGraph, testFindings, null, provenance as Parameters<typeof setGraphState>[3]);
+    setGraphState(testGraph, testFindings, provenance as Parameters<typeof setGraphState>[2]);
     const mcp = createMcpServer();
     const [st, ct] = InMemoryTransport.createLinkedPair();
     await mcp.connect(st);

@@ -89,7 +89,9 @@ resource "aws_sqs_queue" "archive" {
 resource "aws_lambda_function" "process_orders" {
   function_name = "processOrders"
   runtime       = "nodejs20.x"
-  handler       = "index.handler"
+  # Points at app/orders.ts:handler. The deployed name and the source function
+  # name share no string, so this handler path is the only thing that links them.
+  handler       = "orders.handler"
   role          = "arn:aws:iam::000000000000:role/demo-role"
   filename      = "placeholder.zip"
   memory_size   = 128

@@ -8,8 +8,6 @@ import { log, printHeader } from '../utils.js';
 import { runDiscover } from './discover.js';
 import { runAnalyze } from './analyze.js';
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-
 interface StartOptions {
   config?: string;
   claude?: boolean;
@@ -124,8 +122,8 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   setCacheDir(path.dirname(configAbsPath));
 
   // Check cache, re-analyze if stale
-  const cachedGraph = readCache<SystemGraph>('graph', CACHE_TTL_MS);
-  const cachedFindings = readCache<Finding[]>('findings', CACHE_TTL_MS);
+  const cachedGraph = readCache<SystemGraph>('graph');
+  const cachedFindings = readCache<Finding[]>('findings');
 
   if (cachedGraph && cachedFindings) {
     log.success(

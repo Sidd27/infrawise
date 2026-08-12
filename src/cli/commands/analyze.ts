@@ -536,6 +536,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     const s = mkSpinner('Building infrastructure graph...');
     graph = buildGraph(operations, dynamoMeta, postgresMeta, mysqlMeta, mongoMeta, servicesMeta);
     addStackOutputNodes(graph, iacOutputs);
+    A.addLambdaCodeLinks(graph, iacLambdas);
     s.succeed(
       chalk.green('Graph built') +
         chalk.dim(`  ${graph.nodes.length} nodes, ${graph.edges.length} edges`),
@@ -640,7 +641,7 @@ export async function runCodeRefresh(
 }> {
   // Same 24h TTL as the graph cache — a shorter TTL here silently dropped all
   // AWS/DB metadata from refreshed graphs once a serve/stdio session passed 1h.
-  const cached = readCache<CachedMeta>('meta', 24 * 60 * 60 * 1000);
+  const cached = readCache<CachedMeta>('meta');
   const dynamoMeta = cached?.dynamoMeta ?? [];
   const postgresMeta = cached?.postgresMeta ?? [];
   const mysqlMeta = cached?.mysqlMeta ?? [];
@@ -679,6 +680,7 @@ export async function runCodeRefresh(
     servicesMeta,
   );
   addStackOutputNodes(graph, iacOutputs);
+  A.addLambdaCodeLinks(graph, iacLambdas);
 
   const analyzers = buildAnalyzers(config, iacDriftSchema, iacLambdas);
   const findings = await A.runAllAnalyzers(graph, analyzers);

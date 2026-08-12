@@ -5,7 +5,13 @@ import cors from '@fastify/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import type { SystemGraph, Finding, GraphEdge, AnalysisProvenance } from '../types.js';
+import type {
+  SystemGraph,
+  Finding,
+  GraphEdge,
+  AnalysisProvenance,
+  InfrawiseConfig,
+} from '../types.js';
 import { logger } from '../core/index.js';
 
 const { version } = JSON.parse(
@@ -47,16 +53,19 @@ let currentFindings: Finding[] = [];
 // graph with no analysis. Surfaced via get_infra_overview so assistants can
 // judge how stale the facts are and decide to refresh.
 let analyzedAt: number | null = null;
-// The one verdict infrawise still renders. `ageSeconds` is the fact the caller
-// decides on; this is a coarse backstop for when it does not. Defaults well
-// below the 24h cache TTL — a working day is long enough for infrastructure to
-// move underneath a session — and `freshness.suggestRefreshAfterHours` tunes it
-// to how fast a given account actually changes.
-let suggestRefreshAfterMs = 6 * 60 * 60 * 1000;
-
-export function setSuggestRefreshAfterHours(hours: number | undefined): void {
-  if (hours !== undefined) suggestRefreshAfterMs = hours * 60 * 60 * 1000;
-}
+// Config the responses depend on. `suggestRefreshAfterMs` is the one verdict
+// infrawise still renders: `ageSeconds` is the fact the caller decides on, this
+// is a coarse backstop for when it does not, defaulting well below the 24h cache
+// TTL because a working day is long enough for infrastructure to move underneath
+// a session. `logWindowHours` is the window the log adapter actually scanned —
+// reporting a fixed 24 would state a window nobody used.
+//
+// Assigned together from one config so a value can never be left over from a
+// previous load, and so the next config key does not add a third setter.
+const DEFAULT_SUGGEST_REFRESH_HOURS = 6;
+const DEFAULT_LOG_WINDOW_HOURS = 24;
+let suggestRefreshAfterMs = DEFAULT_SUGGEST_REFRESH_HOURS * 60 * 60 * 1000;
+let logWindowHours = DEFAULT_LOG_WINDOW_HOURS;
 // False when the server booted without an infrawise.yaml (e.g. a hosted MCP
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
@@ -66,21 +75,30 @@ let configured = true;
 // than "everything succeeded" — an old cache must not assert completeness.
 let provenance: AnalysisProvenance | null = null;
 
-// `analyzedAtMs` is only a fallback for caches written before provenance carried
-// its own timestamp. When provenance is present it wins: it records when the
-// cloud was read, while the caller's value is merely when this graph object was
-// assembled — a code-only rebuild assembles a new graph from cloud data it never
-// re-read, and reporting that as freshness is a lie.
+// Freshness comes from provenance and nowhere else: provenance records when the
+// cloud was actually read. Any other timestamp available here — when this graph
+// object was assembled, when the cache file was written — describes a rebuild,
+// and a code-only rebuild re-reads no infrastructure at all. Deriving rather
+// than accepting a value makes "fresh graph, stale facts" unrepresentable.
 export function setGraphState(
   graph: SystemGraph,
   findings: Finding[],
-  analyzedAtMs: number | null = Date.now(),
   sourceProvenance: AnalysisProvenance | null = null,
 ): void {
   currentGraph = graph;
   currentFindings = findings;
   provenance = sourceProvenance;
-  analyzedAt = sourceProvenance?.analyzedAt ?? analyzedAtMs;
+  analyzedAt = sourceProvenance?.analyzedAt ?? null;
+}
+
+// How the server picks up an analysis written after it booted. Set by the CLI
+// bootstrap, which owns cache knowledge; returns null when nothing has changed.
+// Pull on access rather than a filesystem watcher: no debounce, no missed
+// events, no platform caveats, and no way for the watcher to die unnoticed.
+let reload: (() => { graph: SystemGraph; findings: Finding[] } | null) | null = null;
+
+export function setSnapshotLoader(fn: typeof reload): void {
+  reload = fn;
 }
 
 // ── Data health ──────────────────────────────────────────────────────────────
@@ -203,8 +221,11 @@ function dataHealth(
   };
 }
 
-export function setConfigured(value: boolean): void {
-  configured = value;
+export function setServerConfig(config: InfrawiseConfig | undefined): void {
+  configured = config !== undefined;
+  suggestRefreshAfterMs =
+    (config?.freshness?.suggestRefreshAfterHours ?? DEFAULT_SUGGEST_REFRESH_HOURS) * 60 * 60 * 1000;
+  logWindowHours = config?.cloudwatchLogs?.windowHours ?? DEFAULT_LOG_WINDOW_HOURS;
 }
 
 const NOT_CONFIGURED_HINT =
@@ -226,6 +247,10 @@ function logged<T extends Record<string, unknown>>(
   return async (args: T) => {
     const hasArgs = Object.keys(args).length > 0;
     logger.info(`→ ${name}${hasArgs ? `  ${JSON.stringify(args)}` : ''}`);
+    // Before the handler reads the graph, not after: an analysis that landed
+    // since the last call must be visible to this one, or "I re-ran analyze and
+    // nothing changed" is back.
+    reload?.();
     const result = await fn(args);
     const payload = JSON.parse(result.content[0].text) as object;
     return toText({
@@ -281,7 +306,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -355,7 +380,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -382,7 +407,15 @@ export function createMcpServer(): McpServer {
     {
       description:
         'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name; `ambiguous: true` means the name matched several files, so pick the entry whose file you are actually editing instead of assuming the first. Returns found: false if the function name was not discovered during analysis.',
-      inputSchema: z.object({ function: z.string().describe('Function name to analyze') }),
+      inputSchema: z.object({
+        function: z.string().describe('Function name to analyze'),
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
+      }),
     },
     logged('analyze_function', async ({ function: functionName }) => {
       // Function node ids are file-scoped, so one name can match several files.
@@ -393,9 +426,39 @@ export function createMcpServer(): McpServer {
       );
 
       // Also check if there's a Lambda node with this name (for AWS-deployed functions)
-      const lambdaNode = currentGraph.nodes.find(
-        (n) => n.type === 'lambda' && n.name === functionName,
-      );
+      const byName = currentGraph.nodes.find((n) => n.type === 'lambda' && n.name === functionName);
+
+      // Deployed names are usually stack-prefixed, so an exact match fails for
+      // most real accounts. The linkers already resolved which Lambda this
+      // source function implements; follow that before giving up on triggers.
+      //
+      // Several Lambdas can share one handler path (`index.handler` across a
+      // stack is the common case), so more than one can link to the same source
+      // function. Picking the first would attach one Lambda's triggers to code
+      // shared by all of them — the candidates are named instead.
+      const linkEdges = byName
+        ? []
+        : currentGraph.edges.filter(
+            (e) => e.type === 'implemented_by' && funcNodes.some((f) => f.id === e.to),
+          );
+      const lambdaNameOf = (id: string) => {
+        const n = currentGraph.nodes.find((x) => x.id === id);
+        return n && 'name' in n ? n.name : id;
+      };
+      const linkEdge = linkEdges.length === 1 ? linkEdges[0] : undefined;
+      const lambdaNode =
+        byName ?? (linkEdge ? currentGraph.nodes.find((n) => n.id === linkEdge.from) : undefined);
+      const resolvedVia =
+        linkEdge && linkEdge.type === 'implemented_by'
+          ? { lambda: lambdaNameOf(linkEdge.from), confidence: linkEdge.confidence }
+          : undefined;
+      const ambiguousLambdas =
+        linkEdges.length > 1
+          ? linkEdges.map((e) => ({
+              lambda: lambdaNameOf(e.from),
+              confidence: e.type === 'implemented_by' ? e.confidence : 'inferred',
+            }))
+          : undefined;
 
       if (funcNodes.length === 0 && !lambdaNode) {
         return toText({
@@ -463,6 +526,8 @@ export function createMcpServer(): McpServer {
         found: true,
         matches,
         ...(matches.length > 1 ? { ambiguous: true } : {}),
+        ...(resolvedVia ? { resolvedLambda: resolvedVia } : {}),
+        ...(ambiguousLambdas ? { candidateLambdas: ambiguousLambdas } : {}),
         triggers: allTriggers.map((t) => ({
           type: t.type,
           source: t.sourceName,
@@ -487,7 +552,7 @@ export function createMcpServer(): McpServer {
     'suggest_gsi',
     {
       description:
-        'Generates a ready-to-use DynamoDB GSI definition — index name, partition key, projection type, billing mode — for a given table and attribute. Call this when a query pattern needs an index that does not exist yet, or when the analyzer flags a missing GSI finding. Does not verify whether the GSI already exists; check the table schema in get_infra_overview first.',
+        "Generates a ready-to-use DynamoDB GSI definition — index name, partition key, projection type, billing mode — for a given table and attribute. Call this when a query pattern needs an index that does not exist yet, or when the analyzer flags a missing GSI finding. Checks the table's existing indexes first: when one is already keyed on that attribute it returns `alreadyIndexed: true` with the existing index name to use as `IndexName`, instead of proposing a duplicate. Use get_table_schema for the full index list on a table.",
       inputSchema: z.object({
         table: z.string().describe('DynamoDB table name'),
         attribute: z.string().describe('Attribute to create the GSI on'),
@@ -504,10 +569,39 @@ export function createMcpServer(): McpServer {
           'name' in n &&
           n.name === tableName,
       );
+
+      // Index nodes carry their key schema, so a GSI that already serves this
+      // attribute can be named instead of duplicated. Creating a second index
+      // on the same key costs write capacity on every write, forever.
+      const existing = tableNode
+        ? currentGraph.edges
+            .filter((e) => e.from === tableNode.id && e.type === 'uses_index')
+            .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
+            .find((n) => n?.type === 'index' && n.partitionKey === attribute)
+        : undefined;
+
+      if (existing?.type === 'index') {
+        return toText({
+          table: tableName,
+          attribute,
+          found: true,
+          alreadyIndexed: true,
+          existingIndex: {
+            name: existing.name,
+            indexType: existing.indexType,
+            partitionKey: existing.partitionKey,
+            sortKey: existing.sortKey,
+            projectionType: existing.projectionType,
+          },
+          recommendation: `No new index needed. Query "${tableName}" with IndexName: "${existing.name}" — it is already keyed on "${attribute}".`,
+        });
+      }
+
       return toText({
         table: tableName,
         attribute,
         found: !!tableNode,
+        alreadyIndexed: false,
         index: {
           name: indexName,
           partitionKey: attribute,
@@ -613,7 +707,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -652,12 +746,18 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
     logged('get_topic_details', async () => {
       const topics = getTopicNodes(currentGraph);
+      const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
+      const namesFor = (topicId: string, edgeType: 'publishes_to' | 'subscribes_to') =>
+        currentGraph.edges
+          .filter((e) => e.to === topicId && e.type === edgeType)
+          .map((e) => nodeMap.get(e.from))
+          .flatMap((n) => (n && 'name' in n ? [n.name] : []));
       return toText({
         total: topics.length,
         topics: topics.map((t) => ({
@@ -665,6 +765,8 @@ export function createMcpServer(): McpServer {
           provider: t.provider,
           subscriptionCount: t.subscriptionCount,
           encrypted: t.encrypted,
+          producers: namesFor(t.id, 'publishes_to'),
+          consumers: namesFor(t.id, 'subscribes_to'),
           filterPolicies: t.filterPolicies ?? [],
         })),
       });
@@ -681,7 +783,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -717,7 +819,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -746,7 +848,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -803,7 +905,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -837,7 +939,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -873,7 +975,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -901,6 +1003,12 @@ export function createMcpServer(): McpServer {
         'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
       inputSchema: z.object({
         logGroup: z.string().describe('Filter to a specific log group name (optional)').optional(),
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
       }),
     },
     logged('get_log_errors', async ({ logGroup: filterName }) => {
@@ -909,7 +1017,7 @@ export function createMcpServer(): McpServer {
       );
       return toText({
         note: 'Only error patterns and counts are returned — no raw log messages.',
-        windowHours: 24,
+        windowHours: logWindowHours,
         logGroups: logGroups.map((lg) => ({
           name: lg.name,
           retentionDays: lg.retentionDays ?? 'never-expires',
@@ -931,6 +1039,12 @@ export function createMcpServer(): McpServer {
           .min(1)
           .max(20)
           .describe('Table or collection names to fetch schemas for'),
+        maxAgeSeconds: z
+          .number()
+          .optional()
+          .describe(
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+          ),
       }),
     },
     logged('get_table_schema', async ({ tables }) => {
@@ -939,7 +1053,21 @@ export function createMcpServer(): McpServer {
         currentGraph.edges
           .filter((e) => e.from === nodeId && e.type === 'uses_index')
           .map((e) => currentGraph.nodes.find((n) => n.id === e.to))
-          .flatMap((n) => (n?.type === 'index' ? [n.name] : []));
+          .flatMap((n) =>
+            n?.type === 'index'
+              ? [
+                  n.partitionKey === undefined
+                    ? { name: n.name }
+                    : {
+                        name: n.name,
+                        indexType: n.indexType,
+                        partitionKey: n.partitionKey,
+                        ...(n.sortKey ? { sortKey: n.sortKey } : {}),
+                        ...(n.projectionType ? { projectionType: n.projectionType } : {}),
+                      },
+                ]
+              : [],
+          );
 
       const results = tables.map((requested) => {
         const lower = requested.toLowerCase();
@@ -996,7 +1124,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -1040,7 +1168,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -1102,7 +1230,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -1141,7 +1269,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },
@@ -1170,7 +1298,7 @@ export function createMcpServer(): McpServer {
           .number()
           .optional()
           .describe(
-            'Refuse to answer from an analysis older than this many seconds. Use a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
           ),
       }),
     },

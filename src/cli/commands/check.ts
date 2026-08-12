@@ -1,6 +1,7 @@
 import * as path from 'path';
 import chalk from 'chalk';
 import { readCache, setCacheDir } from '../../core/index.js';
+
 import { SEVERITY_ORDER, type Finding, type AnalysisProvenance } from '../../types.js';
 import { printFinding, log, printHeader } from '../utils.js';
 import { runAnalyze } from './analyze.js';
@@ -21,6 +22,9 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   await runAnalyze({ config: options.config, repo: options.repo, silent: true });
 
   setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
+  // 24h, matching the graph cache. On readCache's 1h default an analysis that
+  // took longer than an hour read back as no findings — a green CI gate meaning
+  // "nothing was read" rather than "nothing is wrong".
   const findings = readCache<Finding[]>('findings') ?? [];
 
   const violations = findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold);

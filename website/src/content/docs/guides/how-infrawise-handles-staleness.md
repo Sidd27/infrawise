@@ -72,3 +72,5 @@ A solo project where infrastructure changes monthly should raise it; a shared ac
 **Ask your assistant to date its claims.** This costs nothing and does the most work. `dataHealth.analyzedAt` is in every response, but nothing makes an assistant repeat it to you. A line in your `CLAUDE.md` or equivalent — *when stating infrastructure facts from Infrawise, include when the snapshot was taken* — puts "as of Monday 3pm" next to the DLQ claim, where you will see it before you act on it. Machine-readable metadata that never reaches the human protects nobody.
 
 **Re-analyze at the boundaries that matter.** Before a release, after someone else's deploy, when picking a session back up the next morning. `infrawise analyze` is the refresh, and `infrawise check` runs a fresh analysis every time by design, so CI never reads from a cache.
+
+You do not need to restart anything to pick that up. A running MCP server rechecks its cache on every tool call, so running `infrawise analyze` in a second terminal reaches the session your editor already has open, on its next question.

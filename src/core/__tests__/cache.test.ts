@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeCache, readCache } from '../cache.js';
+import * as os from 'os';
+import { writeCache, readCache, setCacheDir, CACHE_TTL_MS } from '../cache.js';
 
 const CACHE_DIR = path.join(process.cwd(), '.infrawise', 'cache');
 
@@ -20,16 +21,18 @@ describe('writeCache / readCache', () => {
     expect(readCache('nonexistent')).toBeNull();
   });
 
-  it('returns null when cache entry has expired', () => {
+  it('returns null once an entry passes the 24h TTL', () => {
     writeCache('expiring-key', { data: 1 });
-    const result = readCache('expiring-key', -1);
-    expect(result).toBeNull();
+    const file = path.join(CACHE_DIR, 'expiring-key.json');
+    const entry = JSON.parse(fs.readFileSync(file, 'utf8')) as { timestamp: number };
+    entry.timestamp -= CACHE_TTL_MS + 1000;
+    fs.writeFileSync(file, JSON.stringify(entry));
+    expect(readCache('expiring-key')).toBeNull();
   });
 
-  it('returns data when within maxAgeMs', () => {
+  it('returns data inside the TTL', () => {
     writeCache('fresh-key', { data: 42 });
-    const result = readCache<{ data: number }>('fresh-key', 60000);
-    expect(result?.data).toBe(42);
+    expect(readCache<{ data: number }>('fresh-key')?.data).toBe(42);
   });
 
   it('returns null when cache file is corrupted', () => {
@@ -59,5 +62,25 @@ describe('writeCache / readCache', () => {
 
     writeCache('number-key', 99);
     expect(readCache<number>('number-key')).toBe(99);
+  });
+});
+
+describe('atomic writes', () => {
+  // The real hazard is cross-process: `infrawise analyze` writes while the MCP
+  // server's cache watcher reads. Reproducing a torn read needs two processes
+  // racing, which is not worth the flake here — the guarantee comes from rename
+  // being atomic within a directory. What is checked: the entry survives a
+  // rewrite intact and no temp file is left behind to be mistaken for a key.
+  it('leaves no temp file and keeps the entry readable across rewrites', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-atomic-'));
+    setCacheDir(dir);
+    const big = { nodes: Array.from({ length: 5000 }, (_, i) => ({ id: `n${i}` })) };
+
+    writeCache('graph', { nodes: [{ id: 'old' }] });
+    for (let i = 0; i < 5; i++) writeCache('graph', big);
+
+    expect(readCache<typeof big>('graph')?.nodes).toHaveLength(5000);
+    expect(fs.readdirSync(path.join(dir, '.infrawise', 'cache'))).toEqual(['graph.json']);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });
