@@ -616,10 +616,21 @@ describe('MCP Server — dataHealth envelope', () => {
         'region',
         'requestedMaxAgeSeconds',
         'sources',
+        'sourcesAttempted',
+        'sourcesDisabled',
+        'sourcesFailed',
+        'sourcesPartial',
+        'sourcesSucceeded',
         'suggestRefresh',
         'withinRequestedAge',
       ]);
       expect(data.dataHealth.sources).toEqual([{ service: 'lambda', status: 'ok', error: null }]);
+      // per-tool rollup reflects only the tool-scoped sources above
+      expect(data.dataHealth.sourcesAttempted).toBe(1);
+      expect(data.dataHealth.sourcesSucceeded).toBe(1);
+      expect(data.dataHealth.sourcesPartial).toEqual([]);
+      expect(data.dataHealth.sourcesFailed).toEqual([]);
+      expect(data.dataHealth.sourcesDisabled).toBe(0);
       expect(data.dataHealth.refreshWith).toBe('infrawise analyze');
     } finally {
       await client.close();
@@ -636,6 +647,21 @@ describe('MCP Server — dataHealth envelope', () => {
       // The cached graph still holds whatever the last good read found. The
       // point is that the caller can see the list is not authoritative.
       expect(data.dataHealth.sources[0].status).toBe('failed');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('rolls up sources at graph scope: attempted vs succeeded vs failed/disabled', async () => {
+    const client = await clientWith(prov());
+    try {
+      const data = await callTool(client, 'get_infra_overview');
+      // sqs failed + lambda ok + s3 disabled → attempted 2, succeeded 1
+      expect(data.dataHealth.sourcesAttempted).toBe(2);
+      expect(data.dataHealth.sourcesSucceeded).toBe(1);
+      expect(data.dataHealth.sourcesPartial).toEqual([]);
+      expect(data.dataHealth.sourcesFailed).toEqual(['sqs']);
+      expect(data.dataHealth.sourcesDisabled).toBe(1);
     } finally {
       await client.close();
     }

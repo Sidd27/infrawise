@@ -10,6 +10,7 @@ import type {
   Finding,
   GraphEdge,
   AnalysisProvenance,
+  SourceStatus,
   InfrawiseConfig,
 } from '../types.js';
 import { logger } from '../core/index.js';
@@ -196,12 +197,43 @@ function withNodeSource(nodes: SystemGraph['nodes']) {
   });
 }
 
+// Compact rollup of the per-source array — the "eligible_seen at a glance":
+// how many sources were actually queried this run vs fully succeeded, and
+// exactly which ones came back partial or failed. Computed from the SAME
+// tool-scoped `sources` list that is returned, so the rollup always agrees
+// with the per-source detail below it.
+interface SourceRollup {
+  /** Sources actually queried this run (ok + failed + partial — excludes disabled). */
+  sourcesAttempted: number;
+  /** Sources that fully succeeded. */
+  sourcesSucceeded: number;
+  /** Service names with partial data — gap, but usable. */
+  sourcesPartial: string[];
+  /** Service names that errored — their results are stale or empty. */
+  sourcesFailed: string[];
+  /** Sources configured out (not enabled in infrawise.yaml). */
+  sourcesDisabled: number;
+}
+
+function rollupSources(
+  sources: { service: string; status: SourceStatus['status'] }[],
+): SourceRollup {
+  return {
+    sourcesAttempted: sources.filter((s) => s.status !== 'disabled').length,
+    sourcesSucceeded: sources.filter((s) => s.status === 'ok').length,
+    sourcesPartial: sources.filter((s) => s.status === 'partial').map((s) => s.service),
+    sourcesFailed: sources.filter((s) => s.status === 'failed').map((s) => s.service),
+    sourcesDisabled: sources.filter((s) => s.status === 'disabled').length,
+  };
+}
+
 function dataHealth(
   tool: { name: string; service?: string; sources?: string[] } | undefined,
   maxAgeSeconds: unknown,
 ) {
   const ageSeconds = analyzedAt === null ? null : Math.round((Date.now() - analyzedAt) / 1000);
   const requested = typeof maxAgeSeconds === 'number' ? maxAgeSeconds : null;
+  const sources = sourcesFor(tool);
   return {
     dataHealth: {
       analyzedAt: analyzedAt === null ? null : new Date(analyzedAt).toISOString(),
@@ -215,7 +247,8 @@ function dataHealth(
         requested === null || ageSeconds === null ? null : ageSeconds <= requested,
       region: provenance?.region ?? null,
       profile: provenance?.profile ?? null,
-      sources: sourcesFor(tool),
+      sources,
+      ...rollupSources(sources),
       iac: iacHealth(),
     },
   };
@@ -300,7 +333,7 @@ export function createMcpServer(): McpServer {
     'get_infra_overview',
     {
       description:
-        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. Every response (this one included) carries a `dataHealth` block with a fixed shape: `analyzedAt`/`ageSeconds` for when the infrastructure was read, per-source `status`, `iac` for whether cdk.out was synthed since, and `refreshWith`. On this tool `dataHealth.sources` covers every source rather than one tool\'s. A source that is not `ok` means an empty result is "not read", not "none exist".',
+        'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. Every response (this one included) carries a `dataHealth` block with a fixed shape: `analyzedAt`/`ageSeconds` for when the infrastructure was read, per-source `status`, the rollup (`sourcesAttempted`/`sourcesSucceeded`/`sourcesPartial`/`sourcesFailed`/`sourcesDisabled`), `iac` for whether cdk.out was synthed since, and `refreshWith`. On this tool `dataHealth.sources` covers every source rather than one tool\'s. A source that is not `ok` means an empty result is "not read", not "none exist".',
       inputSchema: z.object({
         maxAgeSeconds: z
           .number()
