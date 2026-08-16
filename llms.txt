@@ -18,6 +18,7 @@ Infrawise answers all of these via 22 MCP tools served over Streamable HTTP.
 - [README](https://github.com/Sidd27/infrawise/blob/main/README.md)
 - [MCP tool reference](https://github.com/Sidd27/infrawise/blob/main/AGENTS.md)
 - [AI agent instructions](https://github.com/Sidd27/infrawise/blob/main/AGENTS.md)
+- release gate: `pnpm check:docs` keeps the version and this MCP tool list in sync with `src/server/index.ts`
 
 ## Quick start
 

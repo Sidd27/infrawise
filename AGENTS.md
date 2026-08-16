@@ -33,6 +33,8 @@
 
 Before running `pnpm release <patch|minor|major>`, every item below must be current. Check each one — do not skip.
 
+Run `pnpm check:docs` — it fails if the version (`package.json`/`server.json`/website) or the MCP tool list in `README.md`/`AGENTS.md`/`llms.txt` drifted from `src/server/index.ts`. Fix the docs; do not release with it red.
+
 **Files to verify are in sync:**
 
 | File | What to check |
