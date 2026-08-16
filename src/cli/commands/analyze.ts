@@ -8,12 +8,14 @@ import {
   writeCache,
   readCache,
   setCacheDir,
+  PartialExtractionError,
+} from '../../core/index.js';
+import {
   recordRunTiming,
   estimateExtractionMs,
   slowestSources,
   formatDuration,
-  PartialExtractionError,
-} from '../../core/index.js';
+} from '../../core/eta.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
