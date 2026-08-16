@@ -1,0 +1,15 @@
+# Normalize line endings to LF everywhere. The repo blobs are already LF and
+# prettier writes LF, but Git-for-Windows' default core.autocrlf=true checks
+# text out as CRLF — so every commit re-dirtied the whole tree with line-ending
+# churn. eol=lf (not just text=auto) pins the working tree to LF on all platforms.
+* text=auto eol=lf
+
+# Binary files — never normalize or diff as text
+*.gif binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
