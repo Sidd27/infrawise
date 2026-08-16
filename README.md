@@ -217,7 +217,7 @@ Age is a proxy for drift, not drift itself — a three-day-old snapshot of an un
 | `infrawise start --vscode`    | Same as above, then opens VS Code (merges into `.vscode/mcp.json`)                |
 | `infrawise start --interactive` | Run the guided setup wizard instead of auto-discovery                           |
 | `infrawise start --rediscover` | Delete `infrawise.yaml` + `.infrawise/`, then re-probe and re-analyze            |
-| `infrawise analyze`           | Force a full re-scan — useful after major infrastructure changes                  |
+| `infrawise analyze`           | Force a full re-scan with extraction progress and a time estimate from past runs — useful after major infrastructure changes                  |
 | `infrawise check`             | CI gate — analyze and exit non-zero when findings reach the threshold severity    |
 | `infrawise serve`             | Start the MCP server — HTTP by default, or `--stdio` for editor integration       |
 | `infrawise doctor`            | Diagnostic escape hatch — validate AWS/DB access, config, and repo scan            |

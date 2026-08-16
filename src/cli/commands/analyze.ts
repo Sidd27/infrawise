@@ -8,6 +8,10 @@ import {
   writeCache,
   readCache,
   setCacheDir,
+  recordRunTiming,
+  estimateExtractionMs,
+  slowestSources,
+  formatDuration,
   PartialExtractionError,
 } from '../../core/index.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
@@ -113,8 +117,36 @@ function mkSpinner(text: string) {
 // from "never read it".
 let sourceStatuses: SourceStatus[] = [];
 
-// Runs one extractor, printing a static completion line (never a spinner, so many
-// can run concurrently without corrupting each other's output). Warns and returns
+// Extraction timing bookkeeping for the progress spinner and the ETA line. Kept
+// out of sourceStatuses on purpose — that array becomes dataHealth.sources, whose
+// shape is a fixed MCP contract and must not grow.
+const extractionTimings: Record<string, number> = {};
+let extractionTotal = 0;
+let extractionProgress: {
+  done: number;
+  estimatedMs: number | null;
+  startedAt: number;
+  spinner: ReturnType<typeof mkSpinner>;
+} | null = null;
+
+function noteExtractionProgress(service: string, durationMs: number): void {
+  extractionTimings[service] = durationMs;
+  if (!extractionProgress) return;
+  extractionProgress.done++;
+  const elapsed = Date.now() - extractionProgress.startedAt;
+  const remaining =
+    extractionProgress.estimatedMs === null
+      ? null
+      : Math.max(0, extractionProgress.estimatedMs - elapsed);
+  const eta = remaining === null ? '' : `, ~${formatDuration(remaining)} left`;
+  extractionProgress.spinner.text = chalk.dim(
+    `Extracting infrastructure in parallel... ${extractionProgress.done}/${extractionTotal} sources${eta}`,
+  );
+}
+
+// Runs one extractor, printing a static completion line so concurrent extractors
+// never corrupt each other's output (the shared progress spinner above is updated
+// through ora, which redraws around interleaved writes). Warns and returns
 // undefined on failure so a single service never aborts the whole analysis, and
 // never rejects — safe to pass straight into Promise.all. The failure is recorded
 // rather than only logged: a warning on a terminal nobody read is not a signal.
@@ -125,14 +157,18 @@ async function extract<T>(
   fn: () => Promise<T>,
   summarize: (result: T) => string,
 ): Promise<T | undefined> {
+  extractionTotal++;
+  const startedAt = Date.now();
   if (!enabled) {
     sourceStatuses.push({ service, status: 'disabled' });
+    noteExtractionProgress(service, Date.now() - startedAt);
     return undefined;
   }
   try {
     const result = await fn();
     log.success(label, summarize(result));
     sourceStatuses.push({ service, status: 'ok' });
+    noteExtractionProgress(service, Date.now() - startedAt);
     return result;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -142,10 +178,12 @@ async function extract<T>(
       const result = err.data as T;
       log.warn(`${label} incomplete`, error);
       sourceStatuses.push({ service, status: 'partial', error });
+      noteExtractionProgress(service, Date.now() - startedAt);
       return result;
     }
     log.warn(`${label} skipped`, error);
     sourceStatuses.push({ service, status: 'failed', error });
+    noteExtractionProgress(service, Date.now() - startedAt);
     return undefined;
   }
 }
@@ -306,7 +344,22 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     }
   })();
 
-  if (!options.silent) log.info('Extracting infrastructure in parallel...');
+  const extractionStartedAt = Date.now();
+  if (!options.silent) {
+    const estimated = estimateExtractionMs();
+    if (estimated) {
+      log.info(
+        `Estimated extraction time: ~${formatDuration(estimated.totalMs)} (from ${estimated.runs} previous run(s))`,
+      );
+    }
+    const spinner = mkSpinner('Extracting infrastructure in parallel...');
+    extractionProgress = {
+      done: 0,
+      estimatedMs: estimated?.totalMs ?? null,
+      startedAt: extractionStartedAt,
+      spinner,
+    };
+  }
 
   const [
     dynamoRes,
@@ -473,6 +526,21 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     iacTask,
     repoTask,
   ]);
+
+  const extractionTotalMs = Date.now() - extractionStartedAt;
+  if (!options.noCache) recordRunTiming(extractionTotalMs, extractionTimings);
+  if (extractionProgress) {
+    const slowest = slowestSources(extractionTimings)
+      .map(([service, ms]) => `${service} ${formatDuration(ms)}`)
+      .join(', ');
+    extractionProgress.spinner.succeed(
+      chalk.green('Extraction complete') +
+        chalk.dim(
+          `  ${formatDuration(extractionTotalMs)}${slowest ? ` · slowest: ${slowest}` : ''}`,
+        ),
+    );
+    extractionProgress = null;
+  }
 
   const dynamoMeta = dynamoRes ?? [];
   const postgresMeta = postgresRes ?? [];
