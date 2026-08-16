@@ -2,7 +2,12 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { readCache, setCacheDir } from '../../core/index.js';
 
-import { SEVERITY_ORDER, type Finding, type AnalysisProvenance } from '../../types.js';
+import {
+  SEVERITY_ORDER,
+  type Finding,
+  type AnalysisProvenance,
+  type SourceStatus,
+} from '../../types.js';
 import { printFinding, log, printHeader } from '../utils.js';
 import { runAnalyze } from './analyze.js';
 
@@ -12,9 +17,25 @@ interface CheckOptions {
   failOn?: 'high' | 'medium' | 'low';
 }
 
+export interface CheckEvaluation {
+  violations: Finding[];
+  failedSources: SourceStatus[];
+}
+
+export function evaluateCheck(
+  findings: Finding[],
+  failOn: 'high' | 'medium' | 'low' = 'high',
+  sources: SourceStatus[] = [],
+): CheckEvaluation {
+  const threshold = SEVERITY_ORDER[failOn] ?? 3;
+  return {
+    violations: findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold),
+    failedSources: sources.filter((s) => s.status === 'failed'),
+  };
+}
+
 export async function runCheck(options: CheckOptions = {}): Promise<void> {
   const failOn = options.failOn ?? 'high';
-  const threshold = SEVERITY_ORDER[failOn] ?? 3;
 
   printHeader('Infrawise Check');
 
@@ -27,13 +48,10 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   // "nothing was read" rather than "nothing is wrong".
   const findings = readCache<Finding[]>('findings') ?? [];
 
-  const violations = findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold);
-
-  // A source that failed to extract produces no findings, which is not the same
-  // as producing no problems. Say so before any pass/fail line, so a green check
-  // on half-read infrastructure cannot be mistaken for a clean one.
-  const failedSources = (readCache<AnalysisProvenance>('provenance')?.sources ?? []).filter(
-    (s) => s.status === 'failed',
+  const { violations, failedSources } = evaluateCheck(
+    findings,
+    failOn,
+    readCache<AnalysisProvenance>('provenance')?.sources ?? [],
   );
   if (failedSources.length > 0) {
     console.log('');
