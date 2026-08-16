@@ -12,7 +12,7 @@ import type {
   AnalysisProvenance,
   InfrawiseConfig,
 } from '../types.js';
-import { logger } from '../core/index.js';
+import { logger, consecutiveSourceFailures } from '../core/index.js';
 
 const { version } = JSON.parse(
   readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
@@ -110,6 +110,15 @@ export function setSnapshotLoader(fn: typeof reload): void {
 
 const NO_PROVENANCE = 'analysis predates source tracking — re-run `infrawise analyze`';
 
+// A source that fails once reads as an environment blip; a source that fails on
+// consecutive runs reads as a recurring problem the agent should weigh against
+// every answer that rests on it. Enriched into the existing `error` value — the
+// key set of dataHealth is unchanged, only the value carries the streak.
+function withFailureHistory(service: string, error: string): string {
+  const n = consecutiveSourceFailures(service);
+  return n >= 2 ? `${error} (${n} consecutive failures)` : error;
+}
+
 // Sources this tool's answer rests on. Scoped per tool so the block stays
 // bounded, fixed per tool so the shape stays stable. Tools with no gating
 // service (get_infra_overview, get_graph_summary) speak for the whole graph and
@@ -120,7 +129,14 @@ function sourcesFor(tool: { name: string; service?: string; sources?: string[] }
   const wanted = graphWide ? null : [tool.service, ...(tool.sources ?? [])].filter(Boolean);
   return provenance.sources
     .filter((s) => wanted === null || wanted.includes(s.service))
-    .map((s) => ({ service: s.service, status: s.status, error: s.error ?? null }));
+    .map((s) => ({
+      service: s.service,
+      status: s.status,
+      error:
+        s.status === 'failed' && s.error
+          ? withFailureHistory(s.service, s.error)
+          : (s.error ?? null),
+    }));
 }
 
 // Has `cdk synth` run since the analysis? The two existing checks in the IaC

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { CacheEntry } from '../types.js';
+import type { CacheEntry, SourceStatus } from '../types.js';
 
 const CACHE_VERSION = '1.0.0';
 let cacheDir = path.join(process.cwd(), '.infrawise', 'cache');
@@ -62,4 +62,57 @@ export function readCache<T>(key: string): T | null {
 // analysis freshness. null if the entry is missing or unreadable.
 export function readCacheTimestamp(key: string): number | null {
   return readEntry(key)?.timestamp ?? null;
+}
+
+// Per-source failure history: one entry per analysis run, appended so the server
+// can tell a first-time failure from a recurring one. Deliberately not a
+// CacheEntry — it is an append log, not a snapshot, and it must survive the 24h
+// TTL that expires the analysis entries.
+const SOURCE_HISTORY_LIMIT = 20;
+
+interface SourceHistoryRun {
+  at: number;
+  failed: string[];
+}
+
+function sourceHistoryPath(): string {
+  return path.join(cacheDir, 'source-history.json');
+}
+
+function readSourceHistory(): SourceHistoryRun[] {
+  const filePath = sourceHistoryPath();
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
+    return Array.isArray(parsed) ? (parsed as SourceHistoryRun[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Records which sources failed on this analysis run. Called by the CLI after
+// extraction; the MCP server only reads, so the two share one history.
+export function appendSourceHistory(sources: SourceStatus[]): void {
+  ensureCacheDir();
+  const history = readSourceHistory();
+  history.push({
+    at: Date.now(),
+    failed: sources.filter((s) => s.status === 'failed').map((s) => s.service),
+  });
+  const trimmed = history.slice(-SOURCE_HISTORY_LIMIT);
+  const filePath = sourceHistoryPath();
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(trimmed), 'utf-8');
+  fs.renameSync(tmpPath, filePath);
+}
+
+// How many consecutive analysis runs (most recent first) a source has failed.
+// 0 means the source did not fail the latest run (or history is empty).
+export function consecutiveSourceFailures(service: string): number {
+  let count = 0;
+  for (const run of [...readSourceHistory()].reverse()) {
+    if (run.failed.includes(service)) count++;
+    else break;
+  }
+  return count;
 }

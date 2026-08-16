@@ -5,6 +5,7 @@ import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer, createMcpServer, setGraphState, setServerConfig } from '../index.js';
+import { setCacheDir, appendSourceHistory } from '../../core/index.js';
 import type { SystemGraph, Finding } from '../../types.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
@@ -766,6 +767,33 @@ describe('MCP Server — dataHealth envelope', () => {
       expect(lambda.sourceStatus).toBe('ok');
     } finally {
       await client.close();
+    }
+  });
+
+  it('annotates a failed source with its consecutive-failure streak', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-history-'));
+    setCacheDir(dir);
+    try {
+      appendSourceHistory([
+        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
+      ]);
+      appendSourceHistory([
+        { service: 'sqs', status: 'failed', error: 'AccessDenied: sqs:ListQueues' },
+      ]);
+      const client = await clientWith(prov());
+      try {
+        const data = await callTool(client, 'get_infra_overview');
+        const sqs = data.dataHealth.sources.find((s: { service: string }) => s.service === 'sqs');
+        expect(sqs.error).toBe('AccessDenied: sqs:ListQueues (2 consecutive failures)');
+        const lambda = data.dataHealth.sources.find(
+          (s: { service: string }) => s.service === 'lambda',
+        );
+        expect(lambda.error).toBeNull();
+      } finally {
+        await client.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

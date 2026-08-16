@@ -43,7 +43,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 ## MCP tools (22 total)
 
 - `get_infra_overview` — full snapshot of all infrastructure, start here
-- every response carries `dataHealth`: when the infra was read, per-source status, cdk.out synth state, and how to refresh
+- every response carries `dataHealth`: when the infra was read, per-source status, cdk.out synth state, and how to refresh; a failed source's `error` shows its consecutive-failure streak from the analysis history (e.g. `(2 consecutive failures)`)
 - every resource-state tool takes an optional `maxAgeSeconds`; it is advisory — the answer reports whether it met it and returns the data either way
 - a running server rechecks the cache on every tool call, so a fresh `infrawise analyze` reaches the next call; no restart needed
 - `dataHealth.suggestRefresh` flips past 6h by default, tunable via `freshness.suggestRefreshAfterHours` in infrawise.yaml — see https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/ for what age does and does not tell you

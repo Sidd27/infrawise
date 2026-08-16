@@ -8,6 +8,7 @@ import {
   writeCache,
   readCache,
   setCacheDir,
+  appendSourceHistory,
   PartialExtractionError,
 } from '../../core/index.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
@@ -571,6 +572,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       analyzedAt: Date.now(),
       cdkOutDir: path.join(repoPath, 'cdk.out'),
     } satisfies AnalysisProvenance);
+    appendSourceHistory(sourceStatuses);
   }
 
   // ── Output ────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 | `requestedMaxAgeSeconds` | Echoes the `maxAgeSeconds` you passed. `null` when you passed none |
 | `withinRequestedAge` | Whether the data meets it. `null` when no tolerance was requested |
 | `region` / `profile` | Which account context produced the snapshot. `null` when unknown |
-| `sources` | One entry per source the answer rests on: `service`, `status` (`ok`/`failed`/`partial`/`disabled`), `error` |
+| `sources` | One entry per source the answer rests on: `service`, `status` (`ok`/`failed`/`partial`/`disabled`), `error`. A failed source's `error` carries its consecutive-failure streak from the analysis history — `(2 consecutive failures)` — once it has failed more than one analysis in a row |
 | `iac` | Whether `cdk.out` has been synthed since the analysis: `status` (`changed`/`unchanged`/`unknown`), `synthedAt`, `analyzedAt`, `reason` |
 
 `ageSeconds` is the fact; `suggestRefresh` is one coarse verdict offered on top of it.
@@ -29,7 +29,7 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 
 ## Reading `sources` and `iac`
 
-A source whose `status` is not `ok` means an empty result is **"not read"**, not "none exist". Do not conclude from such a response that a queue has no DLQ, that a secret has no rotation, or that a table does not exist. `get_table_schema` is the sharpest case: with a database listed as `failed` or `disabled`, `found: false` means "not looked for".
+A source whose `status` is not `ok` means an empty result is **"not read"**, not "none exist". Do not conclude from such a response that a queue has no DLQ, that a secret has no rotation, or that a table does not exist. `get_table_schema` is the sharpest case: with a database listed as `failed` or `disabled`, `found: false` means "not looked for". A failed source whose `error` carries a streak (`(N consecutive failures)`) has failed several analyses in a row — a recurring problem to weigh differently from a one-off blip.
 
 An `iac.status` of `changed` means `cdk synth` ran after the analysis, so IaC-derived answers are behind. `unknown` means the check could not run, and says nothing either way.
 
