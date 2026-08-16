@@ -134,6 +134,7 @@ Same pattern as AWS adapters but lives in `src/adapters/db/`. See `src/adapters/
 - `pnpm test` passes (and new code has tests)
 - New analyzer has at least one positive and one negative test case
 - No hardcoded AWS regions, credentials, or connection strings
+- No license or copyright headers in source files — the repo is MIT under the root `LICENSE` and no file under `src/` carries one
 - `infrawise.yaml` config example updated if you added a new service key
 - README `Analysis capabilities` table updated if you added new checks
 
