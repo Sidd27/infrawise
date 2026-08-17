@@ -28,15 +28,22 @@ export function readTimings(): RunTiming[] {
   }
 }
 
+// A lost timing sample costs a slightly worse ETA next run. Letting it abort an
+// otherwise successful analysis costs the analysis, so a read-only or full cache
+// dir is swallowed here the same way readTimings swallows its own read errors.
 export function recordRunTiming(totalMs: number, sources: Record<string, number>): void {
-  const timings = readTimings();
-  timings.push({ totalMs, sources });
-  fs.mkdirSync(getCacheDir(), { recursive: true });
-  const trimmed = timings.slice(-TIMINGS_LIMIT);
-  const filePath = timingsPath();
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(trimmed), 'utf-8');
-  fs.renameSync(tmpPath, filePath);
+  try {
+    const timings = readTimings();
+    timings.push({ totalMs, sources });
+    fs.mkdirSync(getCacheDir(), { recursive: true });
+    const trimmed = timings.slice(-TIMINGS_LIMIT);
+    const filePath = timingsPath();
+    const tmpPath = `${filePath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(trimmed), 'utf-8');
+    fs.renameSync(tmpPath, filePath);
+  } catch {
+    // ignored
+  }
 }
 
 // EMA of total wall-clock across past runs. null when there is no history yet.
@@ -58,7 +65,10 @@ export function slowestSources(sources: Record<string, number>, n = 3): [string,
 
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${Math.round(seconds * 10) / 10}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  // Round once, then split. Rounding the seconds remainder independently of the
+  // floored minutes yields "1m 60s" for 119700 and "60s" for 59960.
+  const tenths = Math.round(ms / 100) / 10;
+  if (tenths < 60) return `${tenths}s`;
+  const seconds = Math.round(ms / 1000);
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }

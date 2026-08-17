@@ -57,9 +57,31 @@ const ag = read('AGENTS.md')
 const readme = read('README.md')
 const llms = read('llms.txt')
 
-const agSections = [...ag.matchAll(/^### `([a-z0-9_]+)`/gm)].map((m) => m[1])
-const readmeRows = [...readme.matchAll(/^\| `([a-z0-9_]+)`/gm)].map((m) => m[1])
-const llmsBullets = [...llms.matchAll(/^- `([a-z0-9_]+)`/gm)].map((m) => m[1])
+// Scoped to the section that holds the tool list. Scanning the whole file would
+// match any snake_case-in-backticks row or bullet anywhere in it, so adding a
+// config-key table to README would fail the gate with "tool not registered".
+// `heading` is the section start; the scan stops at the next same-level heading.
+const section = (text, heading, level) => {
+  const start = text.indexOf(heading)
+  if (start === -1) return null
+  const rest = text.slice(start + heading.length)
+  const next = rest.search(new RegExp(`^#{1,${level}} `, 'm'))
+  return next === -1 ? rest : rest.slice(0, next)
+}
+
+const sectionOrFail = (text, file, heading, level) => {
+  const body = section(text, heading, level)
+  if (body === null) fail(`${file}: section "${heading.trim()}" not found — update check-docs.mjs`)
+  return body ?? ''
+}
+
+const agSection = sectionOrFail(ag, 'AGENTS.md', '\n## MCP tool reference\n', 2)
+const readmeSection = sectionOrFail(readme, 'README.md', '\n### MCP tools\n', 3)
+const llmsSection = sectionOrFail(llms, 'llms.txt', '\n## MCP tools', 2)
+
+const agSections = [...agSection.matchAll(/^### `([a-z0-9_]+)`/gm)].map((m) => m[1])
+const readmeRows = [...readmeSection.matchAll(/^\| `([a-z0-9_]+)`/gm)].map((m) => m[1])
+const llmsBullets = [...llmsSection.matchAll(/^- `([a-z0-9_]+)`/gm)].map((m) => m[1])
 const agCount = ag.match(/exposes (\d+) tools via MCP/)?.[1]
 
 const docs = [
@@ -83,10 +105,14 @@ for (const [file, found] of docs) {
   }
 }
 
-if (agCount) {
-  Number(agCount) === tools.length
-    ? ok(`AGENTS.md: "exposes ${agCount} tools via MCP"`)
-    : fail(`AGENTS.md: "exposes ${agCount} tools via MCP" (expected ${tools.length})`)
+// Required to exist: if the sentence is ever reworded, a silent skip would leave
+// the gate printing "passed" while it quietly stopped checking the count.
+if (!agCount) {
+  fail('AGENTS.md: "exposes N tools via MCP" sentence not found — update it or check-docs.mjs')
+} else if (Number(agCount) === tools.length) {
+  ok(`AGENTS.md: "exposes ${agCount} tools via MCP"`)
+} else {
+  fail(`AGENTS.md: "exposes ${agCount} tools via MCP" (expected ${tools.length})`)
 }
 
 console.log('')

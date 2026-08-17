@@ -21,7 +21,7 @@ allowBuilds:
   sharp: true
   simple-git-hooks: true
 policies:
-  minimumReleaseAge: '7 days'
+  minimumReleaseAge: '0 seconds'
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.61.1'
   - '@typescript-eslint/parser@8.61.1'

@@ -64,4 +64,17 @@ describe('formatDuration', () => {
     expect(formatDuration(1500)).toBe('1.5s');
     expect(formatDuration(70000)).toBe('1m 10s');
   });
+
+  it('never carries a 60 into the seconds slot', () => {
+    expect(formatDuration(59960)).toBe('1m 0s');
+    expect(formatDuration(119700)).toBe('2m 0s');
+    expect(formatDuration(3599000)).toBe('59m 59s');
+  });
+});
+
+describe('recordRunTiming', () => {
+  it('swallows IO errors rather than aborting the analysis', () => {
+    setCacheDir('/proc/nonexistent-infrawise');
+    expect(() => recordRunTiming(1000, { sqs: 500 })).not.toThrow();
+  });
 });

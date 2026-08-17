@@ -140,10 +140,25 @@ function noteExtractionProgress(service: string, durationMs: number): void {
     extractionProgress.estimatedMs === null
       ? null
       : Math.max(0, extractionProgress.estimatedMs - elapsed);
-  const eta = remaining === null ? '' : `, ~${formatDuration(remaining)} left`;
+  // Past the estimate, "~0ms left" is the most confident-looking and most wrong
+  // thing to show. Drop the ETA and let the counter speak instead.
+  const eta = remaining === null || remaining <= 0 ? '' : `, ~${formatDuration(remaining)} left`;
   extractionProgress.spinner.text = chalk.dim(
     `Extracting infrastructure in parallel... ${extractionProgress.done}/${extractionTotal} sources${eta}`,
   );
+}
+
+// The IaC and repository scans run in the same parallel batch as the extractors,
+// so they belong in the same denominator. Left out, the counter reads 19/19 while
+// the repo AST scan — routinely the slowest task in the run — is still going, and
+// the "slowest:" line can only ever name an extractor.
+function trackTask<T>(service: string, task: Promise<T>): Promise<T> {
+  extractionTotal++;
+  const startedAt = Date.now();
+  return task.then((result) => {
+    noteExtractionProgress(service, Date.now() - startedAt);
+    return result;
+  });
 }
 
 // Runs one extractor, printing a static completion line so concurrent extractors
@@ -159,13 +174,15 @@ async function extract<T>(
   fn: () => Promise<T>,
   summarize: (result: T) => string,
 ): Promise<T | undefined> {
-  extractionTotal++;
   const startedAt = Date.now();
+  // A disabled source is not work — it returns synchronously while the array is
+  // being built. Counting it would put the spinner at 16/19 on its first frame
+  // in the common case where most services are off, which tracks nothing.
   if (!enabled) {
     sourceStatuses.push({ service, status: 'disabled' });
-    noteExtractionProgress(service, Date.now() - startedAt);
     return undefined;
   }
+  extractionTotal++;
   try {
     const result = await fn();
     log.success(label, summarize(result));
@@ -299,56 +316,66 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // concurrently with the AWS/DB extractors so wall-clock is bounded by the
   // slowest single task, not the sum of all of them. Each task catches its own
   // errors and never rejects, so Promise.all below can't be aborted by one.
-  const iacTask = (async () => {
-    if (config.terraform?.enabled === false) {
-      return {
-        drift: undefined as IaCSchema | undefined,
-        lambdas: [] as IaCLambda[],
-        outputs: [] as IaCOutput[],
-      };
-    }
-    try {
-      const iacSchema = await extractIaCSchema(repoPath);
-      const total =
-        iacSchema.dynamoTables.length +
-        iacSchema.rdsInstances.length +
-        iacSchema.mongoClusters.length +
-        iacSchema.queues.length +
-        iacSchema.topics.length +
-        iacSchema.lambdas.length +
-        iacSchema.buckets.length +
-        iacSchema.parameters.length +
-        iacSchema.secrets.length +
-        iacSchema.apiGateways.length +
-        iacSchema.outputs.length;
-      log.success('IaC schema', `${total} resource(s) across TF/CFN/CDK`);
-      return {
-        drift: iacSchema as IaCSchema | undefined,
-        lambdas: iacSchema.lambdas,
-        outputs: iacSchema.outputs,
-      };
-    } catch (err) {
-      log.warn('IaC scan skipped', err instanceof Error ? err.message : String(err));
-      return {
-        drift: undefined as IaCSchema | undefined,
-        lambdas: [] as IaCLambda[],
-        outputs: [] as IaCOutput[],
-      };
-    }
-  })();
-
-  const repoTask = (async () => {
-    try {
-      const ops = await scanRepository(repoPath);
-      log.success('Repository scanned', `${ops.length} service operation(s) found`);
-      return ops;
-    } catch (err) {
-      log.warn('Repository scan failed', err instanceof Error ? err.message : String(err));
-      return [] as ExtractedOperation[];
-    }
-  })();
-
+  // Started here rather than at the Promise.all, because iacTask and repoTask are
+  // already running by then. Measuring from the later point reported a total
+  // shorter than its own slowest component.
   const extractionStartedAt = Date.now();
+
+  const iacTask = trackTask(
+    'iac',
+    (async () => {
+      if (config.terraform?.enabled === false) {
+        return {
+          drift: undefined as IaCSchema | undefined,
+          lambdas: [] as IaCLambda[],
+          outputs: [] as IaCOutput[],
+        };
+      }
+      try {
+        const iacSchema = await extractIaCSchema(repoPath);
+        const total =
+          iacSchema.dynamoTables.length +
+          iacSchema.rdsInstances.length +
+          iacSchema.mongoClusters.length +
+          iacSchema.queues.length +
+          iacSchema.topics.length +
+          iacSchema.lambdas.length +
+          iacSchema.buckets.length +
+          iacSchema.parameters.length +
+          iacSchema.secrets.length +
+          iacSchema.apiGateways.length +
+          iacSchema.outputs.length;
+        log.success('IaC schema', `${total} resource(s) across TF/CFN/CDK`);
+        return {
+          drift: iacSchema as IaCSchema | undefined,
+          lambdas: iacSchema.lambdas,
+          outputs: iacSchema.outputs,
+        };
+      } catch (err) {
+        log.warn('IaC scan skipped', err instanceof Error ? err.message : String(err));
+        return {
+          drift: undefined as IaCSchema | undefined,
+          lambdas: [] as IaCLambda[],
+          outputs: [] as IaCOutput[],
+        };
+      }
+    })(),
+  );
+
+  const repoTask = trackTask(
+    'repo',
+    (async () => {
+      try {
+        const ops = await scanRepository(repoPath);
+        log.success('Repository scanned', `${ops.length} service operation(s) found`);
+        return ops;
+      } catch (err) {
+        log.warn('Repository scan failed', err instanceof Error ? err.message : String(err));
+        return [] as ExtractedOperation[];
+      }
+    })(),
+  );
+
   if (!options.silent) {
     const estimated = estimateExtractionMs();
     if (estimated) {
@@ -530,16 +557,23 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     iacTask,
     repoTask,
   ]).catch((err) => {
-    // extract() never rejects, but iacTask/repoTask can. Stop the spinner before
-    // the error propagates, or it keeps rendering over the stack trace and leaves
-    // the cursor hidden.
+    // Every task here swallows its own errors today, so this is belt-and-braces:
+    // if one ever starts rejecting, stop the spinner before the error propagates
+    // rather than rendering it over a live spinner with the cursor hidden.
     extractionProgress?.spinner.stop();
     extractionProgress = null;
     throw err;
   });
 
   const extractionTotalMs = Date.now() - extractionStartedAt;
-  if (!options.noCache) recordRunTiming(extractionTotalMs, extractionTimings);
+  // A run that failed fast on bad credentials finishes in a fraction of the real
+  // time. Recording it would halve the EMA and make the next healthy run advertise
+  // an ETA it cannot meet, so a mostly-failed run is not a timing sample.
+  const attempted = sourceStatuses.filter((s) => s.status !== 'disabled');
+  const mostlyFailed =
+    attempted.length > 0 &&
+    attempted.filter((s) => s.status === 'failed').length > attempted.length / 2;
+  if (!options.noCache && !mostlyFailed) recordRunTiming(extractionTotalMs, extractionTimings);
   if (extractionProgress) {
     const slowest = slowestSources(extractionTimings)
       .map(([service, ms]) => `${service} ${formatDuration(ms)}`)
