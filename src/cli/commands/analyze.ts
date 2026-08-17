@@ -122,7 +122,7 @@ let sourceStatuses: SourceStatus[] = [];
 // Extraction timing bookkeeping for the progress spinner and the ETA line. Kept
 // out of sourceStatuses on purpose — that array becomes dataHealth.sources, whose
 // shape is a fixed MCP contract and must not grow.
-const extractionTimings: Record<string, number> = {};
+let extractionTimings: Record<string, number> = {};
 let extractionTotal = 0;
 let extractionProgress: {
   done: number;
@@ -279,6 +279,8 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   sourceStatuses = [];
+  extractionTimings = {};
+  extractionTotal = 0;
   const repoPath = options.repo ?? process.cwd();
   const minSeverity = options.severity ? (SEVERITY_ORDER[options.severity] ?? 1) : 0;
   const awsCfg = {
@@ -527,7 +529,14 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     ),
     iacTask,
     repoTask,
-  ]);
+  ]).catch((err) => {
+    // extract() never rejects, but iacTask/repoTask can. Stop the spinner before
+    // the error propagates, or it keeps rendering over the stack trace and leaves
+    // the cursor hidden.
+    extractionProgress?.spinner.stop();
+    extractionProgress = null;
+    throw err;
+  });
 
   const extractionTotalMs = Date.now() - extractionStartedAt;
   if (!options.noCache) recordRunTiming(extractionTotalMs, extractionTimings);

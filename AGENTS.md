@@ -125,6 +125,7 @@ cp .env.example .env        # add your free LocalStack auth token from app.local
 Then in a new terminal from the same directory:
 
 ```bash
+source .env                 # sets AWS_PROFILE=localstack — required every session
 infrawise analyze --config infrawise.yaml
 ```
 
