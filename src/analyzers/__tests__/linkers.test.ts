@@ -150,4 +150,9 @@ describe('compositeLink', () => {
     });
     expect(links).toHaveLength(2);
   });
+
+  it('returns no links when neither linker finds a match', () => {
+    const g = graphWith('alpha', 'beta', 'src/beta.ts');
+    expect(compositeLink([], g)).toEqual([]);
+  });
 });
