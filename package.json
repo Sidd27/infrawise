@@ -63,6 +63,7 @@
     "typecheck": "tsc",
     "format": "prettier --write src",
     "build-arch": "node scripts/build-arch.mjs",
+    "check:docs": "node scripts/check-docs.mjs",
     "record": "bash docs/demo/record.sh",
     "dev": "node dist/cli/index.js serve",
     "release": "node scripts/release.js",

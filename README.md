@@ -558,6 +558,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for a full walkthrough — including how 
 
 ### Releasing
 
+Before releasing, run `pnpm check:docs` — it fails if the version or the MCP tool list in `README.md`/`AGENTS.md`/`llms.txt` drifted from `src/server/index.ts`.
+
 ```bash
 pnpm release patch    # 0.1.2 → 0.1.3  (bug fixes)
 pnpm release minor    # 0.1.2 → 0.2.0  (new features, backwards compatible)
