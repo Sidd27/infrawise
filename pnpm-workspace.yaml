@@ -7,9 +7,10 @@ overrides:
   'esbuild@<0.28.1': '>=0.28.1'
   body-parser: '>=2.3.0'
   '@hono/node-server': '>=2.0.5'
-  fast-uri: '>=3.1.4 <4'
+  fast-uri: '>=3.1.5 <4'
   find-my-way: '>=9.7.0'
-  hono: '>=4.12.27'
+  hono: '>=4.12.34'
+  'js-yaml@4': '>=4.3.1 <5'
   svgo: '>=4.0.2'
 allowedBuildScripts:
   - puppeteer
@@ -20,7 +21,7 @@ allowBuilds:
   sharp: true
   simple-git-hooks: true
 policies:
-  minimumReleaseAge: '0 seconds'
+  minimumReleaseAge: '7 days'
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.61.1'
   - '@typescript-eslint/parser@8.61.1'

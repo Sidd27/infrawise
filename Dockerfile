@@ -6,7 +6,7 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Node 26 no longer bundles corepack. Installing it from npm keeps the pnpm
 # version driven by package.json's packageManager field instead of pinning it
 # a second time here.
-RUN npm i -g corepack && corepack enable
+RUN npm i -g corepack@0.35.0 && corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY website/package.json ./website/package.json
