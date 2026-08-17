@@ -137,6 +137,35 @@ Same pattern as AWS adapters but lives in `src/adapters/db/`. See `src/adapters/
 - No license or copyright headers in source files — the repo is MIT under the root `LICENSE` and no file under `src/` carries one
 - `infrawise.yaml` config example updated if you added a new service key
 - README `Analysis capabilities` table updated if you added new checks
+- One PR, one concern — no unrelated changes in the same PR (see House rules)
+- MCP contract changes update every doc that describes the shape, not just the tool description string (see House rules)
+- No docstrings or comments that restate the code (see House rules)
+
+---
+
+## House rules — review blockers
+
+These rules come from actual PR reviews. A PR that breaks one is sent back with "Review Changes Needed", no matter how green the tests are.
+
+**1. One PR, one concern.**
+
+Unrelated changes (a new feature in one subsystem plus a refactor in another) are not merged as a single PR. Split them so each PR is reviewed, tested, and merged on its own. The PR description must mention every change the diff contains — the diff is the contract, not the summary.
+
+**2. MCP contracts are documented in several places — update all of them.**
+
+Changing the `dataHealth` shape, a tool's inputs/return, or adding/removing a tool means updating ALL of these in the same PR, not just the description string in `src/server/index.ts`:
+
+- `AGENTS.md` — MCP tool reference section
+- `README.md` — MCP tools table and the `dataHealth` paragraph
+- `llms.txt` — tool list
+- `website/src/content/docs/reference/data-freshness.md` — the field-by-field `dataHealth` table
+- `CLAUDE.md` — if it ever grows beyond its current redirect to `AGENTS.md`
+
+A `dataHealth` shape change widens a permanent contract that every tool carries on every response; the shipped shape and the documented shape must never diverge. When in doubt, grep for the shape name across `AGENTS.md`, `README.md`, `llms.txt`, and `website/src/content/docs/` before opening the PR.
+
+**3. No docstrings, no comments that restate the code.**
+
+House style is comments only where the WHY is non-obvious. A docstring that repeats what the function name and its tests already say is removed in review. Tests are the documentation.
 
 ---
 
