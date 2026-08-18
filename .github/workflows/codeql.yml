@@ -1,19 +1,20 @@
 name: CodeQL
 
-# Same paths-ignore as CI: a README or website commit has no code for CodeQL to
-# analyze, and used to trigger a ~100s scan anyway. The weekly cron still scans
-# the whole tree regardless of what the last commit touched.
+# Prose-only commits have nothing for CodeQL to analyze and used to trigger a
+# ~100s scan anyway. Deliberately NOT the same list as CI: CI skips website/**
+# because the npm package build does not cover it, but the website is an Astro
+# app with ~37 JS/TS files and this scan is javascript-typescript, so excluding
+# it here would drop real code out of per-push analysis.
 on:
   push:
     branches: [main]
-    paths-ignore: &docs-only
-      - 'website/**'
+    paths-ignore: &prose-only
       - 'docs/**'
       - '**.md'
       - 'llms.txt'
   pull_request:
     branches: [main]
-    paths-ignore: *docs-only
+    paths-ignore: *prose-only
   schedule:
     - cron: '15 3 * * 2'
 

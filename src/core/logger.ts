@@ -7,7 +7,11 @@ const LEVELS = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 
 
 type Level = keyof typeof LEVELS;
 
-const threshold = LEVELS[(process.env.LOG_LEVEL as Level) ?? 'info'] ?? LEVELS.info;
+// hasOwn, not a plain lookup: LOG_LEVEL=constructor would otherwise resolve to
+// Object off the prototype chain, and every `LEVELS[level] < threshold` compare
+// against a function is false, silently turning on trace output.
+const requested = process.env.LOG_LEVEL ?? '';
+const threshold = Object.hasOwn(LEVELS, requested) ? LEVELS[requested as Level] : LEVELS.info;
 const pretty = process.env.NODE_ENV !== 'production';
 
 const COLORS: Record<Level, Parameters<typeof styleText>[0]> = {
