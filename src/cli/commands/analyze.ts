@@ -10,12 +10,6 @@ import {
   setCacheDir,
   PartialExtractionError,
 } from '../../core/index.js';
-import {
-  recordRunTiming,
-  estimateExtractionMs,
-  slowestSources,
-  formatDuration,
-} from '../../core/eta.js';
 import { extractDynamoMetadata } from '../../adapters/aws/dynamodb.js';
 import { extractPostgresMetadata } from '../../adapters/db/postgres.js';
 import { extractMySQLMetadata } from '../../adapters/db/mysql.js';
@@ -119,32 +113,20 @@ function mkSpinner(text: string) {
 // from "never read it".
 let sourceStatuses: SourceStatus[] = [];
 
-// Extraction timing bookkeeping for the progress spinner and the ETA line. Kept
-// out of sourceStatuses on purpose — that array becomes dataHealth.sources, whose
-// shape is a fixed MCP contract and must not grow.
-let extractionTimings: Record<string, number> = {};
+// Progress bookkeeping for the spinner. Kept out of sourceStatuses on purpose —
+// that array becomes dataHealth.sources, whose shape is a fixed MCP contract and
+// must not grow.
 let extractionTotal = 0;
 let extractionProgress: {
   done: number;
-  estimatedMs: number | null;
-  startedAt: number;
   spinner: ReturnType<typeof mkSpinner>;
 } | null = null;
 
-function noteExtractionProgress(service: string, durationMs: number): void {
-  extractionTimings[service] = durationMs;
+function noteExtractionProgress(): void {
   if (!extractionProgress) return;
   extractionProgress.done++;
-  const elapsed = Date.now() - extractionProgress.startedAt;
-  const remaining =
-    extractionProgress.estimatedMs === null
-      ? null
-      : Math.max(0, extractionProgress.estimatedMs - elapsed);
-  // Past the estimate, "~0ms left" is the most confident-looking and most wrong
-  // thing to show. Drop the ETA and let the counter speak instead.
-  const eta = remaining === null || remaining <= 0 ? '' : `, ~${formatDuration(remaining)} left`;
   extractionProgress.spinner.text = chalk.dim(
-    `Extracting infrastructure in parallel... ${extractionProgress.done}/${extractionTotal} sources${eta}`,
+    `Extracting infrastructure in parallel... ${extractionProgress.done}/${extractionTotal} sources`,
   );
 }
 
@@ -152,11 +134,10 @@ function noteExtractionProgress(service: string, durationMs: number): void {
 // so they belong in the same denominator. Left out, the counter reads 19/19 while
 // the repo AST scan — routinely the slowest task in the run — is still going, and
 // the "slowest:" line can only ever name an extractor.
-function trackTask<T>(service: string, task: Promise<T>): Promise<T> {
+function trackTask<T>(task: Promise<T>): Promise<T> {
   extractionTotal++;
-  const startedAt = Date.now();
   return task.then((result) => {
-    noteExtractionProgress(service, Date.now() - startedAt);
+    noteExtractionProgress();
     return result;
   });
 }
@@ -174,7 +155,6 @@ async function extract<T>(
   fn: () => Promise<T>,
   summarize: (result: T) => string,
 ): Promise<T | undefined> {
-  const startedAt = Date.now();
   // A disabled source is not work — it returns synchronously while the array is
   // being built. Counting it would put the spinner at 16/19 on its first frame
   // in the common case where most services are off, which tracks nothing.
@@ -187,7 +167,7 @@ async function extract<T>(
     const result = await fn();
     log.success(label, summarize(result));
     sourceStatuses.push({ service, status: 'ok' });
-    noteExtractionProgress(service, Date.now() - startedAt);
+    noteExtractionProgress();
     return result;
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -197,12 +177,12 @@ async function extract<T>(
       const result = err.data as T;
       log.warn(`${label} incomplete`, error);
       sourceStatuses.push({ service, status: 'partial', error });
-      noteExtractionProgress(service, Date.now() - startedAt);
+      noteExtractionProgress();
       return result;
     }
     log.warn(`${label} skipped`, error);
     sourceStatuses.push({ service, status: 'failed', error });
-    noteExtractionProgress(service, Date.now() - startedAt);
+    noteExtractionProgress();
     return undefined;
   }
 }
@@ -296,7 +276,6 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   }
 
   sourceStatuses = [];
-  extractionTimings = {};
   extractionTotal = 0;
   const repoPath = options.repo ?? process.cwd();
   const minSeverity = options.severity ? (SEVERITY_ORDER[options.severity] ?? 1) : 0;
@@ -316,13 +295,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   // concurrently with the AWS/DB extractors so wall-clock is bounded by the
   // slowest single task, not the sum of all of them. Each task catches its own
   // errors and never rejects, so Promise.all below can't be aborted by one.
-  // Started here rather than at the Promise.all, because iacTask and repoTask are
-  // already running by then. Measuring from the later point reported a total
-  // shorter than its own slowest component.
-  const extractionStartedAt = Date.now();
-
   const iacTask = trackTask(
-    'iac',
     (async () => {
       if (config.terraform?.enabled === false) {
         return {
@@ -363,7 +336,6 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   );
 
   const repoTask = trackTask(
-    'repo',
     (async () => {
       try {
         const ops = await scanRepository(repoPath);
@@ -377,18 +349,9 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   );
 
   if (!options.silent) {
-    const estimated = estimateExtractionMs();
-    if (estimated) {
-      log.info(
-        `Estimated extraction time: ~${formatDuration(estimated.totalMs)} (from ${estimated.runs} previous run(s))`,
-      );
-    }
-    const spinner = mkSpinner('Extracting infrastructure in parallel...');
     extractionProgress = {
       done: 0,
-      estimatedMs: estimated?.totalMs ?? null,
-      startedAt: extractionStartedAt,
-      spinner,
+      spinner: mkSpinner('Extracting infrastructure in parallel...'),
     };
   }
 
@@ -565,25 +528,8 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     throw err;
   });
 
-  const extractionTotalMs = Date.now() - extractionStartedAt;
-  // A run that failed fast on bad credentials finishes in a fraction of the real
-  // time. Recording it would halve the EMA and make the next healthy run advertise
-  // an ETA it cannot meet, so a mostly-failed run is not a timing sample.
-  const attempted = sourceStatuses.filter((s) => s.status !== 'disabled');
-  const mostlyFailed =
-    attempted.length > 0 &&
-    attempted.filter((s) => s.status === 'failed').length > attempted.length / 2;
-  if (!options.noCache && !mostlyFailed) recordRunTiming(extractionTotalMs, extractionTimings);
   if (extractionProgress) {
-    const slowest = slowestSources(extractionTimings)
-      .map(([service, ms]) => `${service} ${formatDuration(ms)}`)
-      .join(', ');
-    extractionProgress.spinner.succeed(
-      chalk.green('Extraction complete') +
-        chalk.dim(
-          `  ${formatDuration(extractionTotalMs)}${slowest ? ` · slowest: ${slowest}` : ''}`,
-        ),
-    );
+    extractionProgress.spinner.succeed(chalk.green('Extraction complete'));
     extractionProgress = null;
   }
 
