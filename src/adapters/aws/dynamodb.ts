@@ -129,16 +129,6 @@ export async function extractDynamoMetadata(
   return results;
 }
 
-export async function validateDynamoAccess(config: InfrawiseConfig): Promise<boolean> {
-  const client = createDynamoClient(config);
-  try {
-    await client.send(new ListTablesCommand({ Limit: 1 }));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function probeDynamoAccess(config: InfrawiseConfig): Promise<void> {
   const client = createDynamoClient(config);
   await client.send(new ListTablesCommand({ Limit: 1 }));

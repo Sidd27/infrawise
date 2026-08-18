@@ -19,8 +19,8 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
   printHeader('Initialize Infrawise');
 
   const repoName = path.basename(cwd);
-  const profiles = readAWSProfiles();
-  const detectedRegion = detectAWSRegion();
+  const profiles = await readAWSProfiles();
+  const detectedRegion = await detectAWSRegion();
 
   log.success(`Repository detected`, repoName);
   log.success(`AWS profiles found`, String(profiles.length));

@@ -826,10 +826,6 @@ export async function extractRDSMetadata(cfg: AWSConfig = {}): Promise<RDSInstan
   return instances;
 }
 
-export async function validateRDSAccess(cfg: AWSConfig = {}): Promise<void> {
-  await new RDSClient(clientConfig(cfg)).send(new DescribeDBInstancesCommand({ MaxRecords: 20 }));
-}
-
 // ─── CloudFront ──────────────────────────────────────────────────────────────
 
 // Cache policies are referenced by opaque UUID. Resolving the ids to names is

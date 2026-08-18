@@ -1,15 +1,28 @@
 name: CodeQL
 
+# Same paths-ignore as CI: a README or website commit has no code for CodeQL to
+# analyze, and used to trigger a ~100s scan anyway. The weekly cron still scans
+# the whole tree regardless of what the last commit touched.
 on:
   push:
     branches: [main]
+    paths-ignore: &docs-only
+      - 'website/**'
+      - 'docs/**'
+      - '**.md'
+      - 'llms.txt'
   pull_request:
     branches: [main]
+    paths-ignore: *docs-only
   schedule:
     - cron: '15 3 * * 2'
 
 permissions:
   contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze:

@@ -205,7 +205,15 @@ src/
 
 Build: `pnpm build` → `tsc --noEmit false --outDir dist`
 Typecheck: `pnpm typecheck` → `tsc`
-Test: `pnpm test` → vitest
+Test: `pnpm test` → vitest, whole suite (~3s). CI runs `pnpm coverage`, which is
+the same suite with instrumentation, so CI never runs it twice.
+
+For narrower loops, vitest resolves affected tests from the import graph:
+`pnpm test:staged` (tests reaching the staged files — this is what the
+pre-commit hook runs) and `pnpm test:changed` (tests reaching the working-tree
+changes). Both are development conveniences: a change to a widely imported
+module such as `core/logger.ts` correctly pulls in the whole suite, and the full
+suite is what gates CI and release regardless.
 
 ---
 

@@ -639,7 +639,7 @@ function resolveEdgeType(
 // ── Typed node selectors ─────────────────────────────────────────────────────
 
 // ponytail: one generic replaces 11 typed selectors
-export function getNodes<T extends GraphNode>(graph: SystemGraph, type: T['type']): T[] {
+function getNodes<T extends GraphNode>(graph: SystemGraph, type: T['type']): T[] {
   return graph.nodes.filter((n): n is T => n.type === type);
 }
 

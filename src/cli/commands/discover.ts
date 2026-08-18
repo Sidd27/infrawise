@@ -58,7 +58,7 @@ export async function runDiscover(options: { interactive?: boolean } = {}): Prom
     selectedProfile = process.env.AWS_PROFILE;
     log.success('AWS profile', `${selectedProfile} (from AWS_PROFILE)`);
   } else {
-    const profiles = readAWSProfiles();
+    const profiles = await readAWSProfiles();
     if (profiles.length === 1) {
       selectedProfile = profiles[0];
       log.success('AWS profile', profiles[0]);
@@ -77,7 +77,7 @@ export async function runDiscover(options: { interactive?: boolean } = {}): Prom
     }
   }
 
-  const region = detectAWSRegion(selectedProfile);
+  const region = await detectAWSRegion(selectedProfile);
 
   ensureInfrawiseDir(cwd);
 

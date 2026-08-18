@@ -19,6 +19,12 @@ on:
 permissions:
   contents: read
 
+# Pushing three times in a minute used to leave three full runs racing. Only the
+# newest ref matters, so supersede the older ones instead of paying for them.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_VERSION: '24'
 
@@ -64,12 +70,9 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
-        env:
-          NODE_ENV: test
-
-      - name: Coverage
+      # One run, not two. `pnpm test` followed by `pnpm coverage` executed the
+      # whole suite twice; coverage is the same run with instrumentation on.
+      - name: Test + coverage
         run: pnpm coverage
         env:
           NODE_ENV: test

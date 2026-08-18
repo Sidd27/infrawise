@@ -1,11 +1,15 @@
 name: OpenSSF Scorecard
 
+# Scorecard grades repository configuration — branch protection, pinned actions,
+# signed releases, workflow permissions — not the contents of a commit. Running
+# it per push re-scored an unchanged repo and cost a third workflow every time.
+# The weekly cron plus the branch_protection_rule event cover every input it
+# actually reads. Run it on demand after changing repo settings.
 on:
   branch_protection_rule:
   schedule:
     - cron: '30 2 * * 1'
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions: read-all
 

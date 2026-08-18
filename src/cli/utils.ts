@@ -1,39 +1,40 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import { stripVTControlCharacters } from 'util';
+import { loadSharedConfigFiles, CONFIG_PREFIX_SEPARATOR } from '@smithy/shared-ini-file-loader';
 import chalk from 'chalk';
 import type { Finding } from '../types.js';
 
 // ─── AWS helpers ─────────────────────────────────────────────────────────────
 
-export function readAWSProfiles(): string[] {
+// These used to shell out to `aws configure`, which made the AWS CLI an
+// undeclared runtime requirement: without it on PATH, discovery silently fell
+// back to one profile and us-east-1 rather than reading the config that was
+// sitting right there. This is the same ini loader the AWS SDK resolves
+// credentials with, so it honours AWS_CONFIG_FILE and friends the same way.
+async function sharedProfiles(): Promise<Record<string, Record<string, string | undefined>>> {
   try {
-    const out = execSync('aws configure list-profiles', {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    const profiles = out.trim().split('\n').filter(Boolean);
-    return profiles.length > 0 ? profiles : ['default'];
+    const { configFile, credentialsFile } = await loadSharedConfigFiles();
+    return { ...credentialsFile, ...configFile };
   } catch {
-    return ['default'];
+    return {};
   }
 }
 
-export function detectAWSRegion(profile?: string): string {
+export async function readAWSProfiles(): Promise<string[]> {
+  // Non-profile sections (sso-session, services) are namespaced with a
+  // separator; `aws configure list-profiles` does not list them either.
+  const profiles = Object.keys(await sharedProfiles()).filter(
+    (name) => !name.includes(CONFIG_PREFIX_SEPARATOR),
+  );
+  return profiles.length > 0 ? profiles : ['default'];
+}
+
+export async function detectAWSRegion(profile?: string): Promise<string> {
   if (process.env.AWS_DEFAULT_REGION) return process.env.AWS_DEFAULT_REGION;
   if (process.env.AWS_REGION) return process.env.AWS_REGION;
   const target = profile ?? process.env.AWS_PROFILE ?? 'default';
-  try {
-    const region = execSync(`aws configure get region --profile ${target}`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    if (region) return region;
-  } catch {
-    // profile may not have region configured
-  }
-  return 'us-east-1';
+  return (await sharedProfiles())[target]?.region ?? 'us-east-1';
 }
 
 // ─── Banner ──────────────────────────────────────────────────────────────────
