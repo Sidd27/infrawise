@@ -28,10 +28,18 @@ afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function writeFixture(name: string, content: string) {
+function addFixture(name: string, content: string) {
   const file = path.join(tmpDir, name);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
+}
+
+// Same reason as the TS scanner: each case scans all of tmpDir, so keeping the
+// previous cases' fixtures around made every scan re-parse them. Cases needing
+// a second file in the same scan use addFixture for it.
+function writeFixture(name: string, content: string) {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  addFixture(name, content);
 }
 
 describe.skipIf(!hasPython)('scanPythonRepository — boto3 clients', () => {
@@ -184,7 +192,7 @@ def bill():
       'toplevel_fix.py',
       `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='top-q', MessageBody='x')\n`,
     );
-    writeFixture('broken_fix.py', 'def broken(:\n  pass\n');
+    addFixture('broken_fix.py', 'def broken(:\n  pass\n');
     const ops = await scanPythonRepository(tmpDir);
     const op = ops.find((o) => o.target === 'top-q');
     expect(op?.functionName).toBe('<module>');
@@ -195,7 +203,7 @@ def bill():
       'venv/lib/vendored_fix.py',
       `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='vendored-q', MessageBody='x')\n`,
     );
-    writeFixture(
+    addFixture(
       'site-packages/pkg/vendored2_fix.py',
       `\nimport boto3\nsqs = boto3.client('sqs')\nsqs.send_message(QueueUrl='vendored-q2', MessageBody='x')\n`,
     );

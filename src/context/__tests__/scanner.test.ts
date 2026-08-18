@@ -14,7 +14,12 @@ afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+// Every case scans the whole of tmpDir, so leaving earlier fixtures in place
+// makes case N re-parse N files — the file was quadratic in its own test count.
+// Each case gets the directory to itself.
 function writeFixture(name: string, content: string) {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
   fs.writeFileSync(path.join(tmpDir, name), content);
 }
 

@@ -73,8 +73,13 @@ describe('formatDuration', () => {
 });
 
 describe('recordRunTiming', () => {
+  // A regular file as the cache dir's parent gives a deterministic ENOTDIR on
+  // every platform. Pointing this at a kernel filesystem such as /proc is what
+  // it used to do, and that behaves differently per OS.
   it('swallows IO errors rather than aborting the analysis', () => {
-    setCacheDir('/proc/nonexistent-infrawise');
+    const notADir = path.join(dir, 'not-a-dir');
+    fs.writeFileSync(notADir, '');
+    setCacheDir(notADir);
     expect(() => recordRunTiming(1000, { sqs: 500 })).not.toThrow();
   });
 });

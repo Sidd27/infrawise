@@ -59,8 +59,11 @@ describe('validateMySQLAccess', () => {
 });
 
 describe('validateMongoAccess', () => {
+  // The driver burns the full server-selection window on a refused connection
+  // rather than failing fast, so the probe is capped here instead of paying the
+  // 5s production default on every test run.
   it('returns false for unreachable host', async () => {
-    const result = await validateMongoAccess(`mongodb://${UNREACHABLE}/`);
+    const result = await validateMongoAccess(`mongodb://${UNREACHABLE}/`, 200);
     expect(result).toBe(false);
-  }, 10_000);
+  });
 });

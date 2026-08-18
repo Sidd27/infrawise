@@ -107,14 +107,17 @@ export async function extractMongoMetadata(
   }
 }
 
-export async function validateMongoAccess(connectionString: string): Promise<boolean> {
+export async function validateMongoAccess(
+  connectionString: string,
+  timeoutMs = 5000,
+): Promise<boolean> {
   const client = new MongoClient(connectionString, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
+    serverSelectionTimeoutMS: timeoutMs,
+    connectTimeoutMS: timeoutMs,
   });
   // driver can exceed serverSelectionTimeoutMS when SYNs are dropped; hard-cap the probe
   const deadline = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('validation timeout')), 6000).unref();
+    setTimeout(() => reject(new Error('validation timeout')), timeoutMs + 1000).unref();
   });
   try {
     await Promise.race([

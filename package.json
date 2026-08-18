@@ -58,6 +58,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json --noEmit false --outDir dist && cp src/context/scanner.py dist/context/scanner.py",
     "test": "vitest run --passWithNoTests",
+    "test:changed": "vitest run --changed --passWithNoTests",
     "coverage": "vitest run --coverage",
     "lint": "eslint src",
     "typecheck": "tsc",

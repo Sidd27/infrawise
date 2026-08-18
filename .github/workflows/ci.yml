@@ -26,6 +26,9 @@ jobs:
   ci:
     name: Build, Lint, Typecheck, Test
     runs-on: ubuntu-latest
+    # The whole job is well under two minutes; without a cap a hung test burns
+    # the six-hour runner maximum before anyone sees a red X.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -80,6 +83,7 @@ jobs:
   docker:
     name: Docker image
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
