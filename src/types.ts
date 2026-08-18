@@ -617,93 +617,9 @@ export const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low:
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
-export interface InfrawiseConfig {
-  project: string;
-  aws?: {
-    profile?: string;
-    region?: string;
-  };
-  dynamodb?: {
-    enabled?: boolean;
-    includeTables?: string[];
-  };
-  postgres?: {
-    enabled?: boolean;
-    connectionString?: string;
-  };
-  mysql?: {
-    enabled?: boolean;
-    connectionString?: string;
-  };
-  mongodb?: {
-    enabled?: boolean;
-    connectionString?: string;
-    databases?: string[];
-  };
-  terraform?: {
-    enabled?: boolean;
-  };
-  sqs?: {
-    enabled?: boolean;
-  };
-  sns?: {
-    enabled?: boolean;
-  };
-  ssm?: {
-    enabled?: boolean;
-    paths?: string[];
-  };
-  secretsManager?: {
-    enabled?: boolean;
-  };
-  lambda?: {
-    enabled?: boolean;
-    includeFunctions?: string[];
-  };
-  eventbridge?: {
-    enabled?: boolean;
-  };
-  rds?: {
-    enabled?: boolean;
-  };
-  s3?: {
-    enabled?: boolean;
-  };
-  apiGateway?: {
-    enabled?: boolean;
-  };
-  cognito?: {
-    enabled?: boolean;
-  };
-  kinesis?: {
-    enabled?: boolean;
-  };
-  msk?: {
-    enabled?: boolean;
-  };
-  elasticache?: {
-    enabled?: boolean;
-  };
-  cloudfront?: {
-    enabled?: boolean;
-  };
-  runtimeSignals?: {
-    enabled?: boolean;
-    windowHours?: number;
-  };
-  cloudwatchLogs?: {
-    enabled?: boolean;
-    logGroupPrefixes?: string[];
-    windowHours?: number;
-  };
-  analysis?: {
-    hotPartitionThreshold?: number;
-    hotPartitionThresholds?: Record<string, number>;
-  };
-  freshness?: {
-    suggestRefreshAfterHours?: number;
-  };
-}
+// The single source of truth is the Zod schema in core/config.ts; this is a
+// type-only re-export so existing `from '../types.js'` imports keep working.
+export type { InfrawiseConfig } from './core/config.js';
 
 // ─── Cache ───────────────────────────────────────────────────────────────────
 

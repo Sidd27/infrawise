@@ -2,7 +2,6 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import type { InfrawiseConfig } from '../types.js';
 import { InfrawiseError } from './errors.js';
 
 export const InfrawiseConfigSchema = z.object({
@@ -92,6 +91,12 @@ export const InfrawiseConfigSchema = z.object({
     })
     .optional(),
 });
+
+// Derived, never hand-written. A second copy of this shape used to live in
+// types.ts, and a key added to only one of the two was stripped by Zod with no
+// error — the feature simply never activated. Input, not infer: this is the
+// shape a user writes in infrawise.yaml, before defaults are applied.
+export type InfrawiseConfig = z.input<typeof InfrawiseConfigSchema>;
 
 export type ValidatedConfig = z.infer<typeof InfrawiseConfigSchema>;
 

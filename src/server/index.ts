@@ -291,6 +291,15 @@ export const TOOLS: ReadonlyArray<{ name: string; service?: string; sources?: st
   { name: 'get_cloudfront_overview', service: 'cloudfront' },
 ];
 
+// Every tool takes the same optional freshness tolerance. One definition, so the
+// wording cannot drift between tools.
+const maxAgeSeconds = z
+  .number()
+  .optional()
+  .describe(
+    'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
+  );
+
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
 export function createMcpServer(): McpServer {
@@ -302,12 +311,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. Every response (this one included) carries a `dataHealth` block with a fixed shape: `analyzedAt`/`ageSeconds` for when the infrastructure was read, per-source `status`, `iac` for whether cdk.out was synthed since, and `refreshWith`. On this tool `dataHealth.sources` covers every source rather than one tool\'s. A source that is not `ok` means an empty result is "not read", not "none exist".',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_infra_overview', async () => {
@@ -376,12 +380,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns every node (tables, functions, lambdas, queues, etc.), every edge (query, scan, triggers, publishes_to), and all findings. Use this when you need to trace relationships across multiple services or require the complete finding set — not just high-severity ones. For a quick overview use get_infra_overview instead.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_graph_summary', async () =>
@@ -409,12 +408,7 @@ export function createMcpServer(): McpServer {
         'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name; `ambiguous: true` means the name matched several files, so pick the entry whose file you are actually editing instead of assuming the first. Returns found: false if the function name was not discovered during analysis.',
       inputSchema: z.object({
         function: z.string().describe('Function name to analyze'),
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('analyze_function', async ({ function: functionName }) => {
@@ -703,12 +697,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only. When runtime signals are enabled, oldestMessageAgeSec reports the age of the oldest message from CloudWatch.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_queue_details', async () => {
@@ -742,12 +731,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all SNS topics with subscription count, encryption status, and filter policies. Filter policies list the message attributes each subscription requires — publishers must include these attributes or messages are silently dropped. Call this before writing any SNS publish code or when reviewing event fan-out patterns.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_topic_details', async () => {
@@ -779,12 +763,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all Secrets Manager secrets with rotation status, rotation interval, and referencedKeys — key names (e.g. "password", "apiKey") inferred from application code that parses the secret, never the values. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or before writing code that reads a secret so you use the correct key name instead of guessing.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_secrets_overview', async () => {
@@ -815,12 +794,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all SSM Parameter Store parameters with type (String, SecureString, StringList) and tier (Standard, Advanced). Parameter values are never returned. Call this when checking which config parameters exist for a service or verifying parameter types.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_parameter_overview', async () => {
@@ -844,12 +818,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_lambda_overview', async () => {
@@ -901,12 +870,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all EventBridge rules with name, ENABLED/DISABLED state, schedule expression (rate/cron rules), event pattern (event-driven rules), and target Lambda function names. Call this when checking what schedule or event triggers a Lambda, or when reviewing rule coverage across the account.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_eventbridge_details', async () => {
@@ -935,12 +899,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all S3 buckets with versioning status, encryption, public access configuration, and security findings. Call this when checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers to confirm the bucket name. Do NOT call when you only need a quick infrastructure count — use get_infra_overview for that. Object contents are never included.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_s3_overview', async () => {
@@ -971,12 +930,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all API Gateway APIs (REST, HTTP, WebSocket) with their routes, HTTP methods, paths, and the Lambda function each route invokes. Call this before writing any API handler to understand which Lambda handles a route, or when reviewing API surface area and Lambda integration coverage.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_api_routes', async () => {
@@ -1003,12 +957,7 @@ export function createMcpServer(): McpServer {
         'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
       inputSchema: z.object({
         logGroup: z.string().describe('Filter to a specific log group name (optional)').optional(),
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_log_errors', async ({ logGroup: filterName }) => {
@@ -1039,12 +988,7 @@ export function createMcpServer(): McpServer {
           .min(1)
           .max(20)
           .describe('Table or collection names to fetch schemas for'),
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_table_schema', async ({ tables }) => {
@@ -1120,12 +1064,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included. A costSignal note appears on clusters with more than 3 nodes.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_cache_overview', async () => {
@@ -1164,12 +1103,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all CloudFront distributions with, per distribution: id, comment, domain name, alias domains, enabled state, origins (type s3 or custom, domain name, and the resolved API Gateway name when the origin is an execute-api endpoint), and every cache behavior with its path pattern, target origin, cache policy name, viewer protocol policy, and allowed methods. Behaviors are listed in CloudFront match order — ordered behaviors first, the default behavior last. Call this to answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement across a multi-API front door.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_cloudfront_overview', async () => {
@@ -1226,12 +1160,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all Kinesis data streams (status, shard count, retention hours, encryption, capacity mode) and Amazon MSK clusters (state, cluster type, Kafka version, broker count). Call this when writing Kinesis producer or consumer code, checking whether a stream is PROVISIONED or ON_DEMAND before writing PutRecord calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings extracted from application code, use get_topic_details instead.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_stream_details', async () => {
@@ -1265,12 +1194,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all Cognito user pools with MFA configuration and every app client config: allowed auth flows, OAuth flows/scopes, callback URLs, token validity, and whether the client has a secret (SDK auth calls must send SECRET_HASH when true). Client secret values are never returned. Call this before writing any Cognito sign-in, sign-up, or token-refresh code to use the correct auth flow and client settings. Do NOT call to look up users or tokens — infrawise never reads user data.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_cognito_overview', async () => {
@@ -1294,12 +1218,7 @@ export function createMcpServer(): McpServer {
       description:
         'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack. CDK outputs carry `stale: true` with a `staleReason` when their cdk.out template is no longer instantiated in the CDK app or predates the last `cdk synth` — do not rely on a stale export without re-synthesizing.',
       inputSchema: z.object({
-        maxAgeSeconds: z
-          .number()
-          .optional()
-          .describe(
-            'Freshness tolerance in seconds. Advisory: the answer is returned either way, with dataHealth.withinRequestedAge reporting whether it met the tolerance. Nothing re-reads AWS on a tool call — run `infrawise analyze` to refresh. Pass a small value for point-in-time questions ("does this queue have a DLQ right now"); omit it for architecture questions where a day-old snapshot is fine.',
-          ),
+        maxAgeSeconds,
       }),
     },
     logged('get_stack_outputs', async () => {
