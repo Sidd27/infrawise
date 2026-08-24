@@ -17,6 +17,7 @@ import {
   ListSubscriptionsByTopicCommand,
   GetSubscriptionAttributesCommand,
 } from '@aws-sdk/client-sns';
+import type { Subscription } from '@aws-sdk/client-sns';
 import { SSMClient, DescribeParametersCommand } from '@aws-sdk/client-ssm';
 import { SecretsManagerClient, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
 import {
@@ -98,11 +99,37 @@ export function clientConfig(cfg: AWSConfig) {
   return base;
 }
 
+// A resource whose follow-up call failed used to be dropped from the list while
+// the source still reported ok, so "not read" arrived looking exactly like "does
+// not exist" — the false negative this whole data-health contract exists to
+// prevent. Extractors record what they lost and settle() reports the gap while
+// keeping everything that was read.
+export function partialReads(service: string) {
+  const missed: string[] = [];
+  return {
+    note(what: string, err?: unknown): void {
+      if (err !== undefined) {
+        logger.warn(
+          `${service} read failed for ${what}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      missed.push(what);
+    },
+    settle<T>(data: T): T {
+      if (missed.length === 0) return data;
+      const shown = missed.slice(0, 5).join(', ');
+      const rest = missed.length > 5 ? ` and ${missed.length - 5} more` : '';
+      throw new PartialExtractionError(`${service} unread: ${shown}${rest}`, data);
+    },
+  };
+}
+
 // ─── SQS ─────────────────────────────────────────────────────────────────────
 
 export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueMetadata[]> {
   const client = new SQSClient(clientConfig(cfg));
   const queues: SQSQueueMetadata[] = [];
+  const partial = partialReads('SQS');
 
   let nextToken: string | undefined;
   const queueUrls: string[] = [];
@@ -156,12 +183,10 @@ export async function extractSQSMetadata(cfg: AWSConfig = {}): Promise<SQSQueueM
         approximateInflight: parseInt(a['ApproximateNumberOfMessagesNotVisible'] ?? '0', 10),
       });
     } catch (err) {
-      logger.warn(
-        `SQS attrs failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      partial.note(url.split('/').pop() ?? url, err);
     }
   }
-  return queues;
+  return partial.settle(queues);
 }
 
 export async function validateSQSAccess(cfg: AWSConfig = {}): Promise<void> {
@@ -170,9 +195,26 @@ export async function validateSQSAccess(cfg: AWSConfig = {}): Promise<void> {
 
 // ─── SNS ─────────────────────────────────────────────────────────────────────
 
+// Subscriptions paginate. Reading only the first page dropped filter policies
+// past it, and a missing filter policy is the difference between a publish that
+// is delivered and one the subscription discards.
+async function listAllSubscriptions(client: SNSClient, arn: string): Promise<Subscription[]> {
+  const subs: Subscription[] = [];
+  let nextToken: string | undefined;
+  do {
+    const res = await client.send(
+      new ListSubscriptionsByTopicCommand({ TopicArn: arn, NextToken: nextToken }),
+    );
+    subs.push(...(res.Subscriptions ?? []));
+    nextToken = res.NextToken;
+  } while (nextToken);
+  return subs;
+}
+
 export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicMetadata[]> {
   const client = new SNSClient(clientConfig(cfg));
   const topics: SNSTopicMetadata[] = [];
+  const partial = partialReads('SNS');
 
   let nextToken: string | undefined;
   const topicArns: string[] = [];
@@ -184,12 +226,11 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
 
   for (const arn of topicArns) {
     try {
-      const [attrsRes, subsRes] = await Promise.all([
+      const [attrsRes, subs] = await Promise.all([
         client.send(new GetTopicAttributesCommand({ TopicArn: arn })),
-        client.send(new ListSubscriptionsByTopicCommand({ TopicArn: arn })),
+        listAllSubscriptions(client, arn),
       ]);
       const attrs = attrsRes.Attributes ?? {};
-      const subs = subsRes.Subscriptions ?? [];
 
       const filterPolicies: SNSFilterPolicy[] = [];
       for (const sub of subs) {
@@ -208,8 +249,10 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
               scope: subAttrs.Attributes?.['FilterPolicyScope'] ?? 'MessageAttributes',
             });
           }
-        } catch {
-          // skip subscription if attributes fetch fails
+        } catch (err) {
+          // An unread filter policy looks identical to a topic with no filter,
+          // which is how a publish silently loses its message.
+          partial.note(`filter policy for ${sub.SubscriptionArn}`, err);
         }
       }
 
@@ -222,12 +265,10 @@ export async function extractSNSMetadata(cfg: AWSConfig = {}): Promise<SNSTopicM
         filterPolicies,
       });
     } catch (err) {
-      logger.warn(
-        `SNS attrs failed for ${arn}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      partial.note(arn.split(':').pop() ?? arn, err);
     }
   }
-  return topics;
+  return partial.settle(topics);
 }
 
 export async function validateSNSAccess(cfg: AWSConfig = {}): Promise<void> {
@@ -264,7 +305,7 @@ export async function extractSSMMetadata(
       });
     }
     nextToken = res.NextToken;
-  } while (nextToken && parameters.length < 500);
+  } while (nextToken);
   return parameters;
 }
 
@@ -298,7 +339,7 @@ export async function extractSecretsMetadata(
       });
     }
     nextToken = res.NextToken;
-  } while (nextToken && secrets.length < 200);
+  } while (nextToken);
   return secrets;
 }
 
@@ -484,32 +525,34 @@ export async function extractEventBridgeMetadata(
 ): Promise<EventBridgeRuleMetadata[]> {
   const client = new EventBridgeClient(clientConfig(cfg));
   const rules: EventBridgeRuleMetadata[] = [];
+  const partial = partialReads('EventBridge');
 
   let nextToken: string | undefined;
   do {
     const res = await client.send(new ListRulesCommand({ NextToken: nextToken, Limit: 100 }));
     for (const rule of res.Rules ?? []) {
       if (!rule.Name) continue;
+      let targetArns: string[] = [];
       try {
         const targetsRes = await client.send(new ListTargetsByRuleCommand({ Rule: rule.Name }));
-        const targetArns = (targetsRes.Targets ?? []).map((t) => t.Arn ?? '').filter(Boolean);
-        rules.push({
-          name: rule.Name,
-          arn: rule.Arn ?? '',
-          state: rule.State ?? 'UNKNOWN',
-          scheduleExpression: rule.ScheduleExpression,
-          eventPattern: rule.EventPattern,
-          targetArns,
-        });
+        targetArns = (targetsRes.Targets ?? []).map((t) => t.Arn ?? '').filter(Boolean);
       } catch (err) {
-        logger.warn(
-          `EventBridge targets fetch failed for ${rule.Name}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        // The rule itself was read. Dropping it would hide a live schedule
+        // because one follow-up call failed.
+        partial.note(`targets for ${rule.Name}`, err);
       }
+      rules.push({
+        name: rule.Name,
+        arn: rule.Arn ?? '',
+        state: rule.State ?? 'UNKNOWN',
+        scheduleExpression: rule.ScheduleExpression,
+        eventPattern: rule.EventPattern,
+        targetArns,
+      });
     }
     nextToken = res.NextToken;
-  } while (nextToken && rules.length < 500);
-  return rules;
+  } while (nextToken);
+  return partial.settle(rules);
 }
 
 export async function validateEventBridgeAccess(cfg: AWSConfig = {}): Promise<void> {
@@ -609,6 +652,7 @@ export async function extractKinesisMetadata(
 ): Promise<KinesisStreamMetadata[]> {
   const client = new KinesisClient(clientConfig(cfg));
   const streams: KinesisStreamMetadata[] = [];
+  const partial = partialReads('Kinesis');
 
   let nextToken: string | undefined;
   const names: string[] = [];
@@ -622,7 +666,10 @@ export async function extractKinesisMetadata(
     try {
       const res = await client.send(new DescribeStreamSummaryCommand({ StreamName: name }));
       const d = res.StreamDescriptionSummary;
-      if (!d) continue;
+      if (!d) {
+        partial.note(name);
+        continue;
+      }
       streams.push({
         name,
         arn: d.StreamARN ?? '',
@@ -633,12 +680,10 @@ export async function extractKinesisMetadata(
         mode: d.StreamModeDetails?.StreamMode ?? 'PROVISIONED',
       });
     } catch (err) {
-      logger.warn(
-        `Kinesis describe failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      partial.note(name, err);
     }
   }
-  return streams;
+  return partial.settle(streams);
 }
 
 // ─── MSK ─────────────────────────────────────────────────────────────────────
@@ -721,6 +766,7 @@ export async function extractCognitoMetadata(
 ): Promise<CognitoUserPoolMetadata[]> {
   const client = new CognitoIdentityProviderClient(clientConfig(cfg));
   const pools: CognitoUserPoolMetadata[] = [];
+  const partial = partialReads('Cognito');
 
   let nextToken: string | undefined;
   const poolRefs: Array<{ id: string; name: string }> = [];
@@ -774,8 +820,8 @@ export async function extractCognitoMetadata(
                   }
                 : undefined,
             });
-          } catch {
-            /* skip client on describe failure */
+          } catch (err) {
+            partial.note(`app client ${c.ClientId}`, err);
           }
         }
         clientToken = clientsRes.NextToken;
@@ -788,12 +834,10 @@ export async function extractCognitoMetadata(
         clients,
       });
     } catch (err) {
-      logger.warn(
-        `Cognito describe failed for ${ref.name}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      partial.note(ref.name, err);
     }
   }
-  return pools;
+  return partial.settle(pools);
 }
 
 // ─── RDS ─────────────────────────────────────────────────────────────────────
@@ -931,6 +975,7 @@ export async function extractAPIGatewayMetadata(
   cfg: AWSConfig = {},
 ): Promise<APIGatewayMetadata[]> {
   const results: APIGatewayMetadata[] = [];
+  const partial = partialReads('API Gateway');
   let restFailed: unknown;
   let v2Failed: unknown;
   const ccfg = clientConfig(cfg);
@@ -966,17 +1011,13 @@ export async function extractAPIGatewayMetadata(
           }
         }
       } catch (err) {
-        logger.warn(
-          `API Gateway REST resources failed for ${api.name}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        partial.note(`REST routes for ${api.name}`, err);
       }
       results.push({ name: api.name, id: api.id, type: 'REST', routes });
     }
   } catch (err) {
     restFailed = err;
-    logger.warn(
-      `API Gateway REST list failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    partial.note('REST APIs', err);
   }
 
   // HTTP + WebSocket APIs (v2)
@@ -1023,22 +1064,20 @@ export async function extractAPIGatewayMetadata(
           routes.push({ method: method ?? routeKey, path: routePath, lambdaArn, lambdaName });
         }
       } catch (err) {
-        logger.warn(
-          `API Gateway v2 routes failed for ${api.name}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        partial.note(`routes for ${api.name}`, err);
       }
 
       results.push({ name: api.name, id: api.id, type: apiType, routes });
     }
   } catch (err) {
     v2Failed = err;
-    logger.debug(`API Gateway v2 list failed: ${err instanceof Error ? err.message : String(err)}`);
+    partial.note('HTTP and WebSocket APIs', err);
   }
 
   // REST and v2 are independent APIs — one failing still leaves real data from
-  // the other, so only a total miss is reported as unread. Half-read results
-  // stay available rather than being thrown away.
+  // the other, so only a total miss is a failed read. A half-read result stays
+  // available, reported as partial so the missing half is not read as absent.
   if (restFailed && v2Failed) throw restFailed;
 
-  return results;
+  return partial.settle(results);
 }

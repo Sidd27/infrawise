@@ -26,12 +26,23 @@ GENERATE_REPORT_FUNC_ARN=$($AWS lambda get-function-configuration \
   --function-name generateReport \
   --query 'FunctionArn' --output text 2>/dev/null || echo "")
 
-HTTP_API_ID=$($AWS apigatewayv2 create-api \
-  --name orders-http-api \
-  --protocol-type HTTP \
-  --query 'ApiId' --output text --no-cli-pager 2>/dev/null || echo "")
+# create-api mints a new id on every call, so re-running the seed used to leave
+# a second orders-http-api behind. Reuse the existing one; only build routes and
+# integrations when this run actually created the API.
+HTTP_API_ID=$($AWS apigatewayv2 get-apis \
+  --query 'Items[?Name==`orders-http-api`].ApiId | [0]' --output text --no-cli-pager 2>/dev/null || echo "")
+if [ "$HTTP_API_ID" = "None" ]; then HTTP_API_ID=""; fi
 
-if [ -n "$HTTP_API_ID" ] && [ -n "$PROCESS_ORDERS_FUNC_ARN" ]; then
+HTTP_API_CREATED=""
+if [ -z "$HTTP_API_ID" ]; then
+  HTTP_API_ID=$($AWS apigatewayv2 create-api \
+    --name orders-http-api \
+    --protocol-type HTTP \
+    --query 'ApiId' --output text --no-cli-pager 2>/dev/null || echo "")
+  HTTP_API_CREATED=1
+fi
+
+if [ -n "$HTTP_API_ID" ] && [ -n "$HTTP_API_CREATED" ] && [ -n "$PROCESS_ORDERS_FUNC_ARN" ]; then
   # IntegrationUri is the BARE function ARN here, which is what CDK's
   # HttpLambdaIntegration produces. Route-to-Lambda attribution must resolve it
   # from this form, not only from the REST invoke-path form.
@@ -131,6 +142,15 @@ if [ -n "$HTTP_API_ID" ]; then
       ]
     }
   }" >/dev/null || true
+
+  # Some emulators accept create-distribution and then return nothing from
+  # list-distributions. That shows up as "CloudFront 0 distribution(s)", which
+  # reads like an infrawise bug rather than a gap in the emulator, so check.
+  CF_COUNT=$($AWS cloudfront list-distributions \
+    --query 'length(DistributionList.Items || `[]`)' --output text --no-cli-pager 2>/dev/null || echo 0)
+  if [ "$CF_COUNT" = "0" ]; then
+    echo "    ! this emulator did not retain the distribution — CloudFront will show 0"
+  fi
 fi
 
 # ── RDS ──────────────────────────────────────────────────────────────────────
@@ -168,8 +188,12 @@ echo ""
 echo "✅ Floci-only seed complete"
 echo "   API Gateway v2 : orders-http-api — GET/POST /v2/orders → processOrders (bare ARN),"
 echo "                    GET /v2/reports → generateReport (aliased ARN), GET /v2/health (no integration)"
-echo "   CloudFront     : demo front door — /api/* → orders-http-api (allow-all, fires a finding),"
-echo "                    default → assets-bucket"
+if [ "${CF_COUNT:-0}" != "0" ]; then
+  echo "   CloudFront     : demo front door — /api/* → orders-http-api (allow-all, fires a finding),"
+  echo "                    default → assets-bucket"
+else
+  echo "   CloudFront     : not retained by this emulator (create accepted, list returns none)"
+fi
 echo "   RDS            : demo-postgres (public, unencrypted, no backups, no deletion protection, single AZ)"
 echo "   MSK            : demo-events (serverless, best effort — needs the Docker socket)"
 echo ""

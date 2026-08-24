@@ -233,9 +233,19 @@ ORDERS_QUEUE_ARN=$($AWS sqs get-queue-attributes \
   --attribute-names QueueArn \
   --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
 
+# An event source mapping has no natural key either: every seed run minted a
+# second mapping for the same pair, which doubled every trigger-derived finding.
+mapping_exists() {
+  local fn="$1" arn="$2" found
+  found=$($AWS lambda list-event-source-mappings --function-name "$fn" \
+    --query "length(EventSourceMappings[?EventSourceArn=='$arn'])" \
+    --output text --no-cli-pager 2>/dev/null || echo 0)
+  [ "$found" != "0" ]
+}
+
 # orders-queue triggers processOrders — queue has no DLQ (triggers LambdaMissingTriggerDLQAnalyzer)
 # and the mapping has no FunctionResponseTypes, so MissingPartialBatchResponseAnalyzer fires too
-if [ -n "$ORDERS_QUEUE_ARN" ]; then
+if [ -n "$ORDERS_QUEUE_ARN" ] && ! mapping_exists processOrders "$ORDERS_QUEUE_ARN"; then
   $AWS lambda create-event-source-mapping \
     --function-name processOrders \
     --event-source-arn "$ORDERS_QUEUE_ARN" \
@@ -249,7 +259,7 @@ REPORT_TRIGGER_QUEUE_ARN=$($AWS sqs get-queue-attributes \
   --queue-url "$ENDPOINT/000000000000/report-trigger-queue" \
   --attribute-names QueueArn \
   --query 'Attributes.QueueArn' --output text 2>/dev/null || echo "")
-if [ -n "$REPORT_TRIGGER_QUEUE_ARN" ]; then
+if [ -n "$REPORT_TRIGGER_QUEUE_ARN" ] && ! mapping_exists generateReport "$REPORT_TRIGGER_QUEUE_ARN"; then
   # This one sets ReportBatchItemFailures, so MissingPartialBatchResponseAnalyzer
   # must stay quiet about it while still flagging processOrders above.
   $AWS lambda create-event-source-mapping \
@@ -318,23 +328,44 @@ SEND_NOTIFICATION_FUNC_ARN=$($AWS lambda get-function-configuration \
 
 # HTTP API (v2) — demo-api
 # REST API (v1) — demo-api
-DEMO_API_ID=$($AWS apigateway create-rest-api \
-  --name "demo-api" \
-  --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+# create-rest-api mints a new id on every call, so re-running the seed used to
+# leave two demo-api APIs behind and double the route count. Reuse the existing
+# one, and only lay down resources when this run actually created it.
+DEMO_API_ID=$($AWS apigateway get-rest-apis \
+  --query 'items[?name==`demo-api`].id | [0]' --output text --no-cli-pager 2>/dev/null || echo "")
+if [ "$DEMO_API_ID" = "None" ]; then DEMO_API_ID=""; fi
 
-if [ -n "$DEMO_API_ID" ]; then
+DEMO_API_CREATED=""
+if [ -z "$DEMO_API_ID" ]; then
+  DEMO_API_ID=$($AWS apigateway create-rest-api \
+    --name "demo-api" \
+    --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+  DEMO_API_CREATED=1
+fi
+
+if [ -n "$DEMO_API_ID" ] && [ -n "$DEMO_API_CREATED" ]; then
   ROOT_ID=$($AWS apigateway get-resources \
     --rest-api-id "$DEMO_API_ID" \
     --query 'items[?path==`/`].id' --output text --no-cli-pager 2>/dev/null || echo "")
 
-  # Helper to create a resource + method + Lambda integration
+  # Helper to create a resource + method + Lambda integration. Two methods on one
+  # path share a single resource: real AWS rejects a second create-resource with
+  # the same path-part, which silently dropped POST /orders there, while the
+  # emulator accepted it and grew a duplicate /orders instead.
   create_route() {
     local method="$1" path_part="$2" lambda_arn="$3"
-    RESOURCE_ID=$($AWS apigateway create-resource \
+    RESOURCE_ID=$($AWS apigateway get-resources \
       --rest-api-id "$DEMO_API_ID" \
-      --parent-id "$ROOT_ID" \
-      --path-part "$path_part" \
-      --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+      --query "items[?path=='/$path_part'].id | [0]" \
+      --output text --no-cli-pager 2>/dev/null || echo "")
+    if [ "$RESOURCE_ID" = "None" ]; then RESOURCE_ID=""; fi
+    if [ -z "$RESOURCE_ID" ]; then
+      RESOURCE_ID=$($AWS apigateway create-resource \
+        --rest-api-id "$DEMO_API_ID" \
+        --parent-id "$ROOT_ID" \
+        --path-part "$path_part" \
+        --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+    fi
     if [ -n "$RESOURCE_ID" ]; then
       $AWS apigateway put-method \
         --rest-api-id "$DEMO_API_ID" \
@@ -382,11 +413,21 @@ $AWS kinesis create-stream --stream-name click-events --shard-count 1 --no-cli-p
 
 echo "  → Cognito user pool"
 
-POOL_ID=$($AWS cognito-idp create-user-pool \
-  --pool-name demo-users \
-  --query 'UserPool.Id' --output text --no-cli-pager 2>/dev/null || echo "")
+# Same as the REST API above — a pool name is not an identity, so a re-run
+# without this lookup left a second demo-users pool behind.
+POOL_ID=$($AWS cognito-idp list-user-pools --max-results 60 \
+  --query 'UserPools[?Name==`demo-users`].Id | [0]' --output text --no-cli-pager 2>/dev/null || echo "")
+if [ "$POOL_ID" = "None" ]; then POOL_ID=""; fi
 
-if [ -n "$POOL_ID" ]; then
+POOL_CREATED=""
+if [ -z "$POOL_ID" ]; then
+  POOL_ID=$($AWS cognito-idp create-user-pool \
+    --pool-name demo-users \
+    --query 'UserPool.Id' --output text --no-cli-pager 2>/dev/null || echo "")
+  POOL_CREATED=1
+fi
+
+if [ -n "$POOL_ID" ] && [ -n "$POOL_CREATED" ]; then
   $AWS cognito-idp create-user-pool-client \
     --user-pool-id "$POOL_ID" \
     --client-name web-client \

@@ -145,7 +145,14 @@ cp .env.example .env
 
 `demo/floci/seed/aws-seed.sh` sources the LocalStack seed unchanged, then adds the Floci-only services. Keep the shared resources in the LocalStack seed so both demos stay in step; put anything LocalStack community cannot emulate in the Floci seed.
 
-Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), CloudFront (1 distribution, `/api/*` allow-all finding), API Gateway v2 (1 HTTP API, 4 routes). Around 59 findings total.
+Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), MSK (`demo-events`), API Gateway (2 APIs, 4 routes). **56 findings total, graph 47 nodes / 15 edges** — verified 2026-08-24 against a fresh emulator.
+
+Two Floci gaps the numbers already account for, so neither is an infrawise regression:
+
+- **CloudFront reports 0 distributions.** Floci accepts `create-distribution` and then returns nothing from `list-distributions`, so the `/api/*` allow-all finding never fires. The seed checks for this and prints `! this emulator did not retain the distribution`. Only real AWS exercises the CloudFront path.
+- **All 4 API Gateway routes come from the HTTP API.** Floci's `get-resources` returns no `resourceMethods` for the REST API, so `demo-api` extracts as an API with zero routes.
+
+Both seeds are idempotent — re-running `aws-seed.sh` against a live emulator leaves the counts unchanged. Resources whose name is not an identity (REST API, HTTP API, Cognito user pool, Lambda event source mappings) are looked up before they are created; without that, a second seed silently doubled the API and pool counts and every trigger-derived finding.
 
 `demo/floci/app/` is scanned as application code and covers the two things only a code scan can show:
 
