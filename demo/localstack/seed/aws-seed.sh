@@ -348,14 +348,24 @@ if [ -n "$DEMO_API_ID" ] && [ -n "$DEMO_API_CREATED" ]; then
     --rest-api-id "$DEMO_API_ID" \
     --query 'items[?path==`/`].id' --output text --no-cli-pager 2>/dev/null || echo "")
 
-  # Helper to create a resource + method + Lambda integration
+  # Helper to create a resource + method + Lambda integration. Two methods on one
+  # path share a single resource: real AWS rejects a second create-resource with
+  # the same path-part, which silently dropped POST /orders there, while the
+  # emulator accepted it and grew a duplicate /orders instead.
   create_route() {
     local method="$1" path_part="$2" lambda_arn="$3"
-    RESOURCE_ID=$($AWS apigateway create-resource \
+    RESOURCE_ID=$($AWS apigateway get-resources \
       --rest-api-id "$DEMO_API_ID" \
-      --parent-id "$ROOT_ID" \
-      --path-part "$path_part" \
-      --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+      --query "items[?path=='/$path_part'].id | [0]" \
+      --output text --no-cli-pager 2>/dev/null || echo "")
+    if [ "$RESOURCE_ID" = "None" ]; then RESOURCE_ID=""; fi
+    if [ -z "$RESOURCE_ID" ]; then
+      RESOURCE_ID=$($AWS apigateway create-resource \
+        --rest-api-id "$DEMO_API_ID" \
+        --parent-id "$ROOT_ID" \
+        --path-part "$path_part" \
+        --query 'id' --output text --no-cli-pager 2>/dev/null || echo "")
+    fi
     if [ -n "$RESOURCE_ID" ]; then
       $AWS apigateway put-method \
         --rest-api-id "$DEMO_API_ID" \
