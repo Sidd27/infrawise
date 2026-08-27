@@ -38,7 +38,7 @@ So `suggestRefresh: false` means "this was read recently". It does not mean "thi
 
 Two sources are the exception, because they are checked against reality rather than a clock:
 
-**Your code.** The MCP server watches your source files. Editing code that touches infrastructure rebuilds the graph immediately. Note that `analyzedAt` deliberately does *not* move when this happens — the cloud facts in that rebuilt graph are exactly as old as they were before, and reporting the rebuild time as freshness would be a lie about where those facts came from.
+**Your code.** The MCP server watches your source files. Editing code that touches infrastructure rebuilds the graph immediately. Note that `analyzedAt` deliberately does _not_ move when this happens — the cloud facts in that rebuilt graph are exactly as old as they were before, and reporting the rebuild time as freshness would be a lie about where those facts came from. The rebuild takes those facts from the cached analysis rather than re-reading anything, so the whole cached set is held on one clock while a session is live; the [step-by-step behaviour](/infrawise/reference/data-freshness/#what-a-file-save-does) is in the reference.
 
 **Your CDK output.** `dataHealth.iac` compares `cdk.out` against the analysis and reports `changed` when someone has run `cdk synth` since. `get_stack_outputs` goes further, cross-checking each template against `cdk.out/manifest.json`: a template the manifest no longer lists is an orphan from a deleted or renamed stack, so its resources are excluded from the graph entirely and its outputs come back marked `stale`.
 
@@ -69,7 +69,7 @@ freshness:
 
 A solo project where infrastructure changes monthly should raise it; a shared account with deploys through the day should lower it. If you keep refreshing because the hint fired and the data was fine every time, it is too low, and you are training yourself to ignore it.
 
-**Ask your assistant to date its claims.** This costs nothing and does the most work. `dataHealth.analyzedAt` is in every response, but nothing makes an assistant repeat it to you. A line in your `CLAUDE.md` or equivalent — *when stating infrastructure facts from Infrawise, include when the snapshot was taken* — puts "as of Monday 3pm" next to the DLQ claim, where you will see it before you act on it. Machine-readable metadata that never reaches the human protects nobody.
+**Ask your assistant to date its claims.** This costs nothing and does the most work. `dataHealth.analyzedAt` is in every response, but nothing makes an assistant repeat it to you. A line in your `CLAUDE.md` or equivalent — _when stating infrastructure facts from Infrawise, include when the snapshot was taken_ — puts "as of Monday 3pm" next to the DLQ claim, where you will see it before you act on it. Machine-readable metadata that never reaches the human protects nobody.
 
 **Re-analyze at the boundaries that matter.** Before a release, after someone else's deploy, when picking a session back up the next morning. `infrawise analyze` is the refresh, and `infrawise check` runs a fresh analysis every time by design, so CI never reads from a cache.
 
