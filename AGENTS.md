@@ -44,11 +44,11 @@ Run `pnpm check:docs` — it fails if the version (`package.json`/`server.json`/
 | `llms.txt` | Quick start commands, MCP tools list (count + names match `src/server/index.ts`) |
 | `src/server/index.ts` | Tool descriptions — purpose + when to call + when NOT to call (TDQS criteria) |
 | `server.json` | Description must stay accurate and must NOT hardcode a tool count (it goes stale on the MCP Registry) |
-| `website/src/pages/index.astro` | `softwareVersion` in `SoftwareApplication` JSON-LD schema (hardcoded string, search for `"softwareVersion"`) |
 
 **Auto-updated by `pnpm release` — no action needed:**
 - `package.json` — version
 - `server.json` — version (MCP Registry manifest)
+- `website/src/pages/index.astro` — `softwareVersion` in the `SoftwareApplication` JSON-LD schema (release.js aborts if the field is missing)
 - `docs/architecture.svg` — regenerated from `docs/architecture.yml` before commit
 - Git commit, tag, push, draft GitHub release
 
