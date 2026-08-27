@@ -34,7 +34,9 @@ if (arg === 'patch') {
 } else if (/^\d+\.\d+\.\d+$/.test(arg)) {
   next = arg;
 } else {
-  console.error(`Invalid argument: "${arg}". Use patch, minor, major, or an explicit x.y.z version.`);
+  console.error(
+    `Invalid argument: "${arg}". Use patch, minor, major, or an explicit x.y.z version.`,
+  );
   process.exit(1);
 }
 
@@ -55,12 +57,31 @@ if (existsSync(serverJsonPath)) {
   console.log(`server.json: bumped to ${next}`);
 }
 
+// ── Bump website softwareVersion (JSON-LD SoftwareApplication schema) ────────
+//
+// check-docs.mjs gates the release on this matching package.json, but nothing
+// used to move it, so it went stale on every release until someone hand-edited
+// it — and once it silently did not.
+
+const astroPath = resolve(import.meta.dirname, '../website/src/pages/index.astro');
+if (existsSync(astroPath)) {
+  const astro = readFileSync(astroPath, 'utf8');
+  const bumped = astro.replace(/("softwareVersion"\s*:\s*)"[^"]+"/, `$1"${next}"`);
+  if (bumped === astro) {
+    console.error('website/src/pages/index.astro: no "softwareVersion" field found — aborting.');
+    process.exit(1);
+  }
+  writeFileSync(astroPath, bumped, 'utf8');
+  console.log(`website softwareVersion: bumped to ${next}`);
+}
+
 // ── Regenerate architecture diagram ──────────────────────────────────────────
 
 console.log('\nGenerating architecture diagram...');
 execSync('pnpm build-arch', { stdio: 'inherit' });
 
 execSync('git add package.json docs/architecture.svg', { stdio: 'inherit' });
+if (existsSync(astroPath)) execSync('git add website/src/pages/index.astro', { stdio: 'inherit' });
 if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
 execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
 execSync(`git tag v${next}`, { stdio: 'inherit' });
@@ -70,29 +91,35 @@ execSync(`git tag v${next}`, { stdio: 'inherit' });
 const prevTag = `v${prev}`;
 let commits;
 try {
-  commits = execSync(`git log ${prevTag}..HEAD --pretty=format:"%s" --no-merges`, { encoding: 'utf8' })
-    .trim().split('\n')
-    .filter(l => l && !l.startsWith('chore: release') && !l.startsWith('chore(deps)'));
+  commits = execSync(`git log ${prevTag}..HEAD --pretty=format:"%s" --no-merges`, {
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    .filter((l) => l && !l.startsWith('chore: release') && !l.startsWith('chore(deps)'));
 } catch {
   commits = [];
 }
 
 const strip = (prefix, line) => line.replace(new RegExp(`^${prefix}:\\s*`), '');
 
-const features = commits.filter(l => l.startsWith('feat'));
-const fixes    = commits.filter(l => l.startsWith('fix'));
-const chores   = commits.filter(l => /^(chore|docs|refactor|perf|test)/.test(l));
-const other    = commits.filter(l => !l.startsWith('feat') && !l.startsWith('fix') && !/^(chore|docs|refactor|perf|test)/.test(l));
+const features = commits.filter((l) => l.startsWith('feat'));
+const fixes = commits.filter((l) => l.startsWith('fix'));
+const chores = commits.filter((l) => /^(chore|docs|refactor|perf|test)/.test(l));
+const other = commits.filter(
+  (l) =>
+    !l.startsWith('feat') && !l.startsWith('fix') && !/^(chore|docs|refactor|perf|test)/.test(l),
+);
 
 const sections = [];
-if (features.length) sections.push(`## What's New\n${features.map(l => `- ${strip('feat(\\w+)?', l)}`).join('\n')}`);
-if (fixes.length)    sections.push(`## Bug Fixes\n${fixes.map(l => `- ${strip('fix(\\w+)?', l)}`).join('\n')}`);
-if (chores.length)   sections.push(`## Maintenance\n${chores.map(l => `- ${l}`).join('\n')}`);
-if (other.length)    sections.push(`## Other\n${other.map(l => `- ${l}`).join('\n')}`);
+if (features.length)
+  sections.push(`## What's New\n${features.map((l) => `- ${strip('feat(\\w+)?', l)}`).join('\n')}`);
+if (fixes.length)
+  sections.push(`## Bug Fixes\n${fixes.map((l) => `- ${strip('fix(\\w+)?', l)}`).join('\n')}`);
+if (chores.length) sections.push(`## Maintenance\n${chores.map((l) => `- ${l}`).join('\n')}`);
+if (other.length) sections.push(`## Other\n${other.map((l) => `- ${l}`).join('\n')}`);
 
-const notes = sections.length
-  ? sections.join('\n\n')
-  : `Release v${next}`;
+const notes = sections.length ? sections.join('\n\n') : `Release v${next}`;
 
 // ── Push commits and tag ──────────────────────────────────────────────────────
 
@@ -105,8 +132,18 @@ const notesFile = join(tmpdir(), `infrawise-release-${next}.md`);
 writeFileSync(notesFile, notes, 'utf8');
 
 const ghResult = spawnSync(
-  'gh', ['release', 'create', `v${next}`, '--draft', '--title', `Infrawise v${next}`, '--notes-file', notesFile],
-  { stdio: 'inherit' }
+  'gh',
+  [
+    'release',
+    'create',
+    `v${next}`,
+    '--draft',
+    '--title',
+    `Infrawise v${next}`,
+    '--notes-file',
+    notesFile,
+  ],
+  { stdio: 'inherit' },
 );
 
 if (ghResult.status === 0) {
