@@ -67,3 +67,16 @@ export function readCache<T>(key: string): T | null {
 export function readCacheTimestamp(key: string): number | null {
   return readEntry(key)?.timestamp ?? null;
 }
+
+// Re-stamp an entry's clock without changing its data. The code-refresh path
+// rewrites graph/findings/operations on every file save but reads no AWS, so
+// `meta` and `provenance` still describe the analysis being served — left on
+// their own clock they expire underneath a live graph, and the server silently
+// loses every cloud fact and its `analyzedAt` (which then reports "no analysis
+// loaded", i.e. suggestRefresh forever) while still answering from that graph.
+// Entries describe one analysis and must expire as one.
+export function touchCache(key: string): void {
+  const entry = readEntry(key);
+  if (!entry || entry.version !== CACHE_VERSION) return;
+  writeCache(key, entry.data);
+}

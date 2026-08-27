@@ -7,6 +7,7 @@ import {
   formatError,
   writeCache,
   readCache,
+  touchCache,
   setCacheDir,
   PartialExtractionError,
 } from '../../core/index.js';
@@ -698,8 +699,13 @@ export async function runCodeRefresh(
   graph: ReturnType<typeof buildGraph>;
   findings: Awaited<ReturnType<typeof A.runAllAnalyzers>>;
 }> {
-  // Same 24h TTL as the graph cache — a shorter TTL here silently dropped all
-  // AWS/DB metadata from refreshed graphs once a serve/stdio session passed 1h.
+  // This path rewrites graph/findings/operations but reads no AWS, so meta and
+  // provenance still describe the current analysis. Re-stamp them onto the same
+  // clock first: on their own they expire while file saves keep the graph alive,
+  // and the refreshed graph silently loses every cloud fact while dataHealth
+  // loses analyzedAt and reports suggestRefresh on every call from then on.
+  touchCache('meta');
+  touchCache('provenance');
   const cached = readCache<CachedMeta>('meta');
   const dynamoMeta = cached?.dynamoMeta ?? [];
   const postgresMeta = cached?.postgresMeta ?? [];

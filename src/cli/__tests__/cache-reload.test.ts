@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { setCacheDir, writeCache } from '../../core/index.js';
 import { reloadFromCache } from '../mcp-boot.js';
+import { runCodeRefresh } from '../commands/analyze.js';
 import { createMcpServer, setGraphState, setSnapshotLoader } from '../../server/index.js';
 import type { SystemGraph, Finding, AnalysisProvenance } from '../../types.js';
 
@@ -145,5 +146,61 @@ describe('cache reload', () => {
     expect(health.profile).toBe('lab5');
     expect(health.sources).toHaveLength(1);
     expect(health.iac.reason).not.toMatch(/predates source tracking/);
+  });
+
+  // A file save rewrites graph/findings/operations and nothing else. Left alone,
+  // meta and provenance hit the TTL first, so a long-lived serve session lost its
+  // cloud metadata and its analyzedAt — and then answered suggestRefresh: true on
+  // every single call while still serving a graph it refused to date.
+  it('a code refresh keeps meta and provenance on the graph\u2019s clock', async () => {
+    const analyzedAt = Date.now() - 25 * 3600_000;
+    writeCache('provenance', {
+      analyzedAt,
+      profile: 'lab5',
+      sources: [{ service: 'sqs', status: 'ok' }],
+    } as AnalysisProvenance);
+    writeCache('meta', {
+      dynamoMeta: [{ tableName: 'billing', indexes: [], keySchema: [], attributes: [] }],
+    });
+    backdate('provenance', 25 * 3600_000);
+    backdate('meta', 25 * 3600_000);
+    writeCache('graph', graph('orders'));
+    writeCache('findings', [] as Finding[]);
+
+    await runCodeRefresh(dir, { project: 'test', terraform: { enabled: false } });
+    reloadFromCache();
+
+    // The cloud metadata survived the refresh: the rebuilt graph still has the
+    // table that only `meta` knows about.
+    expect((await overview()).summary.tables).toBe(1);
+    const health = await overviewHealth();
+    expect(health.analyzedAt).toBe(new Date(analyzedAt).toISOString());
+    expect(health.profile).toBe('lab5');
+    expect(health.sources).toEqual([{ service: 'sqs', status: 'ok', error: null }]);
+    expect(health.iac.reason).not.toMatch(/predates source tracking/);
+    // 25h old is past the 6h warning, so this one is true on the merits — the
+    // bug was it being true because analyzedAt had gone null.
+    expect(health.suggestRefresh).toBe(true);
+    expect(health.ageSeconds).toBeGreaterThan(24 * 3600);
+  });
+
+  // The same session inside the 6h window: a code refresh must not turn a
+  // no-refresh-needed answer into a refresh-needed one.
+  it('a code refresh leaves a fresh analysis reporting no refresh needed', async () => {
+    const analyzedAt = Date.now() - 60_000;
+    writeCache('provenance', {
+      analyzedAt,
+      sources: [{ service: 'sqs', status: 'ok' }],
+    } as AnalysisProvenance);
+    writeCache('meta', { dynamoMeta: [] });
+    writeCache('graph', graph('orders'));
+    writeCache('findings', [] as Finding[]);
+
+    await runCodeRefresh(dir, { project: 'test', terraform: { enabled: false } });
+    reloadFromCache();
+
+    const health = await overviewHealth();
+    expect(health.suggestRefresh).toBe(false);
+    expect(health.analyzedAt).toBe(new Date(analyzedAt).toISOString());
   });
 });
