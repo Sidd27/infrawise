@@ -108,8 +108,8 @@ importers:
         specifier: ^7.2.0
         version: 7.5.0(@aws-sdk/credential-providers@3.1117.0)(socks@2.8.9)
       mysql2:
-        specifier: ^3.23.3
-        version: 3.23.3(@types/node@26.3.0)
+        specifier: ^3.24.2
+        version: 3.24.2(@types/node@26.3.0)
       ora:
         specifier: ^9.4.0
         version: 9.4.1
@@ -2336,8 +2336,8 @@ packages:
     resolution: {integrity: sha512-1e9d3kb97NHJTIJDZW9rKqW2h6+dFa50Dy0fpPSMQp2ADje5gvKsXmdiK6dwY5t76TaTt5+P5N1Y/LoToIxP6g==}
     engines: {node: '>= 12'}
 
-  ip-address@10.5.0:
-    resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
+  ip-address@10.7.0:
+    resolution: {integrity: sha512-BGFsyJd5mpXp3rK6jIdADLNgpJUK1jnjzvYF8lK+VyDab9JAmqN0YOKDdP17HlgKb2+ehPgDc8EtnRLbGCAMhA==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -2818,8 +2818,8 @@ packages:
     resolution: {integrity: sha512-dkEJPVvun4FryqBmZ5KhDo0K9iDXAwn08tMLDinNdRBNPcYEDiWYysLcc6k3mjTMlbP9KyylvRpd4wFtwrT9rw==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  mysql2@3.23.3:
-    resolution: {integrity: sha512-ehp9HEKr4wVJaBOUVxNFa+CNrsCCCZ6363/jbGhb7WpEmSRNIXjHBjFs5K2s2cXn7j/RhDieejsQJ6nfUwD6vQ==}
+  mysql2@3.24.2:
+    resolution: {integrity: sha512-l9kXeKGwd6VCbSjmpO/bLWb+YCYpbvE4whte8ec6InXebvCNyEEydyRCnRU+TSHNqRLJ8B+Tk1uWb+vMCJgJzA==}
     engines: {node: '>= 8.0'}
     peerDependencies:
       '@types/node': '>= 8'
@@ -6448,7 +6448,7 @@ snapshots:
 
   ip-address@10.3.1: {}
 
-  ip-address@10.5.0:
+  ip-address@10.7.0:
     optional: true
 
   ipaddr.js@1.9.1: {}
@@ -7141,7 +7141,7 @@ snapshots:
 
   mute-stream@3.0.0: {}
 
-  mysql2@3.23.3(@types/node@26.3.0):
+  mysql2@3.24.2(@types/node@26.3.0):
     dependencies:
       '@types/node': 26.3.0
       aws-ssl-profiles: 1.1.2
@@ -7827,7 +7827,7 @@ snapshots:
 
   socks@2.8.9:
     dependencies:
-      ip-address: 10.5.0
+      ip-address: 10.7.0
       smart-buffer: 4.2.0
     optional: true
 
