@@ -1,7 +1,7 @@
 # Container image for the Docker MCP Catalog (stdio transport).
 # Mount your project (with infrawise.yaml) at /project and provide AWS
 # credentials via env; serve runs a fresh analysis at boot when no cache exists.
-FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS build
+FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS build
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Node 26 no longer bundles corepack. Installing it from npm keeps the pnpm
 # version driven by package.json's packageManager field instead of pinning it
@@ -19,7 +19,7 @@ RUN pnpm build && pnpm prune --prod --ignore-scripts
 # runtime and executed under another. Node 26 becomes LTS on 2026-10-28. tsc
 # emits per tsconfig target, so this never narrows what the package supports:
 # engines stays >=22.
-FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019
+FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3
 ENV NODE_ENV=production
 # The entrypoint runs `node` only. npm and corepack ship with the official image
 # and are the sole source of its CVEs (their vendored tar, undici and
