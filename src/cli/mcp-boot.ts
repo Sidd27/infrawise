@@ -1,11 +1,35 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadConfig, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
+import { loadConfig, logger, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
 import { setGraphState, setServerConfig, setSnapshotLoader } from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
 
 const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+
+// Build output and vendored trees churn constantly (cdk synth, tsc --watch, a
+// bundler) and the scanner already skips them, so a refresh triggered from one
+// is pure cost: a full re-analysis that cannot change the result.
+const IGNORED_DIRS = new Set([
+  'node_modules',
+  '.infrawise',
+  '.git',
+  'cdk.out',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  '.next',
+  '.turbo',
+  '.venv',
+  'venv',
+  '__pycache__',
+]);
+
+export function triggersRefresh(filename: string): boolean {
+  if (!WATCHED_EXTS.includes(path.extname(filename))) return false;
+  return !filename.split(/[\\/]/).some((segment) => IGNORED_DIRS.has(segment));
+}
 
 export interface BootLog {
   ok(msg: string, detail?: string): void;
@@ -105,8 +129,8 @@ export function watchCode(
         hooks.onConfigChange?.();
         return;
       }
-      if (!WATCHED_EXTS.includes(path.extname(filename))) return;
-      if (filename.includes('node_modules') || filename.startsWith('.infrawise')) return;
+      if (!triggersRefresh(filename)) return;
+      logger.debug(`Code change detected: ${filename}`);
 
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
