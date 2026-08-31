@@ -109,14 +109,16 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
         console.log(chalk.dim('\n  infrawise.yaml changed — restart to apply config changes\n')),
       onStart: () => {
         refreshSpin = ora({
-          text: chalk.dim('Refreshing code analysis...'),
+          text: chalk.dim('Refreshing code analysis (cloud data from cache)...'),
           color: 'cyan',
         }).start();
       },
       onDone: (graph, findings) =>
         refreshSpin?.succeed(
-          chalk.green('Analysis refreshed') +
-            chalk.dim(`  ${graph.nodes.length} nodes · ${findings.length} finding(s)`),
+          chalk.green('Code analysis refreshed from cache') +
+            chalk.dim(
+              `  ${graph.nodes.length} nodes · ${findings.length} finding(s) · run infrawise analyze to re-read AWS`,
+            ),
         ),
       onError: (err) =>
         refreshSpin?.warn(

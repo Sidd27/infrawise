@@ -13,7 +13,9 @@ export async function runStdio(configPath?: string): Promise<void> {
     const repoPath = process.cwd();
     watchCode(repoPath, config, path.resolve(configPath ?? 'infrawise.yaml'), {
       onDone: (graph, findings) =>
-        write(`code graph refreshed (${graph.nodes.length} nodes · ${findings.length} finding(s))`),
+        write(
+          `code graph refreshed from cache (${graph.nodes.length} nodes · ${findings.length} finding(s))`,
+        ),
     });
   }
 
