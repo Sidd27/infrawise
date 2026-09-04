@@ -405,13 +405,19 @@ export function createMcpServer(): McpServer {
     'analyze_function',
     {
       description:
-        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name; `ambiguous: true` means the name matched several files, so pick the entry whose file you are actually editing instead of assuming the first. Returns found: false if the function name was not discovered during analysis.',
+        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name. Pass `file` to bind the answer to the one file you are editing: it matches a stored path exactly, or as a trailing fragment on a path-segment boundary, so a bare "orders.ts" resolves against the absolute path the scanner recorded. Matching is case sensitive. When `file` selects exactly one entry, that entry is returned alone with its `accesses`. When several files match — with or without `file` — `ambiguous: true` is returned and `accesses` is withheld from every entry; re-call with `file` set to the file you are editing rather than guessing between them. When `file` matches nothing, `fileMatched: false` is returned with `availableFiles` listing the paths that do exist, so you can retry. Returns found: false if the function name was not discovered during analysis.',
       inputSchema: z.object({
         function: z.string().describe('Function name to analyze'),
+        file: z
+          .string()
+          .optional()
+          .describe(
+            'Bind the result to one source file: the full stored path, or a trailing fragment on a path-segment boundary (e.g. "orders.ts" or "handlers/orders.ts"). Case sensitive.',
+          ),
         maxAgeSeconds,
       }),
     },
-    logged('analyze_function', async ({ function: functionName }) => {
+    logged('analyze_function', async ({ function: functionName, file }) => {
       // Function node ids are file-scoped, so one name can match several files.
       // Returning every candidate keeps a same-named shadow definition from
       // silently standing in for the real one.
@@ -497,29 +503,58 @@ export function createMcpServer(): McpServer {
         return [...needed].filter((s) => !allowedServices.includes(s));
       };
 
-      const matches = funcNodes.map((n) => {
+      // The scanner records absolute paths, so a caller editing `orders.ts` has
+      // no way to send the string the graph holds. Anchoring the suffix on a
+      // separator keeps `ders.ts` from binding to `.../orders.ts`.
+      const normalize = (p: string) => p.replace(/\\/g, '/');
+      const wanted = file !== undefined ? normalize(file) : undefined;
+      const selected =
+        wanted === undefined
+          ? funcNodes
+          : funcNodes.filter((n) => {
+              const nodeFile = normalize(n.type === 'function' ? n.file : '');
+              return nodeFile === wanted || nodeFile.endsWith(`/${wanted}`);
+            });
+
+      const ambiguous = selected.length > 1;
+
+      const matches = selected.map((n) => {
         const outEdges = getOutgoingEdges(currentGraph, n.id);
         const missingPermissions = missingFor(outEdges);
         return {
           file: n.type === 'function' ? n.file : undefined,
-          accesses: outEdges.map((e) => {
-            const target = nodeMap.get(e.to);
-            return {
-              targetId: e.to,
-              edgeType: e.type,
-              targetName: target && 'name' in target ? target.name : e.to,
-              targetType: target?.type,
-            };
-          }),
+          // Absent rather than empty: an empty array would assert this function
+          // reaches nothing, when the truth is that no one file was identified.
+          ...(ambiguous
+            ? {}
+            : {
+                accesses: outEdges.map((e) => {
+                  const target = nodeMap.get(e.to);
+                  return {
+                    targetId: e.to,
+                    edgeType: e.type,
+                    targetName: target && 'name' in target ? target.name : e.to,
+                    targetType: target?.type,
+                  };
+                }),
+              }),
           ...(missingPermissions !== undefined ? { missingPermissions } : {}),
         };
       });
 
+      const fileMissed = wanted !== undefined && selected.length === 0;
+
       return toText({
         function: functionName,
         found: true,
-        matches,
-        ...(matches.length > 1 ? { ambiguous: true } : {}),
+        ...(fileMissed
+          ? {
+              requestedFile: file,
+              fileMatched: false,
+              availableFiles: funcNodes.flatMap((n) => (n.type === 'function' ? [n.file] : [])),
+            }
+          : { matches }),
+        ...(ambiguous ? { ambiguous: true } : {}),
         ...(resolvedVia ? { resolvedLambda: resolvedVia } : {}),
         ...(ambiguousLambdas ? { candidateLambdas: ambiguousLambdas } : {}),
         triggers: allTriggers.map((t) => ({

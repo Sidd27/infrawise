@@ -86,6 +86,28 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
   return JSON.parse(result.content[0].text);
 }
 
+function sameNameGraph(secondFile: string): SystemGraph {
+  return {
+    nodes: [
+      ...testGraph.nodes,
+      {
+        id: `function:${secondFile}:getOrder`,
+        type: 'function',
+        name: 'getOrder',
+        file: secondFile,
+      },
+    ],
+    edges: [
+      ...testGraph.edges,
+      {
+        from: `function:${secondFile}:getOrder`,
+        to: 'table:postgres:public.users',
+        type: 'query',
+      },
+    ],
+  };
+}
+
 describe('MCP Server — protocol', () => {
   it('lists all 21 tools', async () => {
     const client = await makeClient(emptyGraph, []);
@@ -187,11 +209,82 @@ describe('MCP Server — tool results', () => {
       const data = await callTool(shadowClient, 'analyze_function', { function: 'getOrder' });
       expect(data.ambiguous).toBe(true);
       expect(data.matches).toHaveLength(2);
-      expect(data.matches.map((m: { file: string }) => m.file)).toEqual([
-        'handler.ts',
-        'experiments/handler.ts',
-      ]);
-      expect(data.matches[1].accesses[0].targetName).toBe('public.users');
+      const files = data.matches.map((m: { file: string }) => m.file);
+      expect(new Set(files)).toEqual(new Set(['handler.ts', 'experiments/handler.ts']));
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
+  it('analyze_function binds to the file given and returns that match alone', async () => {
+    const shadowClient = await makeClient(sameNameGraph('experiments/handler.ts'), testFindings);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', {
+        function: 'getOrder',
+        file: 'experiments/handler.ts',
+      });
+      expect(data.found).toBe(true);
+      expect(data.matches).toHaveLength(1);
+      expect(data.matches[0].file).toBe('experiments/handler.ts');
+      expect(data.matches[0].accesses[0].targetName).toBe('public.users');
+      expect(data.ambiguous).toBeUndefined();
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
+  it('analyze_function omits accesses entirely from every ambiguous entry', async () => {
+    const shadowClient = await makeClient(sameNameGraph('experiments/handler.ts'), testFindings);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', { function: 'getOrder' });
+      expect(data.ambiguous).toBe(true);
+      expect(data.matches).toHaveLength(2);
+      for (const match of data.matches) {
+        expect(match).not.toHaveProperty('accesses');
+      }
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
+  it('analyze_function reports an unmatched file instead of falling back to all matches', async () => {
+    const shadowClient = await makeClient(sameNameGraph('experiments/handler.ts'), testFindings);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', {
+        function: 'getOrder',
+        file: 'nowhere/handler.ts',
+      });
+      expect(data.found).toBe(true);
+      expect(data.fileMatched).toBe(false);
+      expect(data.requestedFile).toBe('nowhere/handler.ts');
+      expect(new Set(data.availableFiles)).toEqual(
+        new Set(['handler.ts', 'experiments/handler.ts']),
+      );
+      expect(data).not.toHaveProperty('matches');
+      expect(data.ambiguous).toBeUndefined();
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
+  it('analyze_function resolves a bare filename against an absolute stored path', async () => {
+    const absolute = '/abs/src/handlers/orders.ts';
+    const shadowClient = await makeClient(sameNameGraph(absolute), testFindings);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', {
+        function: 'getOrder',
+        file: 'orders.ts',
+      });
+      expect(data.matches).toHaveLength(1);
+      expect(data.matches[0].file).toBe(absolute);
+      expect(data.matches[0].accesses[0].targetName).toBe('public.users');
+      expect(data.ambiguous).toBeUndefined();
+
+      const partial = await callTool(shadowClient, 'analyze_function', {
+        function: 'getOrder',
+        file: 'ders.ts',
+      });
+      expect(partial.fileMatched).toBe(false);
     } finally {
       await shadowClient.close();
     }
