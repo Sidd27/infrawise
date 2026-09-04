@@ -50,7 +50,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `dataHealth.suggestRefresh` flips past 6h by default, tunable via `freshness.suggestRefreshAfterHours` in infrawise.yaml — see https://sidd27.github.io/infrawise/guides/how-infrawise-handles-staleness/ for what age does and does not tell you
 - `get_graph_summary` — complete graph: all nodes, edges, findings
 - `get_table_schema` — column-level schema for named tables/collections: types, primary keys, foreign keys, indexes, DynamoDB keys/billing mode/cost signal (never row data)
-- `analyze_function` — per-function analysis with trigger event shapes and missing IAM permissions, one match per file defining that name; optional `file` binds the answer to a single file (exact path or a trailing fragment on a segment boundary, so a bare `orders.ts` works), and while several files match, `accesses` is absent from every entry rather than empty
+- `analyze_function` — per-function analysis with trigger event shapes and missing IAM permissions, one match per file defining that name; optional `file` binds the answer to a single file (exact path or a trailing fragment on a segment boundary, so a bare `orders.ts` works), and while several files match, `accesses` is absent from every entry rather than empty; `unresolvedLambdas` names each Lambda refused a link to this function and why
 - `suggest_gsi` — ready-to-use DynamoDB GSI definition
 - `postgres_index_suggestions` — exact CREATE INDEX CONCURRENTLY SQL
 - `suggest_mongo_index` — exact db.collection.createIndex command
@@ -59,7 +59,7 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status + key names inferred from code (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
-- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal
+- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal; `unresolvedLink` records why a Lambda was not linked to a source function (`no_match`, `multiple_functions`, `multiple_lambdas`) instead of linking nothing silently
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — CloudWatch error patterns (never raw log messages)

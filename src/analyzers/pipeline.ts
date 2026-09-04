@@ -9,7 +9,8 @@ const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 // answer "what triggers the handler I am editing" when the deployed name is
 // stack-prefixed and shares no string with the function name.
 export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] = []): void {
-  for (const link of compositeLink(iacLambdas, graph)) {
+  const { links, unresolved } = compositeLink(iacLambdas, graph);
+  for (const link of links) {
     graph.edges.push({
       from: link.lambdaId,
       to: link.functionId,
@@ -17,13 +18,17 @@ export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] =
       confidence: link.confidence,
     });
   }
+  for (const { lambdaId, reason, candidates } of unresolved) {
+    const node = graph.nodes.find((n) => n.id === lambdaId);
+    if (node?.type === 'lambda') node.unresolvedLink = { reason, candidates };
+  }
 }
 
 export async function PipelineAnalyzer(
   graph: SystemGraph,
   iacLambdas: IaCLambda[] = [],
 ): Promise<Finding[]> {
-  const links = compositeLink(iacLambdas, graph);
+  const { links } = compositeLink(iacLambdas, graph);
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
   return [
     ...detectMissingDlqHop(graph),

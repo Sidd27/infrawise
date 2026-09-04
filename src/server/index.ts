@@ -13,6 +13,7 @@ import type {
   InfrawiseConfig,
 } from '../types.js';
 import { logger } from '../core/index.js';
+import { normalizeName } from '../analyzers/linkers.js';
 
 const { version } = JSON.parse(
   readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
@@ -405,7 +406,7 @@ export function createMcpServer(): McpServer {
     'analyze_function',
     {
       description:
-        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name. Pass `file` to bind the answer to the one file you are editing: it matches a stored path exactly, or as a trailing fragment on a path-segment boundary, so a bare "orders.ts" resolves against the absolute path the scanner recorded. Matching is case sensitive. When `file` selects exactly one entry, that entry is returned alone with its `accesses`. When several files match — with or without `file` — `ambiguous: true` is returned and `accesses` is withheld from every entry; re-call with `file` set to the file you are editing rather than guessing between them. When `file` matches nothing, `fileMatched: false` is returned with `availableFiles` listing the paths that do exist, so you can retry. Returns found: false if the function name was not discovered during analysis.',
+        'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name. Pass `file` to bind the answer to the one file you are editing: it matches a stored path exactly, or as a trailing fragment on a path-segment boundary, so a bare "orders.ts" resolves against the absolute path the scanner recorded. Matching is case sensitive. When `file` selects exactly one entry, that entry is returned alone with its `accesses`. When several deployed Lambdas link to the same function, `candidateLambdas` names them and `triggers` is absent rather than empty; re-call with `file` if the candidates come from different files. When several files match — with or without `file` — `ambiguous: true` is returned and `accesses` is withheld from every entry; re-call with `file` set to the file you are editing rather than guessing between them. When `file` matches nothing, `fileMatched: false` is returned with `availableFiles` listing the paths that do exist, so you can retry. When no deployed Lambda could be linked to this function, `unresolvedLambdas` names each Lambda that was considered and why it was refused (`no_match`, `multiple_functions`, or `multiple_lambdas` with the colliding names), so an empty `triggers` can be told apart from a function that is not deployed. Returns found: false if the function name was not discovered during analysis.',
       inputSchema: z.object({
         function: z.string().describe('Function name to analyze'),
         file: z
@@ -472,6 +473,27 @@ export function createMcpServer(): McpServer {
               confidence: e.type === 'implemented_by' ? e.confidence : 'inferred',
             }))
           : undefined;
+
+      // A refusal lives on the Lambda node. It concerns this function when the
+      // function is one of the named candidates, or when the Lambda's key is
+      // the one this function would have matched under the name heuristic.
+      const keys = new Set(
+        selected.flatMap((f) =>
+          f.type === 'function' ? [normalizeName(f.name), normalizeName(f.file)] : [],
+        ),
+      );
+      keys.delete('');
+      const unresolvedLambdas =
+        lambdaNode || linkEdges.length > 0
+          ? undefined
+          : currentGraph.nodes.flatMap((n) =>
+              n.type === 'lambda' &&
+              n.unresolvedLink &&
+              (n.unresolvedLink.candidates.some((c) => selected.some((f) => f.id === c)) ||
+                keys.has(normalizeName(n.name)))
+                ? [{ lambda: n.name, ...n.unresolvedLink }]
+                : [],
+            );
 
       if (funcNodes.length === 0 && !lambdaNode) {
         return toText({
@@ -557,16 +579,23 @@ export function createMcpServer(): McpServer {
         ...(ambiguous ? { ambiguous: true } : {}),
         ...(resolvedVia ? { resolvedLambda: resolvedVia } : {}),
         ...(ambiguousLambdas ? { candidateLambdas: ambiguousLambdas } : {}),
-        triggers: allTriggers.map((t) => ({
-          type: t.type,
-          source: t.sourceName,
-          eventShape: t.eventShape,
-          ...(t.batchSize !== undefined ? { batchSize: t.batchSize } : {}),
-          ...(t.reportsBatchItemFailures !== undefined
-            ? { reportsBatchItemFailures: t.reportsBatchItemFailures }
-            : {}),
-          ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
-        })),
+        ...(unresolvedLambdas?.length ? { unresolvedLambdas } : {}),
+        // Absent, not empty, when the Lambda link was refused: an empty array
+        // would claim the function has no event sources.
+        ...(ambiguousLambdas
+          ? {}
+          : {
+              triggers: allTriggers.map((t) => ({
+                type: t.type,
+                source: t.sourceName,
+                eventShape: t.eventShape,
+                ...(t.batchSize !== undefined ? { batchSize: t.batchSize } : {}),
+                ...(t.reportsBatchItemFailures !== undefined
+                  ? { reportsBatchItemFailures: t.reportsBatchItemFailures }
+                  : {}),
+                ...(t.ruleName ? { ruleName: t.ruleName, eventPattern: t.eventPattern } : {}),
+              })),
+            }),
         issues: relatedFindings.map((f) => ({
           severity: f.severity,
           issue: f.issue,
@@ -851,7 +880,7 @@ export function createMcpServer(): McpServer {
     'get_lambda_overview',
     {
       description:
-        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic.',
+        'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic. A function carrying `unresolvedLink` could not be attributed to one source function: `reason` is `no_match`, `multiple_functions` (candidates are function node ids), or `multiple_lambdas` (candidates are the other Lambda names that normalize to the same key), so analyze_function on its handler will return no triggers for it.',
       inputSchema: z.object({
         maxAgeSeconds,
       }),
@@ -880,6 +909,7 @@ export function createMcpServer(): McpServer {
             ...(l.reservedConcurrency !== undefined
               ? { reservedConcurrency: l.reservedConcurrency }
               : {}),
+            ...(l.unresolvedLink ? { unresolvedLink: l.unresolvedLink } : {}),
             triggers: (l.triggers ?? []).map((t) => ({
               type: t.type,
               source: t.sourceName,

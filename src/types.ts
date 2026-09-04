@@ -112,6 +112,9 @@ export type GraphNode = (
       recentThrottles?: number;
       recentErrors?: number;
       reservedConcurrency?: number | null;
+      // Set when no linker could attribute this Lambda to one source function.
+      // Absent means linked (an implemented_by edge exists) or never attempted.
+      unresolvedLink?: UnresolvedLink;
     }
   | {
       id: string;
@@ -395,6 +398,14 @@ export interface SecretsManagerMetadata {
   lastAccessed?: string;
   description?: string;
   // Secret value is NEVER included
+}
+
+export interface UnresolvedLink {
+  // no_match: nothing in the scanned code matched.
+  // multiple_functions: several source functions matched; candidates are their node ids.
+  // multiple_lambdas: several Lambdas normalize to one key; candidates are the other Lambda names.
+  reason: 'no_match' | 'multiple_functions' | 'multiple_lambdas';
+  candidates: string[];
 }
 
 export interface LambdaTrigger {

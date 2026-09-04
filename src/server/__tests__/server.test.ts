@@ -351,7 +351,71 @@ describe('MCP Server — tool results', () => {
 
       const unbound = await callTool(shadowClient, 'analyze_function', { function: 'handler' });
       expect(unbound.candidateLambdas).toHaveLength(2);
-      expect(unbound.triggers).toEqual([]);
+      expect(unbound).not.toHaveProperty('triggers');
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
+  it('analyze_function names the Lambdas that were refused a link and why', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:/abs/checkout.ts:checkout',
+          type: 'function',
+          name: 'checkout',
+          file: '/abs/checkout.ts',
+        },
+        {
+          id: 'lambda:aws:checkout-handler-prod',
+          type: 'lambda',
+          name: 'checkout-handler-prod',
+          unresolvedLink: { reason: 'multiple_lambdas', candidates: ['checkout-dev'] },
+        },
+        {
+          id: 'lambda:aws:checkout-dev',
+          type: 'lambda',
+          name: 'checkout-dev',
+          unresolvedLink: { reason: 'multiple_lambdas', candidates: ['checkout-handler-prod'] },
+        },
+        {
+          id: 'lambda:aws:unrelated',
+          type: 'lambda',
+          name: 'unrelated',
+          unresolvedLink: { reason: 'no_match', candidates: [] },
+        },
+      ],
+      edges: [],
+    };
+    const shadowClient = await makeClient(graph, []);
+    try {
+      const data = await callTool(shadowClient, 'analyze_function', { function: 'checkout' });
+      expect(data.unresolvedLambdas).toEqual([
+        {
+          lambda: 'checkout-handler-prod',
+          reason: 'multiple_lambdas',
+          candidates: ['checkout-dev'],
+        },
+        {
+          lambda: 'checkout-dev',
+          reason: 'multiple_lambdas',
+          candidates: ['checkout-handler-prod'],
+        },
+      ]);
+      expect(data.triggers).toEqual([]);
+
+      const overview = await callTool(shadowClient, 'get_lambda_overview');
+      const byName = Object.fromEntries(
+        overview.lambdas.map((l: { name: string; unresolvedLink?: unknown }) => [
+          l.name,
+          l.unresolvedLink,
+        ]),
+      );
+      expect(byName['checkout-dev']).toEqual({
+        reason: 'multiple_lambdas',
+        candidates: ['checkout-handler-prod'],
+      });
+      expect(byName['unrelated']).toEqual({ reason: 'no_match', candidates: [] });
     } finally {
       await shadowClient.close();
     }

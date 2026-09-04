@@ -25,7 +25,7 @@ describe('normalizeName', () => {
 
 describe('HeuristicLinker', () => {
   it('links by normalized name match as inferred', () => {
-    const links = new HeuristicLinker().link(
+    const { links } = new HeuristicLinker().link(
       graphWith('process-orders-prod', 'processOrders', 'src/a.ts'),
     );
     expect(links).toEqual([
@@ -38,7 +38,7 @@ describe('HeuristicLinker', () => {
   });
 
   it('links by normalized file basename when the export is generic', () => {
-    const links = new HeuristicLinker().link(graphWith('orders', 'handler', 'src/orders.ts'));
+    const { links } = new HeuristicLinker().link(graphWith('orders', 'handler', 'src/orders.ts'));
     expect(links).toEqual([
       {
         lambdaId: 'lambda:aws:orders',
@@ -48,11 +48,14 @@ describe('HeuristicLinker', () => {
     ]);
   });
 
-  it('does not link when nothing matches', () => {
-    expect(new HeuristicLinker().link(graphWith('alpha', 'beta', 'src/beta.ts'))).toEqual([]);
+  it('records no_match when nothing matches', () => {
+    expect(new HeuristicLinker().link(graphWith('alpha', 'beta', 'src/beta.ts'))).toEqual({
+      links: [],
+      unresolved: [{ lambdaId: 'lambda:aws:alpha', reason: 'no_match', candidates: [] }],
+    });
   });
 
-  it('does not link when multiple functions match (ambiguous)', () => {
+  it('records multiple_functions with the candidate ids when several functions match', () => {
     const g: SystemGraph = {
       nodes: [
         { id: 'lambda:aws:orders', type: 'lambda', name: 'orders' },
@@ -61,7 +64,47 @@ describe('HeuristicLinker', () => {
       ],
       edges: [],
     };
-    expect(new HeuristicLinker().link(g)).toEqual([]);
+    expect(new HeuristicLinker().link(g)).toEqual({
+      links: [],
+      unresolved: [
+        {
+          lambdaId: 'lambda:aws:orders',
+          reason: 'multiple_functions',
+          candidates: ['function:a.ts:orders', 'function:b.ts:orders'],
+        },
+      ],
+    });
+  });
+
+  it('links nothing when two Lambdas normalize to one key and records each naming the other', () => {
+    const g: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:checkout-handler-prod', type: 'lambda', name: 'checkout-handler-prod' },
+        { id: 'lambda:aws:checkout-dev', type: 'lambda', name: 'checkout-dev' },
+        {
+          id: 'function:checkout.ts:checkout',
+          type: 'function',
+          name: 'checkout',
+          file: 'checkout.ts',
+        },
+      ],
+      edges: [],
+    };
+    expect(new HeuristicLinker().link(g)).toEqual({
+      links: [],
+      unresolved: [
+        {
+          lambdaId: 'lambda:aws:checkout-handler-prod',
+          reason: 'multiple_lambdas',
+          candidates: ['checkout-dev'],
+        },
+        {
+          lambdaId: 'lambda:aws:checkout-dev',
+          reason: 'multiple_lambdas',
+          candidates: ['checkout-handler-prod'],
+        },
+      ],
+    });
   });
 });
 
@@ -88,12 +131,33 @@ describe('IaCHandlerLinker', () => {
       ],
       edges: [],
     };
-    expect(new IaCHandlerLinker(iac).link(g)).toEqual([
-      {
-        lambdaId: 'lambda:aws:fulfill-prod',
-        functionId: 'function:src/fulfill.ts:handler',
-        confidence: 'proven',
-      },
+    expect(new IaCHandlerLinker(iac).link(g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:fulfill-prod',
+          functionId: 'function:src/fulfill.ts:handler',
+          confidence: 'proven',
+        },
+      ],
+      unresolved: [],
+    });
+  });
+
+  it('records no_match when the declared handler names nothing scanned', () => {
+    const g: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:fulfill-prod', type: 'lambda', name: 'fulfill-prod' },
+        {
+          id: 'function:src/ship.ts:handler',
+          type: 'function',
+          name: 'handler',
+          file: 'src/ship.ts',
+        },
+      ],
+      edges: [],
+    };
+    expect(new IaCHandlerLinker(iac).link(g).unresolved).toEqual([
+      { lambdaId: 'lambda:aws:fulfill-prod', reason: 'no_match', candidates: [] },
     ]);
   });
 
@@ -109,7 +173,7 @@ describe('IaCHandlerLinker', () => {
       ],
       edges: [],
     };
-    expect(new IaCHandlerLinker(iac).link(g)).toEqual([]);
+    expect(new IaCHandlerLinker(iac).link(g)).toEqual({ links: [], unresolved: [] });
   });
 });
 
@@ -137,7 +201,8 @@ describe('compositeLink', () => {
         filePath: 'main.tf',
       },
     ];
-    const links = compositeLink(iac, g);
+    const { links, unresolved } = compositeLink(iac, g);
+    expect(unresolved).toEqual([]);
     expect(links).toContainEqual({
       lambdaId: 'lambda:aws:fulfill-prod',
       functionId: 'function:src/fulfill.ts:handler',
@@ -151,8 +216,29 @@ describe('compositeLink', () => {
     expect(links).toHaveLength(2);
   });
 
-  it('returns no links when neither linker finds a match', () => {
-    const g = graphWith('alpha', 'beta', 'src/beta.ts');
-    expect(compositeLink([], g)).toEqual([]);
+  it('returns one unresolved record per unlinked Lambda, preferring the IaC reason', () => {
+    const g: SystemGraph = {
+      nodes: [
+        { id: 'lambda:aws:fulfill-prod', type: 'lambda', name: 'fulfill-prod' },
+        { id: 'function:a.ts:fulfill', type: 'function', name: 'fulfill', file: 'a.ts' },
+        { id: 'function:b.ts:fulfill', type: 'function', name: 'fulfill', file: 'b.ts' },
+      ],
+      edges: [],
+    };
+    const iac: IaCLambda[] = [
+      {
+        name: 'fulfill-prod',
+        handler: 'src/fulfill.handler',
+        source: 'terraform',
+        filePath: 'main.tf',
+      },
+    ];
+    // The heuristic sees two `fulfill` functions; the declared handler matches
+    // neither, and the declaration is what the deployment runs.
+    expect(new HeuristicLinker().link(g).unresolved[0]?.reason).toBe('multiple_functions');
+    expect(compositeLink(iac, g)).toEqual({
+      links: [],
+      unresolved: [{ lambdaId: 'lambda:aws:fulfill-prod', reason: 'no_match', candidates: [] }],
+    });
   });
 });
