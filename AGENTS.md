@@ -303,7 +303,7 @@ Returns: **resolvedLambda** (`{ lambda, confidence }`) when the deployed Lambda 
 
 Function nodes are file-scoped, so one name can legitimately match several files. Every candidate is returned rather than the first, so a same-named function in a scratch or experiments directory never silently stands in for the real one.
 
-Pass `file` to bind the answer to the file you are editing. It matches a stored path exactly, or as a trailing fragment on a path-segment boundary — a bare `orders.ts` resolves against the absolute path the scanner recorded, while `ders.ts` does not. Path separators are normalized first; matching is case sensitive. Binding to exactly one file returns that entry alone with its `accesses` and no `ambiguous` flag.
+Pass `file` to bind the answer to the file you are editing. It matches a stored path exactly, or as a trailing fragment on a path-segment boundary — a bare `orders.ts` resolves against the absolute path the scanner recorded, while `ders.ts` does not. Path separators are normalized first; matching is case sensitive. Binding to exactly one file returns that entry alone with its `accesses` and no `ambiguous` flag, and the Lambda link, `triggers`, and `missingPermissions` are resolved for that file's function only — so `handler` in `orders.ts` and `handler` in `users.ts` each get their own Lambda's triggers instead of both being named as `candidateLambdas`.
 
 While `ambiguous` is true, `accesses` is withheld from every entry — absent, not an empty array — so a refusal to attribute edges cannot be misread as a function that touches nothing. Re-call with `file` set rather than guessing between entries.
 

@@ -290,6 +290,73 @@ describe('MCP Server — tool results', () => {
     }
   });
 
+  it('analyze_function file binding also selects which Lambda the triggers come from', async () => {
+    const trigger = (queue: string) => ({
+      type: 'sqs' as const,
+      sourceArn: `arn:aws:sqs:us-east-1:1:${queue}`,
+      sourceName: queue,
+      eventShape: 'event.Records[0].body',
+    });
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:/abs/orders.ts:handler',
+          type: 'function',
+          name: 'handler',
+          file: '/abs/orders.ts',
+        },
+        {
+          id: 'function:/abs/users.ts:handler',
+          type: 'function',
+          name: 'handler',
+          file: '/abs/users.ts',
+        },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          triggers: [trigger('orders')],
+        },
+        {
+          id: 'lambda:aws:processUsers',
+          type: 'lambda',
+          name: 'processUsers',
+          triggers: [trigger('users')],
+        },
+      ],
+      edges: [
+        {
+          from: 'lambda:aws:processOrders',
+          to: 'function:/abs/orders.ts:handler',
+          type: 'implemented_by',
+          confidence: 'proven',
+        },
+        {
+          from: 'lambda:aws:processUsers',
+          to: 'function:/abs/users.ts:handler',
+          type: 'implemented_by',
+          confidence: 'proven',
+        },
+      ],
+    };
+    const shadowClient = await makeClient(graph, []);
+    try {
+      const bound = await callTool(shadowClient, 'analyze_function', {
+        function: 'handler',
+        file: 'orders.ts',
+      });
+      expect(bound.resolvedLambda).toEqual({ lambda: 'processOrders', confidence: 'proven' });
+      expect(bound.candidateLambdas).toBeUndefined();
+      expect(bound.triggers.map((t: { source: string }) => t.source)).toEqual(['orders']);
+
+      const unbound = await callTool(shadowClient, 'analyze_function', { function: 'handler' });
+      expect(unbound.candidateLambdas).toHaveLength(2);
+      expect(unbound.triggers).toEqual([]);
+    } finally {
+      await shadowClient.close();
+    }
+  });
+
   it('analyze_function returns not found for unknown function', async () => {
     const data = await callTool(client, 'analyze_function', { function: 'nonexistent' });
     expect(data.found).toBe(false);

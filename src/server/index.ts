@@ -425,6 +425,19 @@ export function createMcpServer(): McpServer {
         (n) => n.type === 'function' && n.name === functionName,
       );
 
+      // The scanner records absolute paths, so a caller editing `orders.ts` has
+      // no way to send the string the graph holds. Anchoring the suffix on a
+      // separator keeps `ders.ts` from binding to `.../orders.ts`.
+      const normalize = (p: string) => p.replace(/\\/g, '/');
+      const wanted = file !== undefined ? normalize(file) : undefined;
+      const selected =
+        wanted === undefined
+          ? funcNodes
+          : funcNodes.filter((n) => {
+              const nodeFile = normalize(n.type === 'function' ? n.file : '');
+              return nodeFile === wanted || nodeFile.endsWith(`/${wanted}`);
+            });
+
       // Also check if there's a Lambda node with this name (for AWS-deployed functions)
       const byName = currentGraph.nodes.find((n) => n.type === 'lambda' && n.name === functionName);
 
@@ -439,7 +452,7 @@ export function createMcpServer(): McpServer {
       const linkEdges = byName
         ? []
         : currentGraph.edges.filter(
-            (e) => e.type === 'implemented_by' && funcNodes.some((f) => f.id === e.to),
+            (e) => e.type === 'implemented_by' && selected.some((f) => f.id === e.to),
           );
       const lambdaNameOf = (id: string) => {
         const n = currentGraph.nodes.find((x) => x.id === id);
@@ -502,19 +515,6 @@ export function createMcpServer(): McpServer {
         }
         return [...needed].filter((s) => !allowedServices.includes(s));
       };
-
-      // The scanner records absolute paths, so a caller editing `orders.ts` has
-      // no way to send the string the graph holds. Anchoring the suffix on a
-      // separator keeps `ders.ts` from binding to `.../orders.ts`.
-      const normalize = (p: string) => p.replace(/\\/g, '/');
-      const wanted = file !== undefined ? normalize(file) : undefined;
-      const selected =
-        wanted === undefined
-          ? funcNodes
-          : funcNodes.filter((n) => {
-              const nodeFile = normalize(n.type === 'function' ? n.file : '');
-              return nodeFile === wanted || nodeFile.endsWith(`/${wanted}`);
-            });
 
       const ambiguous = selected.length > 1;
 
