@@ -55,15 +55,30 @@ Analyzes a single Lambda function for infrastructure issues, including the exact
 | Input | Type | Required |
 |---|---|---|
 | `function` | string | yes — function name as it appears in your codebase |
+| `file` | string | no — binds the result to one source file |
 
 **Returns**
 
-- File path of the function
-- Every service and table the function accesses, with edge type (`query`, `scan`, `put`, etc.)
+- **matches** — one entry per source file defining a function with this name, each carrying the file path and `accesses`: every service and table that file's function reaches, with edge type (`query`, `scan`, `put`, etc.)
+- **ambiguous: true** when more than one file matched
 - **Triggers** — the trigger source (SQS, SNS, EventBridge, S3, DynamoDB Streams, etc.) with the exact `event` object shape the handler receives. For SQS: `event.Records[0].body`. For S3: `event.Records[0].s3.object.key`. For EventBridge: rule name and event pattern.
 - **missingPermissions** — AWS service names the function accesses in code but its execution role doesn't allow (e.g. `["dynamodb", "sqs"]`); present only when IAM role data is available
 - Related findings scoped to this function
 - Deduplicated recommendations
+
+**Binding to one file.** Function nodes are file-scoped, so one name can legitimately match several files — a scratch copy under `experiments/` alongside the real handler. Pass `file` to say which one you mean:
+
+```
+analyze_function({ function: "getOrder", file: "orders.ts" })
+```
+
+The value matches a stored path exactly, or as a trailing fragment on a path-segment boundary. The scanner records absolute paths, so a bare `orders.ts` binds to `/abs/src/handlers/orders.ts` — while `ders.ts` does not, because the match must start at a separator. Path separators are normalized before comparing; matching is case sensitive.
+
+- Binds to exactly one file → that entry is returned alone, with its `accesses`, and no `ambiguous` flag.
+- Matches nothing → `fileMatched: false` with `requestedFile` and `availableFiles`, the paths that do exist, so you can retry. `matches` is omitted rather than quietly refilled with every candidate.
+- Matches two or more → treated as ambiguous, exactly as an unbound call would be.
+
+**While ambiguous, `accesses` is withheld.** It is absent from every entry, not an empty array. An empty array would claim the function touches nothing; its absence says the tool declined to attribute edges it cannot pin to one file. Re-call with `file` set instead of guessing between entries.
 
 **When to call:** Before writing or reviewing any Lambda handler. Always call this first to get the correct event shape — the trigger type determines how you access the payload, and getting it wrong produces silent failures. Also call when a function touches a database or queue you want to verify.
 
