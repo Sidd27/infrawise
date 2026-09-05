@@ -15,6 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/Sidd27/infrawise"><img src="https://api.securityscorecards.dev/projects/github.com/Sidd27/infrawise/badge" alt="OpenSSF Scorecard" /></a>
   <a href="https://glama.ai/mcp/servers/Sidd27/infrawise"><img src="https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg" alt="infrawise MCP server" /></a>
+  <a href="https://www.producthunt.com/posts/infrawise"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1191162&theme=light" alt="Infrawise on Product Hunt" height="20" /></a>
 </p>
 
 <p align="center">
