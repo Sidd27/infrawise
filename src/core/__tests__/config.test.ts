@@ -1,9 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { InfrawiseConfigSchema, loadSecrets } from '../config.js';
+import {
+  ConfigError,
+  InfrawiseConfigSchema,
+  generateDefaultConfig,
+  loadConfig,
+  loadSecrets,
+} from '../config.js';
 
 describe('InfrawiseConfigSchema', () => {
   it('parses a valid minimal config', () => {
@@ -113,5 +119,79 @@ describe('loadSecrets', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }
+  });
+});
+
+describe('loadConfig', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-config-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function writeConfig(contents: string): string {
+    const file = path.join(tmpDir, 'infrawise.yaml');
+    fs.writeFileSync(file, contents);
+    return file;
+  }
+
+  it('throws when the file does not exist', () => {
+    expect(() => loadConfig(path.join(tmpDir, 'missing.yaml'))).toThrow(ConfigError);
+  });
+
+  it('throws on invalid YAML', () => {
+    expect(() => loadConfig(writeConfig('project: [unclosed'))).toThrow(ConfigError);
+  });
+
+  it('throws when the config fails schema validation', () => {
+    expect(() => loadConfig(writeConfig('aws:\n  region: us-east-1\n'))).toThrow(ConfigError);
+  });
+
+  it('expands ${ENV_VAR} references and leaves unset ones literal', () => {
+    process.env.INFRAWISE_TEST_PG = 'postgresql://from-env:5432/db';
+    try {
+      const config = loadConfig(
+        writeConfig(
+          'project: ${INFRAWISE_TEST_PG_MISSING}\n' +
+            'postgres:\n' +
+            '  enabled: true\n' +
+            '  connectionString: ${INFRAWISE_TEST_PG}\n',
+        ),
+      );
+      expect(config.postgres?.connectionString).toBe('postgresql://from-env:5432/db');
+      expect(config.project).toBe('${INFRAWISE_TEST_PG_MISSING}');
+    } finally {
+      delete process.env.INFRAWISE_TEST_PG;
+    }
+  });
+
+  it('lets secrets.yaml override the connection string in the config', () => {
+    fs.mkdirSync(path.join(tmpDir, '.infrawise'));
+    fs.writeFileSync(
+      path.join(tmpDir, '.infrawise', 'secrets.yaml'),
+      yaml.dump({ mysql: { connectionString: 'mysql://secret@localhost:3306/db' } }),
+    );
+    const config = loadConfig(
+      writeConfig(
+        'project: test\nmysql:\n  enabled: true\n  connectionString: mysql://placeholder\n',
+      ),
+    );
+    expect(config.mysql?.connectionString).toBe('mysql://secret@localhost:3306/db');
+  });
+});
+
+describe('generateDefaultConfig', () => {
+  it('emits every key the schema knows about', () => {
+    const generated = yaml.load(generateDefaultConfig('test')) as Record<string, unknown>;
+    expect(Object.keys(generated).sort()).toEqual(Object.keys(InfrawiseConfigSchema.shape).sort());
+  });
+
+  it('produces a config the schema accepts', () => {
+    const generated = yaml.load(generateDefaultConfig('test'));
+    expect(InfrawiseConfigSchema.safeParse(generated).success).toBe(true);
   });
 });

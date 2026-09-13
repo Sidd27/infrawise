@@ -240,6 +240,9 @@ export function generateDefaultConfig(
     analysis: {
       hotPartitionThreshold: options?.analysis?.hotPartitionThreshold ?? 5,
     },
+    freshness: {
+      suggestRefreshAfterHours: options?.freshness?.suggestRefreshAfterHours ?? 6,
+    },
   };
 
   return yaml.dump(config, { lineWidth: 120 });
