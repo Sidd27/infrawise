@@ -8,7 +8,6 @@ import {
   readCacheTimestamp,
   touchCache,
   setCacheDir,
-  getCacheDir,
   CACHE_TTL_MS,
 } from '../cache.js';
 
@@ -207,14 +206,5 @@ describe('touchCache', () => {
 
     expect(readCache('meta')).toEqual({ dynamoMeta: [] });
     expect(readCache<{ analyzedAt: number }>('provenance')?.analyzedAt).toBe(42);
-  });
-});
-
-describe('getCacheDir', () => {
-  it('reports the directory setCacheDir resolved', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'infrawise-dir-'));
-    setCacheDir(dir);
-    expect(getCacheDir()).toBe(path.join(dir, '.infrawise', 'cache'));
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

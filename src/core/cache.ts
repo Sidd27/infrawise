@@ -9,10 +9,6 @@ export function setCacheDir(dir: string): void {
   cacheDir = path.join(dir, '.infrawise', 'cache');
 }
 
-export function getCacheDir(): string {
-  return cacheDir;
-}
-
 function ensureCacheDir(): void {
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });

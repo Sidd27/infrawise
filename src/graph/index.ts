@@ -654,8 +654,6 @@ export const getTableNodes = (g: SystemGraph) =>
   getExtractedNodes<Extract<GraphNode, { type: 'table' }>>(g, 'table');
 export const getFunctionNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'function' }>>(g, 'function');
-export const getIndexNodes = (g: SystemGraph) =>
-  getNodes<Extract<GraphNode, { type: 'index' }>>(g, 'index');
 export const getQueueNodes = (g: SystemGraph) =>
   getExtractedNodes<Extract<GraphNode, { type: 'queue' }>>(g, 'queue');
 export const getTopicNodes = (g: SystemGraph) =>
@@ -687,16 +685,8 @@ export const getDistributionNodes = (g: SystemGraph) =>
 export const getCacheClusterNodes = (g: SystemGraph) =>
   getNodes<Extract<GraphNode, { type: 'cache_cluster' }>>(g, 'cache_cluster');
 
-export function getEdgesForNode(graph: SystemGraph, nodeId: string): GraphEdge[] {
-  return graph.edges.filter((e) => e.from === nodeId || e.to === nodeId);
-}
-
 export function getOutgoingEdges(graph: SystemGraph, nodeId: string): GraphEdge[] {
   return graph.edges.filter((e) => e.from === nodeId);
-}
-
-export function getIncomingEdges(graph: SystemGraph, nodeId: string): GraphEdge[] {
-  return graph.edges.filter((e) => e.to === nodeId);
 }
 
 export function getScanEdges(graph: SystemGraph): GraphEdge[] {

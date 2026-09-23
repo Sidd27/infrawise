@@ -3,7 +3,6 @@ import {
   buildGraph,
   getTableNodes,
   getFunctionNodes,
-  getIndexNodes,
   getQueueNodes,
   getTopicNodes,
   getSecretNodes,
@@ -13,9 +12,7 @@ import {
   getBucketNodes,
   getScanEdges,
   getEdgeFrequency,
-  getEdgesForNode,
   getOutgoingEdges,
-  getIncomingEdges,
   addStackOutputNodes,
 } from '../index.js';
 import type {
@@ -27,6 +24,8 @@ import type {
   MongoCollectionMetadata,
   ServicesMeta,
 } from '../../types.js';
+
+const indexNodesOf = (g: SystemGraph) => g.nodes.filter((n) => n.type === 'index');
 
 const mockDynamoMeta: DynamoTableMetadata[] = [
   {
@@ -95,7 +94,7 @@ describe('buildGraph', () => {
 
   it('creates index nodes and uses_index edges for DynamoDB', () => {
     const graph = buildGraph([], mockDynamoMeta, []);
-    const indexNodes = getIndexNodes(graph);
+    const indexNodes = indexNodesOf(graph);
     expect(indexNodes.some((n) => n.name === 'StatusIndex')).toBe(true);
     expect(indexNodes.some((n) => n.name === 'UserIndex')).toBe(true);
     const usesIndexEdges = graph.edges.filter((e) => e.type === 'uses_index');
@@ -189,7 +188,7 @@ describe('buildGraph', () => {
     const graph = buildGraph([], [], [], mysqlMeta);
     const tables = getTableNodes(graph);
     expect(tables.some((n) => n.databaseType === 'mysql' && n.name === 'shop.orders')).toBe(true);
-    expect(getIndexNodes(graph).some((n) => n.name === 'idx_status')).toBe(true);
+    expect(indexNodesOf(graph).some((n) => n.name === 'idx_status')).toBe(true);
   });
 
   it('links unqualified code table refs to the extracted schema-qualified node', () => {
@@ -268,7 +267,7 @@ describe('buildGraph', () => {
     const graph = buildGraph([], [], [], [], mongoMeta);
     const tables = getTableNodes(graph);
     expect(tables.some((n) => n.databaseType === 'mongodb' && n.name === 'app.users')).toBe(true);
-    const indexNames = getIndexNodes(graph).map((n) => n.name);
+    const indexNames = indexNodesOf(graph).map((n) => n.name);
     expect(indexNames).toContain('idx_email');
     expect(indexNames).not.toContain('_id_');
   });
@@ -719,29 +718,11 @@ describe('edge selectors', () => {
     [],
   );
 
-  it('getEdgesForNode returns all edges connected to a node', () => {
-    const ordersNodeId = 'table:dynamo:Orders';
-    const edges = getEdgesForNode(graph, ordersNodeId);
-    expect(edges.length).toBeGreaterThanOrEqual(2);
-    expect(edges.every((e) => e.from === ordersNodeId || e.to === ordersNodeId)).toBe(true);
-  });
-
   it('getOutgoingEdges returns only edges where node is the source', () => {
     const funcNodeId = 'function:src/orders.ts:getOrder';
     const edges = getOutgoingEdges(graph, funcNodeId);
     expect(edges.length).toBeGreaterThan(0);
     expect(edges.every((e) => e.from === funcNodeId)).toBe(true);
-  });
-
-  it('getIncomingEdges returns only edges where node is the target', () => {
-    const ordersNodeId = 'table:dynamo:Orders';
-    const edges = getIncomingEdges(graph, ordersNodeId);
-    expect(edges.length).toBeGreaterThan(0);
-    expect(edges.every((e) => e.to === ordersNodeId)).toBe(true);
-  });
-
-  it('getEdgesForNode returns empty array for unknown node', () => {
-    expect(getEdgesForNode(graph, 'nonexistent:node')).toHaveLength(0);
   });
 });
 
