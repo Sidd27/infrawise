@@ -461,7 +461,7 @@ All API Gateway APIs (REST, HTTP, WebSocket) with their routes and Lambda integr
 
 No inputs required.
 
-Returns: per-API — name, type (REST/HTTP/WEBSOCKET), routes (method, path, lambda name). Lambda name is null when the route has no Lambda integration.
+Returns: per-API — name, type (REST/HTTP/WEBSOCKET), routes (method, path, lambda name). Lambda name is null when the route has no Lambda integration. APIs, their routes, and their integrations are all listed with full pagination; no cap — so a null lambda name is a route with no integration, never one whose integration fell off the end of a page.
 
 **When to call:** Before writing any API handler to confirm which Lambda backs a route, or when reviewing API surface area. Also use to check for routes with no Lambda integration (null lambda) that may need wiring.
 

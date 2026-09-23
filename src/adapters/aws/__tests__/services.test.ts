@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lambdaNameFromIntegrationUri, partialReads } from '../services.js';
+import { drainV2, lambdaNameFromIntegrationUri, partialReads } from '../services.js';
 import { PartialExtractionError } from '../../../core/index.js';
 
 describe('lambdaNameFromIntegrationUri', () => {
@@ -63,5 +63,34 @@ describe('partialReads', () => {
     const partial = partialReads('SNS');
     for (let i = 1; i <= 8; i++) partial.note(`t${i}`);
     expect(() => partial.settle([])).toThrow('SNS unread: t1, t2, t3, t4, t5 and 3 more');
+  });
+});
+
+// A capped page is how a real Lambda binding silently became `lambda: null`:
+// routes survived the first page, their integrations did not.
+describe('drainV2', () => {
+  it('follows NextToken until the last page', async () => {
+    const pages: Record<string, { Items: string[]; NextToken?: string }> = {
+      '': { Items: ['a', 'b'], NextToken: 't1' },
+      t1: { Items: ['c'], NextToken: 't2' },
+      t2: { Items: ['d'] },
+    };
+    const seen: (string | undefined)[] = [];
+    const items = await drainV2<string>(async (token) => {
+      seen.push(token);
+      return pages[token ?? ''];
+    });
+    expect(items).toEqual(['a', 'b', 'c', 'd']);
+    expect(seen).toEqual([undefined, 't1', 't2']);
+  });
+
+  it('stops after one page when there is no NextToken', async () => {
+    let calls = 0;
+    const items = await drainV2<string>(async () => {
+      calls++;
+      return { Items: ['only'] };
+    });
+    expect(items).toEqual(['only']);
+    expect(calls).toBe(1);
   });
 });

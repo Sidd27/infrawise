@@ -971,6 +971,22 @@ export function lambdaNameFromIntegrationUri(uri?: string): string | undefined {
   return /:function:([^:/]+)/.exec(uri)?.[1];
 }
 
+// A truncated integration list turns a real Lambda binding into a null one,
+// which reads as "route needs wiring" rather than "not read" — so both v2 list
+// calls are drained rather than capped at one page.
+export async function drainV2<T>(
+  page: (token?: string) => Promise<{ Items?: T[]; NextToken?: string }>,
+): Promise<T[]> {
+  const items: T[] = [];
+  let token: string | undefined;
+  do {
+    const res = await page(token);
+    items.push(...(res.Items ?? []));
+    token = res.NextToken;
+  } while (token);
+  return items;
+}
+
 export async function extractAPIGatewayMetadata(
   cfg: AWSConfig = {},
 ): Promise<APIGatewayMetadata[]> {
@@ -996,20 +1012,30 @@ export async function extractAPIGatewayMetadata(
     for (const api of restApis) {
       const routes: APIGatewayRouteMetadata[] = [];
       try {
-        const resourcesRes = await restClient.send(
-          new GetResourcesCommand({ restApiId: api.id, embed: ['methods'], limit: 500 }),
-        );
-        for (const resource of resourcesRes.items ?? []) {
-          const resourcePath = resource.path ?? '/';
-          for (const [method, methodItem] of Object.entries(resource.resourceMethods ?? {})) {
-            if (method === 'OPTIONS') continue;
-            const integration = (methodItem as Record<string, Record<string, unknown> | undefined>)
-              ?.methodIntegration;
-            const lambdaArn = typeof integration?.uri === 'string' ? integration.uri : undefined;
-            const lambdaName = lambdaNameFromIntegrationUri(lambdaArn);
-            routes.push({ method, path: resourcePath, lambdaArn, lambdaName });
+        let resourcePosition: string | undefined;
+        do {
+          const resourcesRes = await restClient.send(
+            new GetResourcesCommand({
+              restApiId: api.id,
+              embed: ['methods'],
+              limit: 500,
+              position: resourcePosition,
+            }),
+          );
+          for (const resource of resourcesRes.items ?? []) {
+            const resourcePath = resource.path ?? '/';
+            for (const [method, methodItem] of Object.entries(resource.resourceMethods ?? {})) {
+              if (method === 'OPTIONS') continue;
+              const integration = (
+                methodItem as Record<string, Record<string, unknown> | undefined>
+              )?.methodIntegration;
+              const lambdaArn = typeof integration?.uri === 'string' ? integration.uri : undefined;
+              const lambdaName = lambdaNameFromIntegrationUri(lambdaArn);
+              routes.push({ method, path: resourcePath, lambdaArn, lambdaName });
+            }
           }
-        }
+          resourcePosition = resourcesRes.position;
+        } while (resourcePosition);
       } catch (err) {
         partial.note(`REST routes for ${api.name}`, err);
       }
@@ -1042,19 +1068,25 @@ export async function extractAPIGatewayMetadata(
       const routes: APIGatewayRouteMetadata[] = [];
 
       try {
-        const [routesRes, integrationsRes] = await Promise.all([
-          v2Client.send(new GetRoutesCommand({ ApiId: api.id, MaxResults: '500' })),
-          v2Client.send(new GetIntegrationsCommand({ ApiId: api.id, MaxResults: '500' })),
+        const [routeItems, integrationItems] = await Promise.all([
+          drainV2((NextToken) =>
+            v2Client.send(new GetRoutesCommand({ ApiId: api.id, MaxResults: '500', NextToken })),
+          ),
+          drainV2((NextToken) =>
+            v2Client.send(
+              new GetIntegrationsCommand({ ApiId: api.id, MaxResults: '500', NextToken }),
+            ),
+          ),
         ]);
 
         const integrationMap = new Map<string, string>();
-        for (const integ of integrationsRes.Items ?? []) {
+        for (const integ of integrationItems) {
           if (integ.IntegrationId && integ.IntegrationUri) {
             integrationMap.set(integ.IntegrationId, integ.IntegrationUri);
           }
         }
 
-        for (const route of routesRes.Items ?? []) {
+        for (const route of routeItems) {
           const routeKey = route.RouteKey ?? '';
           const [method, ...pathParts] = routeKey.split(' ');
           const routePath = pathParts.join(' ') || '/';
