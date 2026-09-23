@@ -102,7 +102,7 @@
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "fastify": "^5.12.4",
-    "inquirer": "^14.0.2",
+    "inquirer": "^14.2.2",
     "js-yaml": "^5.2.2",
     "mongodb": "^7.6.0",
     "mysql2": "^3.24.4",
