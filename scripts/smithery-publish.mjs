@@ -3,7 +3,8 @@
 // Smithery runs no scan stage for stdio bundles — the serverCard in the
 // deploy payload is the only source of the tools list shown on the page.
 // Usage: pnpm publish-smithery  (after the npm release is live)
-// Auth: SMITHERY_TOKEN env var, or falls back to `smithery auth whoami --full`.
+// Auth: SMITHERY_TOKEN = a dashboard API key. The `smithery auth whoami --full` fallback
+// token lacks servers:write and is rejected with a 403.
 
 import { execSync, spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
@@ -147,7 +148,13 @@ const res = await fetch(`${API}/servers/${encodeURIComponent(QUALIFIED_NAME)}/re
   headers: { Authorization: `Bearer ${token}` },
   body: form,
 });
-const body = await res.json();
+const text = await res.text();
+let body;
+try {
+  body = JSON.parse(text);
+} catch {
+  body = { message: text };
+}
 if (!res.ok || body.status === 'FAILURE') {
   console.error('Publish failed:', res.status, body);
   process.exit(1);
