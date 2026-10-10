@@ -57,6 +57,16 @@ if (existsSync(serverJsonPath)) {
   console.log(`server.json: bumped to ${next}`);
 }
 
+// ── Bump the Claude Code plugin manifest ─────────────────────────────────────
+
+const pluginJsonPath = resolve(import.meta.dirname, '../.claude-plugin/plugin.json');
+if (existsSync(pluginJsonPath)) {
+  const pluginJson = JSON.parse(readFileSync(pluginJsonPath, 'utf8'));
+  pluginJson.version = next;
+  writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2) + '\n', 'utf8');
+  console.log(`.claude-plugin/plugin.json: bumped to ${next}`);
+}
+
 // ── Bump website softwareVersion (JSON-LD SoftwareApplication schema) ────────
 //
 // check-docs.mjs gates the release on this matching package.json, but nothing
@@ -83,6 +93,8 @@ execSync('pnpm build-arch', { stdio: 'inherit' });
 execSync('git add package.json docs/architecture.svg', { stdio: 'inherit' });
 if (existsSync(astroPath)) execSync('git add website/src/pages/index.astro', { stdio: 'inherit' });
 if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
+if (existsSync(pluginJsonPath))
+  execSync('git add .claude-plugin/plugin.json', { stdio: 'inherit' });
 execFileSync('git', ['commit', '-m', `chore: release v${next}`], { stdio: 'inherit' });
 execFileSync('git', ['tag', `v${next}`], { stdio: 'inherit' });
 

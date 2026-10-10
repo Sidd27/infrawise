@@ -4,6 +4,7 @@
 //
 // Checks:
 //   1. package.json version == server.json version == website softwareVersion
+//      == .claude-plugin/plugin.json version
 //   2. TOOLS in src/server/index.ts == `### \`name\`` sections in AGENTS.md
 //      == `| \`name\` |` rows in README.md == `- \`name\`` bullets in llms.txt
 //   3. No tool documented that the server does not register, and vice versa
@@ -35,6 +36,7 @@ const astroVersion = astro.match(/"softwareVersion"\s*:\s*"([^"]+)"/)?.[1]
 const versions = [
   ['package.json', pkg.version],
   ['server.json', manifest.version],
+  ['.claude-plugin/plugin.json', JSON.parse(read('.claude-plugin/plugin.json')).version],
   ['website softwareVersion', astroVersion ?? null],
 ]
 console.log('Version:')

@@ -1,0 +1,31 @@
+{
+  "name": "infrawise",
+  "version": "0.28.4",
+  "description": "Live AWS, database & Kafka infrastructure context for AI coding assistants via MCP.",
+  "author": {
+    "name": "Sidd27",
+    "url": "https://github.com/Sidd27"
+  },
+  "homepage": "https://sidd27.github.io/infrawise/",
+  "repository": "https://github.com/Sidd27/infrawise",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "aws",
+    "dynamodb",
+    "lambda",
+    "infrastructure",
+    "kafka"
+  ],
+  "mcpServers": {
+    "infrawise": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "infrawise",
+        "serve",
+        "--stdio"
+      ]
+    }
+  }
+}
