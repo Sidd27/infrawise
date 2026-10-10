@@ -8,7 +8,7 @@
 // Bumps root package.json, commits, tags, and creates a draft GitHub release
 // with notes generated from commit messages since the previous tag.
 
-import { execSync, spawnSync } from 'child_process';
+import { execFileSync, execSync, spawnSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, join } from 'path';
 import { tmpdir } from 'os';
@@ -83,15 +83,15 @@ execSync('pnpm build-arch', { stdio: 'inherit' });
 execSync('git add package.json docs/architecture.svg', { stdio: 'inherit' });
 if (existsSync(astroPath)) execSync('git add website/src/pages/index.astro', { stdio: 'inherit' });
 if (existsSync(serverJsonPath)) execSync('git add server.json', { stdio: 'inherit' });
-execSync(`git commit -m "chore: release v${next}"`, { stdio: 'inherit' });
-execSync(`git tag v${next}`, { stdio: 'inherit' });
+execFileSync('git', ['commit', '-m', `chore: release v${next}`], { stdio: 'inherit' });
+execFileSync('git', ['tag', `v${next}`], { stdio: 'inherit' });
 
 // ── Generate release notes from commits since previous tag ────────────────────
 
 const prevTag = `v${prev}`;
 let commits;
 try {
-  commits = execSync(`git log ${prevTag}..HEAD --pretty=format:"%s" --no-merges`, {
+  commits = execFileSync('git', ['log', `${prevTag}..HEAD`, '--pretty=format:%s', '--no-merges'], {
     encoding: 'utf8',
   })
     .trim()
@@ -124,7 +124,7 @@ const notes = sections.length ? sections.join('\n\n') : `Release v${next}`;
 // ── Push commits and tag ──────────────────────────────────────────────────────
 
 console.log('\nPushing to origin...');
-execSync(`git push origin main v${next}`, { stdio: 'inherit' });
+execFileSync('git', ['push', 'origin', 'main', `v${next}`], { stdio: 'inherit' });
 
 // ── Create draft GitHub release via gh CLI ────────────────────────────────────
 

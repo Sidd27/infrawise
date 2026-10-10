@@ -167,27 +167,27 @@ function iacHealth() {
 // own shape rather than stamped at build time, so no node schema changes. Every
 // node carries `source` and `sourceStatus` — a node from a healthy source says
 // so explicitly instead of being silent, for the same reason the envelope does.
-const NODE_SOURCE: Record<string, string> = {
-  queue: 'sqs',
-  topic: 'sns',
-  secret: 'secretsManager',
-  parameter: 'ssm',
-  lambda: 'lambda',
-  eventbridge_rule: 'eventbridge',
-  bucket: 's3',
-  api: 'apiGateway',
-  log_group: 'cloudwatchLogs',
-  user_pool: 'cognito',
-  stream: 'kinesis',
-  kafka_cluster: 'msk',
-  cache_cluster: 'elasticache',
-  distribution: 'cloudfront',
-  database_instance: 'rds',
-};
+const NODE_SOURCE = new Map<string, string>([
+  ['queue', 'sqs'],
+  ['topic', 'sns'],
+  ['secret', 'secretsManager'],
+  ['parameter', 'ssm'],
+  ['lambda', 'lambda'],
+  ['eventbridge_rule', 'eventbridge'],
+  ['bucket', 's3'],
+  ['api', 'apiGateway'],
+  ['log_group', 'cloudwatchLogs'],
+  ['user_pool', 'cognito'],
+  ['stream', 'kinesis'],
+  ['kafka_cluster', 'msk'],
+  ['cache_cluster', 'elasticache'],
+  ['distribution', 'cloudfront'],
+  ['database_instance', 'rds'],
+]);
 
 function withNodeSource(nodes: SystemGraph['nodes']) {
   return nodes.map((n) => {
-    const service = n.type === 'table' ? n.databaseType : NODE_SOURCE[n.type];
+    const service = n.type === 'table' ? n.databaseType : NODE_SOURCE.get(n.type);
     const state = service ? provenance?.sources.find((s) => s.service === service) : undefined;
     return {
       ...n,

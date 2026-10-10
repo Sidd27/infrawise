@@ -6,7 +6,7 @@
 // Auth: SMITHERY_TOKEN = a dashboard API key. The `smithery auth whoami --full` fallback
 // token lacks servers:write and is rejected with a 403.
 
-import { execSync, spawn } from 'node:child_process';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -36,7 +36,7 @@ if (npmVersion !== version) {
 
 const stage = mkdtempSync(join(tmpdir(), 'infrawise-mcpb-'));
 console.log(`Staging ${version} in ${stage}`);
-execSync(`npm install infrawise@${version} --omit=dev --no-audit --no-fund`, {
+execFileSync('npm', ['install', `infrawise@${version}`, '--omit=dev', '--no-audit', '--no-fund'], {
   cwd: stage,
   stdio: 'inherit',
 });
@@ -89,7 +89,10 @@ writeFileSync(
 );
 
 const bundle = join(stage, `infrawise-${version}.mcpb`);
-execSync(`npx -y @anthropic-ai/mcpb pack . ${bundle}`, { cwd: stage, stdio: 'inherit' });
+execFileSync('npx', ['-y', '@anthropic-ai/mcpb', 'pack', '.', bundle], {
+  cwd: stage,
+  stdio: 'inherit',
+});
 
 console.log('Extracting tools/list from the staged server...');
 const tools = await new Promise((resolve, reject) => {

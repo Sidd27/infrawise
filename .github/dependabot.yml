@@ -36,3 +36,14 @@ updates:
     schedule:
       interval: "weekly"
 
+
+  # Workflow actions are pinned to commit SHAs, so nothing moves them forward
+  # unless something bumps the pin. Grouped to keep it to one PR a week.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
