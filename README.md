@@ -15,6 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/Sidd27/infrawise"><img src="https://api.securityscorecards.dev/projects/github.com/Sidd27/infrawise/badge" alt="OpenSSF Scorecard" /></a>
   <a href="https://glama.ai/mcp/servers/Sidd27/infrawise"><img src="https://glama.ai/mcp/servers/Sidd27/infrawise/badges/score.svg" alt="infrawise MCP server" /></a>
+  <a href="https://hol.org/registry/plugins/sidd27%2Finfrawise"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dsidd27%252Finfrawise%26metric%3Dtrust%26style%3Dflat" alt="Infrawise on HOL Registry (Trust Score)" /></a>
   <a href="https://www.producthunt.com/posts/infrawise"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1191162&theme=light" alt="Infrawise on Product Hunt" height="20" /></a>
 </p>
 
@@ -128,6 +129,13 @@ infrawise start --claude
 ```
 
 Writes `.mcp.json` to your project root (merging with any MCP servers already configured there) and opens Claude Code. Claude Code reads `.mcp.json` automatically on every launch and manages the `infrawise serve --stdio` process — no server to start, no ports to configure.
+
+Infrawise is also installable as a Claude Code plugin. It registers the same MCP server and still needs an `infrawise.yaml` in the project, which `infrawise start` creates:
+
+```
+/plugin marketplace add Sidd27/infrawise
+/plugin install infrawise@infrawise
+```
 
 ### Cursor
 

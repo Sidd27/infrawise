@@ -1,0 +1,16 @@
+{
+  "name": "infrawise",
+  "description": "Marketplace for the Infrawise Claude Code plugin.",
+  "owner": {
+    "name": "Sidd27",
+    "url": "https://github.com/Sidd27"
+  },
+  "strict": true,
+  "plugins": [
+    {
+      "name": "infrawise",
+      "source": "./",
+      "description": "Live AWS, database & Kafka infrastructure context for AI coding assistants via MCP."
+    }
+  ]
+}
