@@ -303,12 +303,23 @@ const maxAgeSeconds = z
 
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
+// Every tool answers from the analysis snapshot on disk: nothing writes, and
+// nothing reaches AWS or a database at call time.
+const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
+
+const INSTRUCTIONS =
+  'Infrawise answers from a snapshot of the infrastructure taken by `infrawise analyze`; no tool call re-reads AWS or a database, and none writes anything. ' +
+  'Call get_infra_overview first to see what is in scope, then the narrowest tool for the task: get_table_schema for columns and keys, analyze_function before writing or reviewing a Lambda handler. get_graph_summary returns everything and is the escape hatch, not the default. ' +
+  'Every response carries dataHealth. A source whose status is not "ok" means an empty result was not read, not that nothing exists. Check ageSeconds against the question, and run `infrawise analyze` to refresh.';
+
 export function createMcpServer(): McpServer {
-  const mcp = new McpServer({ name: 'infrawise', version });
+  const mcp = new McpServer({ name: 'infrawise', version }, { instructions: INSTRUCTIONS });
 
   mcp.registerTool(
     'get_infra_overview',
     {
+      title: 'Infrastructure overview',
+      annotations: READ_ONLY,
       description:
         'Returns a compact infrastructure snapshot: service counts, all databases, queues, topics, secrets, lambdas, and high-severity findings. Call this first at the start of any database or infrastructure task to understand what services are in scope. Prefer this over get_graph_summary for quick orientation; use get_graph_summary only when you need every node, edge, and finding in full. Also returns a `configured` flag — when false, the server has no infrawise.yaml loaded (e.g. a remotely hosted instance) and all tools return empty results; a `setupHint` explains how to run infrawise locally. Every response (this one included) carries a `dataHealth` block with a fixed shape: `analyzedAt`/`ageSeconds` for when the infrastructure was read, per-source `status`, `iac` for whether cdk.out was synthed since, and `refreshWith`. On this tool `dataHealth.sources` covers every source rather than one tool\'s. A source that is not `ok` means an empty result is "not read", not "none exist".',
       inputSchema: z.object({
@@ -378,6 +389,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_graph_summary',
     {
+      title: 'Full infrastructure graph',
+      annotations: READ_ONLY,
       description:
         'Returns every node (tables, functions, lambdas, queues, etc.), every edge (query, scan, triggers, publishes_to), and all findings. Use this when you need to trace relationships across multiple services or require the complete finding set — not just high-severity ones. For a quick overview use get_infra_overview instead.',
       inputSchema: z.object({
@@ -405,6 +418,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'analyze_function',
     {
+      title: 'Analyze a function',
+      annotations: READ_ONLY,
       description:
         'Analyzes a single named function or Lambda handler for infrastructure issues: which tables it queries, how it queries them (scan vs query), queue publishing, secret access, and the correct event shape for each trigger (SQS, DynamoDB Streams, Kinesis, EventBridge). Call this before writing or reviewing a Lambda handler to get the exact trigger event shape and all findings scoped to this function. Per-file detail (file, accesses, missingPermissions) is returned in `matches`, one entry per source file defining a function with this name. Pass `file` to bind the answer to the one file you are editing: it matches a stored path exactly, or as a trailing fragment on a path-segment boundary, so a bare "orders.ts" resolves against the absolute path the scanner recorded. Matching is case sensitive. When `file` selects exactly one entry, that entry is returned alone with its `accesses`. When several deployed Lambdas link to the same function, `candidateLambdas` names them and `triggers` is absent rather than empty; re-call with `file` if the candidates come from different files. When several files match — with or without `file` — `ambiguous: true` is returned and `accesses` is withheld from every entry; re-call with `file` set to the file you are editing rather than guessing between them. When `file` matches nothing, `fileMatched: false` is returned with `availableFiles` listing the paths that do exist, so you can retry. When no deployed Lambda could be linked to this function, `unresolvedLambdas` names each Lambda that was considered and why it was refused (`no_match`, `multiple_functions`, or `multiple_lambdas` with the colliding names), so an empty `triggers` can be told apart from a function that is not deployed. Returns found: false if the function name was not discovered during analysis.',
       inputSchema: z.object({
@@ -609,6 +624,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'suggest_gsi',
     {
+      title: 'Suggest a DynamoDB GSI',
+      annotations: READ_ONLY,
       description:
         "Generates a ready-to-use DynamoDB GSI definition — index name, partition key, projection type, billing mode — for a given table and attribute. Call this when a query pattern needs an index that does not exist yet, or when the analyzer flags a missing GSI finding. Checks the table's existing indexes first: when one is already keyed on that attribute it returns `alreadyIndexed: true` with the existing index name to use as `IndexName`, instead of proposing a duplicate. Use get_table_schema for the full index list on a table.",
       inputSchema: z.object({
@@ -675,6 +692,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'postgres_index_suggestions',
     {
+      title: 'Suggest a PostgreSQL index',
+      annotations: READ_ONLY,
       description:
         'Generates the exact CREATE INDEX CONCURRENTLY SQL for a PostgreSQL table column, including a partial index variant and a post-creation ANALYZE reminder. Call this when the analyzer flags a missing index finding or when writing a query that filters on a column without an existing index. Does not verify whether the index already exists.',
       inputSchema: z.object({
@@ -703,6 +722,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'suggest_mongo_index',
     {
+      title: 'Suggest a MongoDB index',
+      annotations: READ_ONLY,
       description:
         'Generates the exact db.collection.createIndex() command for a MongoDB field, plus compound and text index variants and an explain query to verify. Call this when a collection scan is flagged by the analyzer or when writing a query that filters on an unindexed field. Does not check whether the index already exists.',
       inputSchema: z.object({
@@ -730,6 +751,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'mysql_index_suggestions',
     {
+      title: 'Suggest a MySQL index',
+      annotations: READ_ONLY,
       description:
         'Generates the exact ALTER TABLE ADD INDEX SQL for a MySQL table column, including a composite variant and EXPLAIN guidance to verify the index is used. Call this when the analyzer flags a missing MySQL index or full table scan finding. Does not verify whether the index already exists.',
       inputSchema: z.object({
@@ -758,6 +781,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_queue_details',
     {
+      title: 'SQS queue details',
+      annotations: READ_ONLY,
       description:
         'Returns all SQS queues with DLQ presence, encryption status, FIFO type (isFifo), visibility timeout, approximate message count, and retention days. When isFifo is true, all SendMessage calls must include a MessageGroupId. Call this when reviewing messaging architecture, investigating a message backlog, checking DLQ coverage, or verifying visibility timeout is set correctly relative to Lambda timeout (should be 6× the Lambda timeout). Use get_infra_overview for a quick queue count only. When runtime signals are enabled, oldestMessageAgeSec reports the age of the oldest message from CloudWatch.',
       inputSchema: z.object({
@@ -792,6 +817,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_topic_details',
     {
+      title: 'SNS and Kafka topic details',
+      annotations: READ_ONLY,
       description:
         'Returns all SNS topics with subscription count, encryption status, and filter policies. Filter policies list the message attributes each subscription requires — publishers must include these attributes or messages are silently dropped. Call this before writing any SNS publish code or when reviewing event fan-out patterns.',
       inputSchema: z.object({
@@ -824,6 +851,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_secrets_overview',
     {
+      title: 'Secrets Manager overview',
+      annotations: READ_ONLY,
       description:
         'Returns all Secrets Manager secrets with rotation status, rotation interval, and referencedKeys — key names (e.g. "password", "apiKey") inferred from application code that parses the secret, never the values. Call this when checking which secrets exist, confirming rotation is enabled before a security review, or before writing code that reads a secret so you use the correct key name instead of guessing.',
       inputSchema: z.object({
@@ -855,6 +884,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_parameter_overview',
     {
+      title: 'SSM parameter overview',
+      annotations: READ_ONLY,
       description:
         'Returns all SSM Parameter Store parameters with type (String, SecureString, StringList) and tier (Standard, Advanced). Parameter values are never returned. Call this when checking which config parameters exist for a service or verifying parameter types.',
       inputSchema: z.object({
@@ -879,6 +910,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_lambda_overview',
     {
+      title: 'Lambda function overview',
+      annotations: READ_ONLY,
       description:
         'Returns all Lambda functions with runtime, memory (MB), timeout (sec), environment variable key names (values never returned), and event source triggers with the correct handler event shape for each. Call this when auditing Lambda configuration for default memory (128 MB) or high timeouts, or when you need the trigger event shape for a specific function without running analyze_function. When runtime signals are enabled, recentThrottles and recentErrors report CloudWatch counts for the analysis window. A costSignal note appears when memory is 3008 MB+ and there is no throttling evidence to justify it — no billing API involved, this is a config-level heuristic. A function carrying `unresolvedLink` could not be attributed to one source function: `reason` is `no_match`, `multiple_functions` (candidates are function node ids), or `multiple_lambdas` (candidates are the other Lambda names that normalize to the same key), so analyze_function on its handler will return no triggers for it.',
       inputSchema: z.object({
@@ -932,6 +965,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_eventbridge_details',
     {
+      title: 'EventBridge rule details',
+      annotations: READ_ONLY,
       description:
         'Returns all EventBridge rules with name, ENABLED/DISABLED state, schedule expression (rate/cron rules), event pattern (event-driven rules), and target Lambda function names. Call this when checking what schedule or event triggers a Lambda, or when reviewing rule coverage across the account.',
       inputSchema: z.object({
@@ -961,6 +996,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_s3_overview',
     {
+      title: 'S3 bucket overview',
+      annotations: READ_ONLY,
       description:
         'Returns all S3 buckets with versioning status, encryption, public access configuration, and security findings. Call this when checking which S3 buckets exist, reviewing bucket security posture, or before writing S3 upload/delete handlers to confirm the bucket name. Do NOT call when you only need a quick infrastructure count — use get_infra_overview for that. Object contents are never included.',
       inputSchema: z.object({
@@ -992,6 +1029,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_api_routes',
     {
+      title: 'API Gateway routes',
+      annotations: READ_ONLY,
       description:
         'Returns all API Gateway APIs (REST, HTTP, WebSocket) with their routes, HTTP methods, paths, and the Lambda function each route invokes. Call this before writing any API handler to understand which Lambda handles a route, or when reviewing API surface area and Lambda integration coverage.',
       inputSchema: z.object({
@@ -1018,6 +1057,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_log_errors',
     {
+      title: 'CloudWatch log error patterns',
+      annotations: READ_ONLY,
       description:
         'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
       inputSchema: z.object({
@@ -1045,6 +1086,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_table_schema',
     {
+      title: 'Table and collection schemas',
+      annotations: READ_ONLY,
       description:
         'Returns the full schema for specific tables or collections by name: columns with data types and nullability, primary keys, foreign keys (join paths), indexes, DynamoDB partition/sort keys and billing mode, and MongoDB estimated document counts. Accepts short names ("orders" matches "public.orders") and is case-insensitive. Call this after get_infra_overview when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables — instead of pulling every schema with get_graph_summary. Do NOT call for a table inventory; use get_infra_overview for that. Row data is never included. DynamoDB matches include a costSignal note for provisioned-capacity tables.',
       inputSchema: z.object({
@@ -1126,6 +1169,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_cache_overview',
     {
+      title: 'ElastiCache overview',
+      annotations: READ_ONLY,
       description:
         'Returns all ElastiCache clusters with engine, version, node type, node count, in-transit and at-rest encryption status, replication group, and automatic failover state. Call this before writing cache client code (TLS is required when transit encryption is on — rediss:// for Redis) or when reviewing cache availability and security posture. Cached data is never read or included. A costSignal note appears on clusters with more than 3 nodes.',
       inputSchema: z.object({
@@ -1165,6 +1210,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_cloudfront_overview',
     {
+      title: 'CloudFront distribution overview',
+      annotations: READ_ONLY,
       description:
         'Returns all CloudFront distributions with, per distribution: id, comment, domain name, alias domains, enabled state, origins (type s3 or custom, domain name, and the resolved API Gateway name when the origin is an execute-api endpoint), and every cache behavior with its path pattern, target origin, cache policy name, viewer protocol policy, and allowed methods. Behaviors are listed in CloudFront match order — ordered behaviors first, the default behavior last. Call this to answer which distribution and behavior serves a given path and which origin it hits, before changing a path-based routing rule, or when reviewing edge caching and HTTPS enforcement across a multi-API front door.',
       inputSchema: z.object({
@@ -1222,6 +1269,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_stream_details',
     {
+      title: 'Kinesis and MSK details',
+      annotations: READ_ONLY,
       description:
         'Returns all Kinesis data streams (status, shard count, retention hours, encryption, capacity mode) and Amazon MSK clusters (state, cluster type, Kafka version, broker count). Call this when writing Kinesis producer or consumer code, checking whether a stream is PROVISIONED or ON_DEMAND before writing PutRecord calls, or reviewing streaming architecture. For Kafka topic-level producer/consumer mappings extracted from application code, use get_topic_details instead.',
       inputSchema: z.object({
@@ -1256,6 +1305,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_cognito_overview',
     {
+      title: 'Cognito user pool overview',
+      annotations: READ_ONLY,
       description:
         'Returns all Cognito user pools with MFA configuration and every app client config: allowed auth flows, OAuth flows/scopes, callback URLs, token validity, and whether the client has a secret (SDK auth calls must send SECRET_HASH when true). Client secret values are never returned. Call this before writing any Cognito sign-in, sign-up, or token-refresh code to use the correct auth flow and client settings. Do NOT call to look up users or tokens — infrawise never reads user data.',
       inputSchema: z.object({
@@ -1280,6 +1331,8 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_stack_outputs',
     {
+      title: 'IaC stack outputs',
+      annotations: READ_ONLY,
       description:
         'Returns all stack outputs and cross-stack exports parsed from local IaC files: Terraform output blocks and CloudFormation/CDK Outputs sections, with name, description, export name, and the raw value expression. Call this when wiring cross-stack references (Fn::ImportValue, terraform_remote_state) or when you need the exported name of a resource defined in another stack. Do NOT call for live resource attributes — outputs come from local IaC files, not the deployed stack. CDK outputs carry `stale: true` with a `staleReason` when their cdk.out template is no longer instantiated in the CDK app or predates the last `cdk synth` — do not rely on a stale export without re-synthesizing.',
       inputSchema: z.object({

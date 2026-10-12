@@ -43,6 +43,8 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 
 ## MCP tools (22 total)
 
+All tools are read-only (annotated `readOnlyHint: true`) and answer from the last `infrawise analyze` snapshot.
+
 - `get_infra_overview` — full snapshot of all infrastructure, start here
 - every response carries `dataHealth`: when the infra was read, per-source status, cdk.out synth state, and how to refresh
 - every resource-state tool takes an optional `maxAgeSeconds`; it is advisory — the answer reports whether it met it and returns the data either way

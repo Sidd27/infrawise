@@ -228,6 +228,8 @@ suite is what gates CI and release regardless.
 
 Infrawise exposes 22 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
+Every tool is annotated `readOnlyHint: true` and `openWorldHint: false` and carries a human-readable `title`: each one answers from the analysis snapshot, so none writes and none reaches AWS or a database at call time. The server also sends MCP `instructions` on connect (start with `get_infra_overview`, read `dataHealth` before trusting an empty result). A new tool must set `title` and `annotations: READ_ONLY`; the protocol test fails otherwise.
+
 ### `dataHealth` — on every response
 
 Every tool response carries a `dataHealth` object with a fixed shape. Every key is always present; state lives in values, never in whether a key exists. `error` and `reason` are `null` rather than omitted, so nothing has to be inferred from absence.

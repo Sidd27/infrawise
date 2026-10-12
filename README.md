@@ -183,6 +183,8 @@ Add to your editor's MCP config:
 
 ### MCP tools
 
+Every tool is annotated read-only (`readOnlyHint: true`, `openWorldHint: false`), so MCP clients that honor annotations can call them without a confirmation prompt.
+
 | Tool                         | What it provides                                                                                            |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, `configured` flag (data age and per-source status ride the `dataHealth` block on every response) |

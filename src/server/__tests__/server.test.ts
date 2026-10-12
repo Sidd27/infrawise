@@ -129,6 +129,17 @@ describe('MCP Server — protocol', () => {
     await client.close();
   });
 
+  it('marks every tool read-only with a title, and sends server instructions', async () => {
+    const client = await makeClient(emptyGraph, []);
+    const { tools } = await client.listTools();
+    for (const tool of tools) {
+      expect(tool.title, tool.name).toBeTruthy();
+      expect(tool.annotations, tool.name).toEqual({ readOnlyHint: true, openWorldHint: false });
+    }
+    expect(client.getInstructions()).toContain('get_infra_overview');
+    await client.close();
+  });
+
   it('unknown tool returns isError', async () => {
     const client = await makeClient(emptyGraph, []);
     const result = await client.callTool({ name: 'nonexistent_tool', arguments: {} });
