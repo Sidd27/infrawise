@@ -25,18 +25,26 @@ async function findPythonInterpreter(): Promise<string | null> {
   return null;
 }
 
-export async function scanPythonRepository(repoPath: string): Promise<ExtractedOperation[]> {
+export async function scanPythonRepository(
+  repoPath: string,
+  files?: string[],
+): Promise<ExtractedOperation[]> {
   const interpreter = await findPythonInterpreter();
   if (interpreter === null) {
     logger.warn('Python files found but no python3 on PATH — skipping Python scan');
     return [];
   }
   try {
-    const { stdout } = await execFileAsync(interpreter, [SCANNER_PATH, repoPath], {
-      maxBuffer: 64 * 1024 * 1024,
-    });
+    const { stdout } = await execFileAsync(
+      interpreter,
+      [SCANNER_PATH, repoPath, ...(files ?? [])],
+      {
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
     return JSON.parse(stdout) as ExtractedOperation[];
   } catch (err) {
+    if (files) throw err;
     const message = err instanceof Error ? err.message.slice(0, 200) : String(err);
     logger.warn(`Python scan failed — skipping (${message})`);
     return [];

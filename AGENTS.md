@@ -206,6 +206,7 @@ src/
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
   context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python)
+              incremental.ts retains the watch session's project and per-file operations
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/        CLI commands (mcp-boot.ts holds the serve/stdio bootstrap they share)
 ```
@@ -548,6 +549,8 @@ Behaviors are returned in CloudFront match order: ordered cache behaviors first,
 ---
 
 ## Recommended usage patterns
+
+**During a coding session:** `serve` and `serve --stdio` batch source saves for two seconds. After the first refresh initializes a scanner, only changed files and transitive TS/JS importers are rescanned; Python scans receive the changed file paths. Deletions remove old operations, and saves during an active refresh are queued. A `tsconfig*.json` change rebuilds the scanner. IaC extraction, graph construction, and analyzers still run in full against cached cloud metadata, so the MCP tool contracts and expected emulator findings counts are unchanged. Run `infrawise analyze` to re-read infrastructure.
 
 **Tracing a request path through a CloudFront front door:**
 1. `get_cloudfront_overview` → find the first behavior whose pathPattern matches, read its origin

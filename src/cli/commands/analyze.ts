@@ -695,6 +695,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
 export async function runCodeRefresh(
   repoPath: string,
   config: InfrawiseConfig,
+  scan: () => Promise<ExtractedOperation[]> = () => scanRepository(repoPath),
 ): Promise<{
   graph: ReturnType<typeof buildGraph>;
   findings: Awaited<ReturnType<typeof A.runAllAnalyzers>>;
@@ -731,9 +732,9 @@ export async function runCodeRefresh(
   // Re-run repo scan
   let operations: ExtractedOperation[];
   try {
-    operations = await scanRepository(repoPath);
-  } catch {
-    operations = [];
+    operations = await scan();
+  } catch (err) {
+    throw new Error('Code refresh failed; keeping the previous analysis.', { cause: err });
   }
 
   const graph = buildGraph(

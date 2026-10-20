@@ -4,7 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { setCacheDir, writeCache } from '../../core/index.js';
+import { setCacheDir, writeCache, readCache } from '../../core/index.js';
+import { RepositoryScanner } from '../../context/incremental.js';
 import { reloadFromCache } from '../mcp-boot.js';
 import { runCodeRefresh } from '../commands/analyze.js';
 import { createMcpServer, setGraphState, setSnapshotLoader } from '../../server/index.js';
@@ -23,6 +24,33 @@ describe('cache reload', () => {
 
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('rebuilds findings from incremental operations and retains the snapshot on scan failure', async () => {
+    const file = path.join(dir, 'handler.ts');
+    fs.writeFileSync(
+      file,
+      'async function handler() { await client.send(new ScanCommand({ TableName: "Orders" })); }',
+    );
+    const scanner = new RepositoryScanner(dir);
+    const config = { project: 'test', dynamodb: { enabled: true }, terraform: { enabled: false } };
+    const initial = await runCodeRefresh(dir, config, () => scanner.scan());
+    expect(
+      initial.findings.some(
+        (finding) => finding.issue.includes('scan') || finding.issue.includes('Scan'),
+      ),
+    ).toBe(true);
+    fs.writeFileSync(file, 'async function handler() {}');
+    const updated = await runCodeRefresh(dir, config, () => scanner.scan(['handler.ts']));
+    expect(updated.findings).toEqual([]);
+    expect(updated.graph.edges).toEqual([]);
+    await expect(
+      runCodeRefresh(dir, config, async () => {
+        throw new Error('read failed');
+      }),
+    ).rejects.toThrow('keeping the previous analysis');
+    expect(readCache('graph')).toEqual(updated.graph);
+    expect(readCache('findings')).toEqual(updated.findings);
   });
 
   const graph = (name: string): SystemGraph => ({

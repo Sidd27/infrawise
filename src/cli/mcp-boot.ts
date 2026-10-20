@@ -4,8 +4,9 @@ import { loadConfig, logger, readCache, readCacheTimestamp, setCacheDir } from '
 import { setGraphState, setServerConfig, setSnapshotLoader } from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
+import { RepositoryScanner } from '../context/incremental.js';
 
-const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
 
 // Build output and vendored trees churn constantly (cdk synth, tsc --watch, a
 // bundler) and the scanner already skips them, so a refresh triggered from one
@@ -27,7 +28,11 @@ const IGNORED_DIRS = new Set([
 ]);
 
 export function triggersRefresh(filename: string): boolean {
-  if (!WATCHED_EXTS.includes(path.extname(filename))) return false;
+  if (
+    !WATCHED_EXTS.includes(path.extname(filename)) &&
+    !/^tsconfig.*\.json$/.test(path.basename(filename))
+  )
+    return false;
   return !filename.split(/[\\/]/).some((segment) => IGNORED_DIRS.has(segment));
 }
 
@@ -121,6 +126,30 @@ export function watchCode(
 ): void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let refreshing = false;
+  const pending = new Set<string>();
+  const scanner = new RepositoryScanner(repoPath);
+
+  const refresh = async () => {
+    if (refreshing || pending.size === 0) return;
+    refreshing = true;
+    const changedFiles = [...pending];
+    pending.clear();
+    let succeeded = false;
+    hooks.onStart?.();
+    try {
+      const { graph, findings } = await runCodeRefresh(repoPath, cfg, () =>
+        scanner.scan(changedFiles),
+      );
+      hooks.onDone(graph, findings);
+      succeeded = true;
+    } catch (err) {
+      for (const file of changedFiles) pending.add(file);
+      hooks.onError?.(err);
+    } finally {
+      refreshing = false;
+      if (succeeded && pending.size > 0) debounceTimer = setTimeout(refresh, 2000);
+    }
+  };
 
   try {
     fs.watch(repoPath, { recursive: true }, (_, filename) => {
@@ -131,21 +160,10 @@ export function watchCode(
       }
       if (!triggersRefresh(filename)) return;
       logger.debug(`Code change detected: ${filename}`);
+      pending.add(filename);
 
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        if (refreshing) return;
-        refreshing = true;
-        hooks.onStart?.();
-        try {
-          const { graph, findings } = await runCodeRefresh(repoPath, cfg);
-          hooks.onDone(graph, findings);
-        } catch (err) {
-          hooks.onError?.(err);
-        } finally {
-          refreshing = false;
-        }
-      }, 2000);
+      debounceTimer = setTimeout(refresh, 2000);
     });
   } catch {
     // fs.watch may not support recursive on all platforms — silently skip

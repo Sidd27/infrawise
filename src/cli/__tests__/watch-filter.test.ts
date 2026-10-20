@@ -5,6 +5,8 @@ describe('triggersRefresh', () => {
   it('refreshes on source files', () => {
     expect(triggersRefresh('src/handlers/orders.ts')).toBe(true);
     expect(triggersRefresh('app.mjs')).toBe(true);
+    expect(triggersRefresh('handlers/orders.py')).toBe(true);
+    expect(triggersRefresh('tsconfig.json')).toBe(true);
   });
 
   it('ignores non-source files', () => {

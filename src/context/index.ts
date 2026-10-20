@@ -713,7 +713,7 @@ const PROBE_EXCLUDED_DIRS = new Set([
   'dist',
 ]);
 
-function detectLanguages(root: string): { hasTypeScript: boolean; hasPython: boolean } {
+export function detectLanguages(root: string): { hasTypeScript: boolean; hasPython: boolean } {
   let hasTypeScript = fs.existsSync(path.join(root, 'tsconfig.json'));
   let hasPython = false;
   const stack = [root];
@@ -725,7 +725,7 @@ function detectLanguages(root: string): { hasTypeScript: boolean; hasPython: boo
         if (!PROBE_EXCLUDED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
           stack.push(path.join(dir, entry.name));
         }
-      } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+      } else if (/\.(?:tsx?|jsx?|mjs|cjs)$/.test(entry.name)) {
         hasTypeScript = true;
       } else if (entry.name.endsWith('.py')) {
         hasPython = true;
@@ -767,6 +767,10 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
 }
 
 function scanTypeScriptRepository(resolvedPath: string): ExtractedOperation[] {
+  return scanTypeScriptFiles(createTypeScriptProject(resolvedPath).getSourceFiles());
+}
+
+export function createTypeScriptProject(resolvedPath: string): Project {
   const tsconfigPath = path.join(resolvedPath, 'tsconfig.json');
   const hasTsConfig = fs.existsSync(tsconfigPath);
 
@@ -786,14 +790,19 @@ function scanTypeScriptRepository(resolvedPath: string): ExtractedOperation[] {
     project.addSourceFilesAtPaths([
       path.join(resolvedPath, '**/*.ts'),
       path.join(resolvedPath, '**/*.tsx'),
+      path.join(resolvedPath, '**/*.js'),
+      path.join(resolvedPath, '**/*.jsx'),
+      path.join(resolvedPath, '**/*.mjs'),
+      path.join(resolvedPath, '**/*.cjs'),
       `!${path.join(resolvedPath, '**/node_modules/**')}`,
       `!${path.join(resolvedPath, '**/dist/**')}`,
     ]);
   }
 
-  const sourceFiles = project.getSourceFiles();
-  logger.debug(`Scanning ${sourceFiles.length} TypeScript file(s) in ${resolvedPath}`);
+  return project;
+}
 
+export function scanTypeScriptFiles(sourceFiles: SourceFile[]): ExtractedOperation[] {
   const operations: ExtractedOperation[] = [];
 
   for (const sourceFile of sourceFiles) {

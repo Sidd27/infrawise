@@ -373,7 +373,7 @@ def find_py_files(root):
 def main():
     root = os.path.abspath(sys.argv[1])
     ops = []
-    for file_path in find_py_files(root):
+    for file_path in sys.argv[2:] or find_py_files(root):
         try:
             with open(file_path, 'r', encoding='utf-8', errors='replace') as fh:
                 tree = ast.parse(fh.read())

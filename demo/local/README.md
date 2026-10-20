@@ -24,6 +24,8 @@ Connection strings are pre-configured in [`infrawise.yaml`](infrawise.yaml). The
 
 Running the demo needs only Docker — infrawise scans `app/` statically. To edit the sample app with full type-checking, install its deps: `npm install` (this folder is a standalone package).
 
+To exercise incremental scanning, run `infrawise serve --config infrawise.yaml` here and save `app/order-service.ts`. The first refresh initializes the scanner. Edit it again, or edit `app/inventory-service.py`: subsequent refreshes rescan the changed file and any TS/JS importers while retaining operations from the other demo files. Use `analyze_function` with the edited function and file to inspect the updated result. Temporarily remove a function's database call and save to verify its old access disappears; restore it afterward. No database metadata is re-read on these saves.
+
 ---
 
 ## Stop
