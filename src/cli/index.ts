@@ -3,12 +3,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Command } from 'commander';
 import { printBanner } from './utils.js';
-import { runAnalyze } from './commands/analyze.js';
-import { runCheck } from './commands/check.js';
-import { runServe } from './commands/serve.js';
-import { runDoctor } from './commands/doctor.js';
-import { runStdio } from './commands/stdio.js';
-import { runStart } from './commands/start.js';
 
 const { version } = JSON.parse(
   readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
@@ -33,6 +27,7 @@ program
   .option('--interactive', 'Run interactive setup wizard instead of auto-discovery')
   .option('--rediscover', 'Delete existing infrawise.yaml and re-probe the environment')
   .action(async (options) => {
+    const { runStart } = await import('./commands/start.js');
     printBanner();
     await runStart({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
@@ -53,6 +48,7 @@ program
   .option('-o, --output <path>', 'Save findings as a markdown report (e.g. report.md)')
   .option('--severity <level>', 'Only show findings at or above this level: high | medium | low')
   .action(async (options) => {
+    const { runAnalyze } = await import('./commands/analyze.js');
     printBanner();
     await runAnalyze({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
@@ -70,6 +66,7 @@ program
   .option('-r, --repo <path>', 'Path to repository to scan', process.cwd())
   .option('--fail-on <level>', 'Severity that fails the build: high | medium | low', 'high')
   .action(async (options) => {
+    const { runCheck } = await import('./commands/check.js');
     printBanner();
     await runCheck({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
@@ -85,10 +82,15 @@ program
   .option('--stdio', 'Use stdio transport (for editors via .mcp.json) instead of HTTP')
   .option('-p, --port <number>', 'Port to listen on (HTTP only)', '3000')
   .action(async (options) => {
-    if (!options.stdio) printBanner();
+    if (options.stdio) {
+      const { runStdio } = await import('./commands/stdio.js');
+      await runStdio(options.config !== 'infrawise.yaml' ? options.config : undefined);
+      return;
+    }
+    const { runServe } = await import('./commands/serve.js');
+    printBanner();
     await runServe({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
-      stdio: options.stdio,
       port: parseInt(options.port, 10),
     });
   });
@@ -99,6 +101,7 @@ program
   .command('stdio', { hidden: true })
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .action(async (options) => {
+    const { runStdio } = await import('./commands/stdio.js');
     await runStdio(options.config !== 'infrawise.yaml' ? options.config : undefined);
   });
 
@@ -107,6 +110,7 @@ program
   .description('Diagnostic escape hatch: validate AWS/DB access, config, and repo scan')
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .action(async (options) => {
+    const { runDoctor } = await import('./commands/doctor.js');
     printBanner();
     await runDoctor({
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,

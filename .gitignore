@@ -1,5 +1,6 @@
 # Dependencies & build
 node_modules/
+.pnpm-store/
 dist/
 
 # TypeScript

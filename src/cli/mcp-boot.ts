@@ -3,8 +3,6 @@ import * as path from 'path';
 import { loadConfig, logger, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
 import { setGraphState, setServerConfig, setSnapshotLoader } from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
-import { runAnalyze, runCodeRefresh } from './commands/analyze.js';
-import { RepositoryScanner } from '../context/incremental.js';
 
 const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
 
@@ -47,6 +45,7 @@ export async function loadGraphState(
   configPath: string | undefined,
   logs: BootLog,
   silent: boolean,
+  options: { deferSnapshot?: boolean; onLoaded?(config: InfrawiseConfig | undefined): void } = {},
 ): Promise<InfrawiseConfig | undefined> {
   setCacheDir(path.dirname(path.resolve(configPath ?? 'infrawise.yaml')));
 
@@ -62,29 +61,46 @@ export async function loadGraphState(
     );
   }
   setServerConfig(config);
-  setSnapshotLoader(reloadFromCache);
-
-  const cachedGraph = readCache<SystemGraph>('graph');
-  const cachedFindings = readCache<Finding[]>('findings');
-
-  if (cachedGraph && cachedFindings) {
-    logs.ok(
-      'Cached analysis loaded',
-      `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
-    );
-    loadedAt = readCacheTimestamp('graph');
-    setGraphState(cachedGraph, cachedFindings, readCache<AnalysisProvenance>('provenance'));
-  } else if (config) {
-    logs.warn('No cache found — running analysis now...');
-    await runAnalyze({ repo: process.cwd(), config: configPath, silent });
-    loadedAt = readCacheTimestamp('graph');
-    setGraphState(
-      readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] },
-      readCache<Finding[]>('findings') ?? [],
-      readCache<AnalysisProvenance>('provenance'),
-    );
+  let initialLoad: Promise<void> | undefined;
+  if (options.deferSnapshot) {
+    setSnapshotLoader(async () => {
+      initialLoad ??= loadSnapshot().catch((err) => {
+        initialLoad = undefined;
+        throw err;
+      });
+      await initialLoad;
+      return reloadFromCache();
+    });
   } else {
-    setGraphState({ nodes: [], edges: [] }, []);
+    setSnapshotLoader(reloadFromCache);
+    await loadSnapshot();
+  }
+
+  async function loadSnapshot(): Promise<void> {
+    const cachedGraph = readCache<SystemGraph>('graph');
+    const cachedFindings = readCache<Finding[]>('findings');
+
+    if (cachedGraph && cachedFindings) {
+      logs.ok(
+        'Cached analysis loaded',
+        `${cachedGraph.nodes.length} nodes · ${cachedGraph.edges.length} edges · ${cachedFindings.length} finding(s)`,
+      );
+      loadedAt = readCacheTimestamp('graph');
+      setGraphState(cachedGraph, cachedFindings, readCache<AnalysisProvenance>('provenance'));
+    } else if (config) {
+      logs.warn('No cache found — running analysis now...');
+      const { runAnalyze } = await import('./commands/analyze.js');
+      await runAnalyze({ repo: process.cwd(), config: configPath, silent });
+      loadedAt = readCacheTimestamp('graph');
+      setGraphState(
+        readCache<SystemGraph>('graph') ?? { nodes: [], edges: [] },
+        readCache<Finding[]>('findings') ?? [],
+        readCache<AnalysisProvenance>('provenance'),
+      );
+    } else {
+      setGraphState({ nodes: [], edges: [] }, []);
+    }
+    options.onLoaded?.(config);
   }
 
   return config;
@@ -127,7 +143,7 @@ export function watchCode(
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let refreshing = false;
   const pending = new Set<string>();
-  const scanner = new RepositoryScanner(repoPath);
+  let scanner: import('../context/incremental.js').RepositoryScanner | undefined;
 
   const refresh = async () => {
     if (refreshing || pending.size === 0) return;
@@ -137,8 +153,12 @@ export function watchCode(
     let succeeded = false;
     hooks.onStart?.();
     try {
+      const { runCodeRefresh } = await import('./commands/analyze.js');
+      const { RepositoryScanner } = await import('../context/incremental.js');
+      scanner ??= new RepositoryScanner(repoPath);
+      const currentScanner = scanner;
       const { graph, findings } = await runCodeRefresh(repoPath, cfg, () =>
-        scanner.scan(changedFiles),
+        currentScanner.scan(changedFiles),
       );
       hooks.onDone(graph, findings);
       succeeded = true;

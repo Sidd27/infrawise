@@ -208,7 +208,7 @@ src/
   context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python)
               incremental.ts retains the watch session's project and per-file operations
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
-  cli/        CLI commands (mcp-boot.ts holds the serve/stdio bootstrap they share)
+  cli/        CLI commands (loaded on demand; mcp-boot.ts holds the serve/stdio bootstrap)
 ```
 
 Build: `pnpm build` → `tsc --noEmit false --outDir dist`
@@ -229,7 +229,7 @@ suite is what gates CI and release regardless.
 
 Infrawise exposes 22 tools via MCP. Run `infrawise start` to analyze and write `.mcp.json` — your editor manages the server from there. For HTTP transport: `infrawise serve` starts the server at `POST http://localhost:3000/mcp`.
 
-Every tool is annotated `readOnlyHint: true` and `openWorldHint: false` and carries a human-readable `title`: each one answers from the analysis snapshot, so none writes and none reaches AWS or a database at call time. The server also sends MCP `instructions` on connect (start with `get_infra_overview`, read `dataHealth` before trusting an empty result). A new tool must set `title` and `annotations: READ_ONLY`; the protocol test fails otherwise.
+Every tool is annotated `readOnlyHint: true` and `openWorldHint: false` and carries a human-readable `title`: each answers from the analysis snapshot and none writes to infrastructure. In stdio mode, initialization and tool discovery do not load the snapshot or run analysis. The first infrastructure tool call loads the cache, or waits for one shared initial analysis when the cache is missing or expired; this initial analysis can read AWS or databases. After loading, tools answer from the snapshot without further cloud reads. File watching starts after that initial load, so it cannot replace unread cloud metadata with an empty snapshot. HTTP mode still loads before listening. The server also sends MCP `instructions` on connect (start with `get_infra_overview`, read `dataHealth` before trusting an empty result). A new tool must set `title` and `annotations: READ_ONLY`; the protocol test fails otherwise.
 
 ### `dataHealth` — on every response
 

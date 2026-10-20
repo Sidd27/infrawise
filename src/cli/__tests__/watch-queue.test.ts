@@ -37,6 +37,7 @@ describe('watch refresh queue', () => {
     mocks.event?.('change', 'first.ts');
     mocks.event?.('change', 'second.py');
     await vi.advanceTimersByTimeAsync(2000);
+    await vi.dynamicImportSettled();
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     mocks.event?.('change', 'third.ts');
     await vi.advanceTimersByTimeAsync(2000);

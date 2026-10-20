@@ -43,9 +43,11 @@ infrawise serve   # start MCP server at http://localhost:3000/mcp
 
 Both server transports watch TS/JS and Python saves. After the first code refresh, scanning is incremental: changed files plus transitive TS/JS importers, with deleted operations removed. Saves are batched for two seconds and queued during refreshes; tsconfig changes rebuild the scanner. IaC extraction, graph construction, and analyzers still run in full using cached cloud metadata. No extra flags or configuration; run `infrawise analyze` to re-read infrastructure.
 
+Stdio startup connects and lists tools before loading a snapshot. The first infrastructure tool call loads the 24-hour cache, or waits for a shared initial analysis if it is missing or expired. File watching begins after that load. Run `infrawise start` before opening the editor to prepare the cache. HTTP `serve` still loads before listening.
+
 ## MCP tools (22 total)
 
-All tools are read-only (annotated `readOnlyHint: true`) and answer from the last `infrawise analyze` snapshot.
+All tools are read-only (annotated `readOnlyHint: true`) and answer from the analysis snapshot, initialized on first use in stdio mode.
 
 - `get_infra_overview` — full snapshot of all infrastructure, start here
 - every response carries `dataHealth`: when the infra was read, per-source status, cdk.out synth state, and how to refresh

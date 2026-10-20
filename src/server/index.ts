@@ -96,7 +96,8 @@ export function setGraphState(
 // bootstrap, which owns cache knowledge; returns null when nothing has changed.
 // Pull on access rather than a filesystem watcher: no debounce, no missed
 // events, no platform caveats, and no way for the watcher to die unnoticed.
-let reload: (() => { graph: SystemGraph; findings: Finding[] } | null) | null = null;
+type Snapshot = { graph: SystemGraph; findings: Finding[] } | null;
+let reload: (() => Snapshot | Promise<Snapshot>) | null = null;
 
 export function setSnapshotLoader(fn: typeof reload): void {
   reload = fn;
@@ -251,7 +252,7 @@ function logged<T extends Record<string, unknown>>(
     // Before the handler reads the graph, not after: an analysis that landed
     // since the last call must be visible to this one, or "I re-ran analyze and
     // nothing changed" is back.
-    reload?.();
+    await reload?.();
     const result = await fn(args);
     const payload = JSON.parse(result.content[0].text) as object;
     return toText({
@@ -310,7 +311,7 @@ const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 const INSTRUCTIONS =
   'Infrawise answers from a snapshot of the infrastructure taken by `infrawise analyze`; no tool call re-reads AWS or a database, and none writes anything. ' +
   'Call get_infra_overview first to see what is in scope, then the narrowest tool for the task: get_table_schema for columns and keys, analyze_function before writing or reviewing a Lambda handler. get_graph_summary returns everything and is the escape hatch, not the default. ' +
-  'Every response carries dataHealth. A source whose status is not "ok" means an empty result was not read, not that nothing exists. Check ageSeconds against the question, and run `infrawise analyze` to refresh.';
+  'Every response carries dataHealth. A source whose status is not "ok" means an empty result was not read, not that nothing exists. Check ageSeconds against the question, and run `infrawise analyze` to refresh. In stdio mode the first tool call loads the snapshot and may wait for an initial analysis if the cache is missing or expired; initialization and tool discovery do not run analysis.';
 
 export function createMcpServer(): McpServer {
   const mcp = new McpServer({ name: 'infrawise', version }, { instructions: INSTRUCTIONS });

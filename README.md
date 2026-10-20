@@ -101,7 +101,7 @@ That's it. Infrawise will:
 claude    # no infrawise command needed — editor manages the connection
 ```
 
-Analysis is cached for 24 hours. When the cache is stale, `infrawise serve --stdio` (spawned automatically by your editor) refreshes it at session start. File changes are detected within the session and the code graph is updated automatically.
+Analysis is cached for 24 hours. `infrawise serve --stdio` (spawned automatically by your editor) connects and lists tools without loading the snapshot or running analysis. The first infrastructure tool call loads the cache; if it is missing or expired, that call waits for a fresh analysis. Concurrent calls share that initial analysis. Run `infrawise start` before opening your editor to prepare the cache and avoid that first-call wait. File watching starts once the snapshot is loaded. HTTP `serve` still loads its snapshot before listening.
 
 After the first code refresh, the server keeps its TypeScript project in memory and scans only changed files and their transitive importers. Python saves scan only the changed Python files. Added and deleted files update the snapshot, saves are batched for two seconds, and edits made during a refresh are queued. Changing a `tsconfig*.json` rebuilds the scanner. IaC extraction, graph construction, and analyzers still run across the full snapshot to preserve cross-resource findings; cloud metadata stays cached. No configuration or CLI flags are needed.
 

@@ -20,6 +20,8 @@ cd demo/local
 
 After the first run, just open your editor — `.mcp.json` connects automatically.
 
+The editor's MCP handshake and tool discovery do not run analysis. Its first infrastructure tool call loads the snapshot prepared by `start`; with a missing or expired cache, that first call waits for analysis instead. To exercise the cold path, stop the MCP server, move `.infrawise/cache` aside, and reconnect: tool discovery should complete before `get_infra_overview` performs the initial analysis.
+
 Connection strings are pre-configured in [`infrawise.yaml`](infrawise.yaml). The seed data (with intentional issues) lives in [`seed/`](seed/), and the sample app exercised by the scanner is in [`app/`](app/).
 
 Running the demo needs only Docker — infrawise scans `app/` statically. To edit the sample app with full type-checking, install its deps: `npm install` (this folder is a standalone package).
