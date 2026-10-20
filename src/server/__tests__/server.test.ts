@@ -4,7 +4,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer, createMcpServer, setGraphState, setServerConfig } from '../index.js';
+import {
+  createServer,
+  createMcpServer,
+  setGraphState,
+  setServerConfig,
+  setCodeRefreshError,
+} from '../index.js';
 import type { SystemGraph, Finding } from '../../types.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
@@ -845,6 +851,7 @@ describe('MCP Server — dataHealth envelope', () => {
       expect(Object.keys(data.dataHealth).sort()).toEqual([
         'ageSeconds',
         'analyzedAt',
+        'codeCoverage',
         'iac',
         'profile',
         'refreshWith',
@@ -856,6 +863,22 @@ describe('MCP Server — dataHealth envelope', () => {
       ]);
       expect(data.dataHealth.sources).toEqual([{ service: 'lambda', status: 'ok', error: null }]);
       expect(data.dataHealth.refreshWith).toBe('infrawise analyze');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('reports a failed code refresh without pretending the retained graph matches current code', async () => {
+    const client = await clientWith(prov());
+    try {
+      setCodeRefreshError('read failed');
+      expect(
+        (await callTool(client, 'get_infra_overview')).dataHealth.codeCoverage.refreshError,
+      ).toBe('read failed');
+      setGraphState(testGraph, testFindings, prov());
+      expect(
+        (await callTool(client, 'get_infra_overview')).dataHealth.codeCoverage.refreshError,
+      ).toBeNull();
     } finally {
       await client.close();
     }
@@ -916,13 +939,11 @@ describe('MCP Server — dataHealth envelope', () => {
     }
   });
 
-  it('reports the configured cloudwatchLogs window, not a fixed 24', async () => {
+  it('does not claim an error sampling window when only metadata is read', async () => {
     setServerConfig({ project: 'test', cloudwatchLogs: { enabled: true, windowHours: 6 } });
     const client = await clientWith(prov());
     try {
-      // The adapter scans this window; a hardcoded 24 here would state a window
-      // nobody used, and an agent reasoning about error rates divides by it.
-      expect((await callTool(client, 'get_log_errors')).windowHours).toBe(6);
+      expect((await callTool(client, 'get_log_errors')).windowHours).toBeNull();
     } finally {
       await client.close();
       setServerConfig({ project: 'test' });

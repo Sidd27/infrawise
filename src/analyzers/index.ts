@@ -14,6 +14,7 @@ export * from './cost-signals.js';
 export async function runAllAnalyzers(
   graph: SystemGraph,
   analyzers: Analyzer[],
+  onError?: (name: string, error: unknown) => void,
 ): Promise<Finding[]> {
   const allFindings: Finding[] = [];
 
@@ -24,6 +25,7 @@ export async function runAllAnalyzers(
       logger.debug(`[${analyzer.name}] found ${findings.length} issue(s)`);
       allFindings.push(...findings);
     } catch (err) {
+      onError?.(analyzer.name, err);
       logger.warn(
         `Analyzer "${analyzer.name}" failed: ${err instanceof Error ? err.message : String(err)}`,
       );

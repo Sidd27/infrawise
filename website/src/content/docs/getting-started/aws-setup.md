@@ -36,7 +36,6 @@ Attach this policy to the IAM user or role Infrawise uses. This is the full poli
         "events:ListRules",
         "events:ListTargetsByRule",
         "logs:DescribeLogGroups",
-        "logs:FilterLogEvents",
         "rds:DescribeDBInstances",
         "apigateway:GET",
         "cognito-idp:ListUserPools",
@@ -70,7 +69,7 @@ Infrawise is strictly a metadata reader. The following are never accessed, regar
 
 - **Secret values** — `secretsmanager:GetSecretValue` is not called; rotation status and metadata come from `ListSecrets` alone, which already includes `RotationEnabled`/`RotationRules` in its response — no per-secret `DescribeSecret` call is needed
 - **SSM parameter values** — `ssm:GetParameter` is not called; Infrawise only reads parameter names and types via `DescribeParameters`
-- **Log message content** — `logs:FilterLogEvents` is called only to count error patterns; raw log text is never returned to your AI assistant
+- **Log message content** — only log group metadata is requested with `logs:DescribeLogGroups`; message bodies are never requested
 - **S3 object content** — Infrawise reads bucket-level config (versioning, encryption, public access, event notifications) only; no `GetObject` calls are made
 - **Cached data** — for ElastiCache, Infrawise reads cluster configuration only; it never connects to the cache itself
 - **User data or client secrets** — for Cognito, Infrawise reads pool and app client configuration only; it never reads user records or client secret values
@@ -111,7 +110,7 @@ sqs:
 | `ssm` | `ssm:DescribeParameters` |
 | `s3` | `s3:ListAllMyBuckets`, `s3:GetBucketVersioning`, `s3:GetBucketEncryption`, `s3:GetPublicAccessBlock`, `s3:GetBucketNotification` |
 | `eventbridge` | `events:ListRules`, `events:ListTargetsByRule` |
-| `cloudwatchLogs` | `logs:DescribeLogGroups`, `logs:FilterLogEvents` |
+| `cloudwatchLogs` | `logs:DescribeLogGroups` |
 | `rds` | `rds:DescribeDBInstances` |
 | `apiGateway` | `apigateway:GET` |
 | `cognito` | `cognito-idp:ListUserPools`, `cognito-idp:DescribeUserPool`, `cognito-idp:ListUserPoolClients`, `cognito-idp:DescribeUserPoolClient` |

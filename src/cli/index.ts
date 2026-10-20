@@ -65,6 +65,7 @@ program
   .option('-c, --config <path>', 'Path to infrawise.yaml', 'infrawise.yaml')
   .option('-r, --repo <path>', 'Path to repository to scan', process.cwd())
   .option('--fail-on <level>', 'Severity that fails the build: high | medium | low', 'high')
+  .option('--allow-incomplete', 'Allow exit 0 when infrastructure sources were not fully read')
   .action(async (options) => {
     const { runCheck } = await import('./commands/check.js');
     printBanner();
@@ -72,6 +73,7 @@ program
       config: options.config !== 'infrawise.yaml' ? options.config : undefined,
       repo: options.repo,
       failOn: options.failOn,
+      allowIncomplete: options.allowIncomplete,
     });
   });
 

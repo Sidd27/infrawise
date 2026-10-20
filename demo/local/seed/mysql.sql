@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS shipments (
 
 -- ── Table WITH indexes (control) ──
 
+CREATE TABLE IF NOT EXISTS index_access_cases (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id INT NOT NULL,
+  customer_id INT NOT NULL,
+  INDEX idx_access_tenant_customer (tenant_id, customer_id)
+);
+
 CREATE TABLE IF NOT EXISTS suppliers (
   id    INT AUTO_INCREMENT PRIMARY KEY,
   name  VARCHAR(255) NOT NULL,

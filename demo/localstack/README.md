@@ -71,3 +71,9 @@ MSK, or CloudFront, so this demo leaves parts of infrawise unexercised.
 MIT-licensed emulator that covers all of them — no auth token, no account.
 
 Both listen on port 4566, so stop this one first (`docker compose down`).
+
+## Source-health expectations
+
+The community demo disables Cognito and ElastiCache. API Gateway REST extraction works, but the combined extractor can report `apiGateway` partial because HTTP/WebSocket APIs require a different license. This is a genuine unread portion of the source, not an empty list of APIs. `check` now blocks incomplete reads by default (exit 2 if no blocking findings, or exit 1 when findings already block). Use Floci for broader emulator coverage; do not suppress this distinction in production code. Log groups expose retention metadata only, never message bodies. Background refresh is enabled every 15 minutes after initial snapshot loading.
+
+Verified 2026-10-20: 43 findings, 33 nodes / 9 edges, 4 log groups, and 1 Kinesis stream with this community image. API Gateway is the expected partial source; other enabled sources read successfully. A sentinel event added during privacy testing was absent from tool responses and caches. Counts describe the extracted demo snapshot, not complete runtime coverage.

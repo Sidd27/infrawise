@@ -11,7 +11,7 @@ This is the failure mode worth designing against, and it is not the same as an a
 
 ## Why tool calls answer from a snapshot
 
-`infrawise analyze` reads your cloud account, your databases, and your IaC files once, and caches the result. Every MCP tool then answers from that cache. No tool call re-reads AWS.
+`infrawise analyze` reads your cloud account, your databases, and your IaC files once, and caches the result. After initialization MCP tools answer from that cache. Stdio initializes the snapshot on its first tool call, analyzing if no valid cache exists.
 
 That is a deliberate trade. Live reads on every tool call would mean an assistant asking six questions in a row hits your account six times, each call waiting on the AWS API — and an assistant exploring a codebase asks a lot of questions. Snapshot answers are fast, cheap, and predictable.
 
@@ -42,7 +42,7 @@ Two sources are the exception, because they are checked against reality rather t
 
 **Your CDK output.** `dataHealth.iac` compares `cdk.out` against the analysis and reports `changed` when someone has run `cdk synth` since. `get_stack_outputs` goes further, cross-checking each template against `cdk.out/manifest.json`: a template the manifest no longer lists is an orphan from a deleted or renamed stack, so its resources are excluded from the graph entirely and its outputs come back marked `stale`.
 
-For everything living in your AWS account, age is currently all Infrawise has.
+For everything living in your AWS account, age is still the freshness signal. Optional `freshness.refreshIntervalMinutes` periodically re-reads the full snapshot in the background; it does not detect actual mutations.
 
 ## What real drift detection would take
 
@@ -54,7 +54,7 @@ The version that could work runs **off** the request path. AWS CloudTrail's `Loo
 
 Databases need something else, since an `ALTER TABLE` never reaches CloudTrail. There the cheap answer is a checksum over `information_schema.columns` — one query, exact answer, no heuristic.
 
-Neither is built today. This section describes a direction, not a feature.
+Neither selective CloudTrail detection nor database schema checksums are built today. Periodic full refresh is available, but the selective detection mechanisms in this section describe a future direction.
 
 ## What to do in the meantime
 

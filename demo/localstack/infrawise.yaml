@@ -37,13 +37,13 @@ s3:
 apiGateway:
   enabled: true
 cognito:
-  enabled: true
+  enabled: false
 kinesis:
   enabled: true
 msk:
   enabled: false
 elasticache:
-  enabled: true
+  enabled: false
 cloudfront:
   enabled: false # CloudFront is a LocalStack Pro service — not emulated on the free tier
 runtimeSignals:
@@ -54,3 +54,7 @@ cloudwatchLogs:
   windowHours: 24
 analysis:
   hotPartitionThreshold: 5
+
+freshness:
+  suggestRefreshAfterHours: 6
+  refreshIntervalMinutes: 15

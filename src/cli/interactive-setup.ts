@@ -234,7 +234,8 @@ export async function runInit(options: { force?: boolean; quiet?: boolean } = {}
       {
         type: 'confirm',
         name: 'logsEnabled',
-        message: 'Sample CloudWatch Logs? (error patterns only, no raw logs)',
+        message:
+          'Read CloudWatch log group metadata? (names and retention only; no message bodies)',
         default: false,
       },
       {

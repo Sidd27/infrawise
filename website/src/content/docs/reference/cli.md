@@ -22,7 +22,7 @@ infrawise start [options]
 | `--interactive` | — | Run the guided setup wizard instead of auto-discovery |
 | `--rediscover` | — | Delete `infrawise.yaml` and the `.infrawise/` directory, then re-probe and re-analyze from scratch |
 
-Running `infrawise start` without an editor flag writes `.mcp.json` only (no editor is opened). Re-run any time your infrastructure changes to refresh the graph, or use `--rediscover` for a clean slate.
+Running `infrawise start` without an editor flag writes `.mcp.json` only (no editor is opened). Run `infrawise analyze` after infrastructure changes to force fresh reads. `start` can reuse a valid cache; `--rediscover` clears setup and cache.
 
 ## `infrawise analyze`
 
@@ -53,6 +53,7 @@ infrawise check [options]
 | `-c, --config <path>` | `infrawise.yaml` | Path to config file |
 | `-r, --repo <path>` | current dir | Repository to scan for service usage |
 | `--fail-on <level>` | `high` | Severity that fails the build: `high`, `medium`, `low` |
+| `--allow-incomplete` | off | Permit exit 0 when sources failed or were partly read |
 
 ```bash
 # Block a deploy if any high-severity finding exists (exit 1)
@@ -115,3 +116,7 @@ Use `infrawise check`. It runs a fresh analysis and exits `1` when any finding r
 ### When should I run `infrawise analyze` again?
 
 Run `infrawise analyze` (or `infrawise start`) any time you add, remove, or significantly change AWS resources — new Lambda functions, new DynamoDB tables, new SQS queues, etc. The MCP tools your AI calls serve results from the in-memory graph built at startup; they do not re-scan on every call. For always-fresh data during active infrastructure work, use `infrawise serve` and restart it after changes.
+
+## CI exit codes
+
+`check` returns exit 0 when complete and below threshold, exit 1 for blocking findings, and exit 2 for failed/partial extraction or analyzer failures. `--allow-incomplete` explicitly allows exit 0 for incomplete reads, but never bypasses blocking findings.

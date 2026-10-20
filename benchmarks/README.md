@@ -1,0 +1,5 @@
+# Repeatable performance checks
+
+Run `pnpm benchmark` or `pnpm benchmark 5000`. The script builds the current checkout, creates a disposable package tree with shared TypeScript imports and SQL operations, compares full and incremental scan results, constructs a graph with explicit index-column metadata, runs index analysis across a synthetic multi-table inventory, measures shared-import fan-out, and measures subprocess MCP discovery. It fails on different operations or missing expected findings. It does not contact AWS or a database.
+
+Record Node version, machine, file count, all reported timings, and commit when comparing changes. Run several times and compare medians on the same machine. These are measurements, not universal latency guarantees. The fixture is representative of package/import fan-out but does not model every production monorepo, account size, or database schema. Real extraction is covered by `demo/local` and `demo/floci`; record those timings separately because network and emulator costs differ.

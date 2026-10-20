@@ -19,6 +19,10 @@ export async function runStdio(configPath?: string): Promise<void> {
           write(
             `code graph refreshed from cache (${graph.nodes.length} nodes · ${findings.length} finding(s))`,
           ),
+        onError: (err) =>
+          write(
+            `code refresh failed; previous snapshot retained (${err instanceof Error ? err.message : String(err)})`,
+          ),
       });
     },
   });

@@ -2,8 +2,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Project, SyntaxKind, Node, CallExpression, StringLiteral, SourceFile } from 'ts-morph';
 import type { ExtractedOperation } from '../types.js';
-import { InfrawiseError, logger } from '../core/index.js';
+import { InfrawiseError, PartialExtractionError, logger } from '../core/index.js';
 import { scanPythonRepository } from './python.js';
+import { analyzeSql, sqlTableName as extractSqlTableName } from './sql.js';
 
 const DYNAMO_OPERATIONS = new Set([
   'query',
@@ -277,21 +278,6 @@ function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
   return null;
 }
 
-function extractSqlTableName(sql: string): string {
-  // Try to extract table name from common SQL patterns
-  const patterns = [
-    /FROM\s+["']?(\w+)["']?/i,
-    /INTO\s+["']?(\w+)["']?/i,
-    /UPDATE\s+["']?(\w+)["']?/i,
-    /JOIN\s+["']?(\w+)["']?/i,
-  ];
-  for (const pattern of patterns) {
-    const match = sql.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-  return 'unknown';
-}
-
 function detectPostgresOperations(
   callExpr: CallExpression,
   filePath: string,
@@ -307,6 +293,15 @@ function detectPostgresOperations(
   // Pattern: pool.query(...) / client.query(...)
   if (POSTGRES_QUERY_METHODS.has(methodName)) {
     const objText = objExpr.getText().toLowerCase();
+    const imports = callExpr
+      .getSourceFile()
+      .getImportDeclarations()
+      .map((decl) => decl.getModuleSpecifierValue());
+    if (
+      objText.includes('mysql') ||
+      (imports.some((name) => name.startsWith('mysql')) && !imports.includes('pg'))
+    )
+      return null;
     if (
       objText.includes('pool') ||
       objText.includes('client') ||
@@ -315,9 +310,13 @@ function detectPostgresOperations(
       objText.includes('conn')
     ) {
       let tableName = 'unknown';
+      let sqlAccess;
       if (args.length > 0) {
         const sql = resolveStringValue(args[0], callExpr.getSourceFile());
-        if (sql !== null) tableName = extractSqlTableName(sql);
+        if (sql !== null) {
+          tableName = extractSqlTableName(sql);
+          sqlAccess = analyzeSql(sql);
+        }
       }
       return {
         functionName: getEnclosingFunctionName(callExpr),
@@ -325,6 +324,7 @@ function detectPostgresOperations(
         serviceType: 'postgres',
         target: tableName,
         filePath,
+        sqlAccess,
       };
     }
   }
@@ -406,9 +406,13 @@ function detectMySQLOperations(
     const isMysqlClient = MYSQL_CLIENT_PATTERNS.some((p) => objText.includes(p.toLowerCase()));
     if (isMysqlClient) {
       let tableName = 'unknown';
+      let sqlAccess;
       if (args.length > 0) {
         const sql = resolveStringValue(args[0], callExpr.getSourceFile());
-        if (sql !== null) tableName = extractSqlTableName(sql);
+        if (sql !== null) {
+          tableName = extractSqlTableName(sql);
+          sqlAccess = analyzeSql(sql);
+        }
       }
       return {
         functionName: getEnclosingFunctionName(callExpr),
@@ -416,6 +420,7 @@ function detectMySQLOperations(
         serviceType: 'mysql',
         target: tableName,
         filePath,
+        sqlAccess,
       };
     }
   }
@@ -761,7 +766,14 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
     operations.push(...scanTypeScriptRepository(resolvedPath));
   }
   if (hasPython) {
-    operations.push(...(await scanPythonRepository(resolvedPath)));
+    try {
+      operations.push(...(await scanPythonRepository(resolvedPath)));
+    } catch (error) {
+      throw new PartialExtractionError(
+        error instanceof Error ? error.message : String(error),
+        operations,
+      );
+    }
   }
   return operations;
 }

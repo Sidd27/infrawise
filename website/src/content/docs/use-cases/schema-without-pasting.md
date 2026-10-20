@@ -1,11 +1,11 @@
 ---
 title: Writing database code without pasting your schema
-description: Your assistant reads partition keys, columns, foreign keys, and indexes straight from the live database through infrawise — no copy-pasting table definitions into the chat, no stale schema in the context window.
+description: Your assistant reads partition keys, columns, foreign keys, and indexes straight from the live database through infrawise — no copy-pasting table definitions into the chat, with snapshot age and source health attached.
 ---
 
 This is the problem infrawise was built for. Every session starts the same way: open the console, copy the table definitions, paste them into the chat, and hope the copy is complete. It never is. The pasted schema is missing the indexes, the foreign keys, or the sort key — and it is wrong the moment someone else runs a migration. Then you do it again tomorrow, in the next session, for the next table.
 
-Infrawise removes the ritual. Your assistant reads the schema from the live database on demand, mid-conversation, at the moment it needs it.
+Infrawise removes the ritual. Your assistant requests specific schemas from the infrastructure snapshot mid-conversation. The snapshot records when the database was read.
 
 ## What your assistant sees
 
@@ -46,6 +46,6 @@ Returns a ready-to-apply GSI definition or a `CREATE INDEX CONCURRENTLY` stateme
 
 ## Why this matters
 
-A pasted schema is a snapshot that starts decaying immediately. A tool call is a question answered against the live account every time it is asked. The difference shows up as correct column names, correct join paths, queries that use a partition key instead of scanning a table, and one fewer thing you have to remember to do at the start of every session.
+A pasted schema is a snapshot that starts decaying immediately. A tool call is answered against the extracted snapshot, with its age and source health attached. Run `infrawise analyze` after deployments to refresh it. The difference shows up as correct column names, correct join paths, queries that use a partition key instead of scanning a table, and one fewer thing you have to remember to do at the start of every session.
 
 Nothing is configured for this. `infrawise start` discovers the databases already reachable from your project, and the schema is available from the first prompt onward.

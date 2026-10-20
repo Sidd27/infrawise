@@ -4,6 +4,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import type { ExtractedOperation } from '../types.js';
 import { logger } from '../core/index.js';
+import { analyzeSql, sqlTableName } from './sql.js';
 
 const execFileAsync = promisify(execFile);
 const SCANNER_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'scanner.py');
@@ -32,7 +33,7 @@ export async function scanPythonRepository(
   const interpreter = await findPythonInterpreter();
   if (interpreter === null) {
     logger.warn('Python files found but no python3 on PATH — skipping Python scan');
-    return [];
+    throw new Error('Python files were not scanned: no Python interpreter is available.');
   }
   try {
     const { stdout } = await execFileAsync(
@@ -42,11 +43,17 @@ export async function scanPythonRepository(
         maxBuffer: 64 * 1024 * 1024,
       },
     );
-    return JSON.parse(stdout) as ExtractedOperation[];
+    return (JSON.parse(stdout) as (ExtractedOperation & { sql?: string })[]).map(
+      ({ sql, ...operation }) => ({
+        ...operation,
+        ...(sql ? { sqlAccess: analyzeSql(sql), target: sqlTableName(sql) } : {}),
+      }),
+    );
   } catch (err) {
-    if (files) throw err;
     const message = err instanceof Error ? err.message.slice(0, 200) : String(err);
     logger.warn(`Python scan failed — skipping (${message})`);
-    return [];
+    throw new Error('Python scan failed; infrastructure access coverage is incomplete.', {
+      cause: err,
+    });
   }
 }

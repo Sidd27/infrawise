@@ -35,3 +35,13 @@ To exercise incremental scanning, run `infrawise serve --config infrawise.yaml` 
 ```bash
 docker compose down      # add -v to also wipe all data
 ```
+
+## Confidence regression cases
+
+`app/index-coverage.ts` and `app/sql-coverage.py` query `index_access_cases`, which has a primary key on `id` and a composite index `(tenant_id, customer_id)`. Filtering only on `customer_id` must produce an access-pattern warning despite those indexes; filtering on `tenant_id` and `customer_id` must not. `get_table_schema` must show ordered index columns. Dynamic SQL must appear in `get_graph_summary.unresolvedReferences` and the coverage counts, without asserting the accessed table is absent.
+
+This demo enables a 15-minute background refresh. For a bounded smoke test, use a temporary config copy with `freshness.refreshIntervalMinutes: 1`, load the first snapshot, and verify `dataHealth.analyzedAt` advances after a minute without a tool-triggered cloud refresh. Source-only edits must keep that timestamp unchanged.
+
+To exercise the CI negative control, point a temporary config's PostgreSQL connection at a closed local port: `infrawise check --config /path/to/copy.yaml` must exit 2. `--allow-incomplete` can permit exit 0 only if no blocking findings are present. Restore the connection before normal analysis.
+
+After seeding, run `pnpm test:demo` from the repository root for the repeatable database/MCP regression suite. Add `--background` to include the one-minute refresh test. The script uses disposable copies of demo sources and caches, verifies the actual extracted PostgreSQL text-array/index metadata, and checks CLI incomplete-analysis exit codes. It requires the three demo databases to be running and seeded; it does not start or stop Docker.

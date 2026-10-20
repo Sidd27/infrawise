@@ -3,7 +3,7 @@ title: Data freshness
 description: Reference for the dataHealth block on every Infrawise MCP response — every field, the three clocks that govern staleness, and the freshness config key.
 ---
 
-Infrawise answers from a snapshot. `infrawise analyze` reads your cloud account, databases, and IaC files once and caches the result; every MCP tool answers from that cache, and no tool call re-reads AWS. This page is the field reference for how that snapshot's age is reported.
+Infrawise answers from a snapshot. `infrawise analyze` reads your cloud account, databases, and IaC files once and caches the result; tools answer from that snapshot. In stdio mode the first tool call initializes it, running analysis if the cache is missing or expired; initialization and tool discovery do not analyze. This page is the field reference for how that snapshot's age is reported.
 
 For how to think about it — where age misleads, and what to do about it — see [How Infrawise handles staleness](/infrawise/guides/how-infrawise-handles-staleness/).
 
@@ -21,6 +21,7 @@ Every tool response carries a `dataHealth` object with a fixed shape. Every key 
 | `withinRequestedAge`     | Whether the data meets it. `null` when no tolerance was requested                                                                                    |
 | `region` / `profile`     | Which account context produced the snapshot. `null` when unknown                                                                                     |
 | `sources`                | One entry per source the answer rests on: `service`, `status` (`ok`/`failed`/`partial`/`disabled`), `error`                                          |
+| `codeCoverage` | Recognized-pattern counts and limitations: `status`, `scope`, `recognizedOperations`, `unresolvedReferences`, `unsupportedSqlOperations`, `limitations`. Null counts mean unknown coverage; missing edges never prove no runtime access. |
 | `iac`                    | Whether `cdk.out` has been synthed since the analysis: `status` (`changed`/`unchanged`/`unknown`), `synthedAt`, `analyzedAt`, `reason`               |
 
 `ageSeconds` is the fact; `suggestRefresh` is one coarse verdict offered on top of it.
@@ -37,11 +38,11 @@ An `iac.status` of `changed` means `cdk synth` ran after the analysis, so IaC-de
 
 | Clock           | Default | Configurable | What it governs                                                                                      |
 | --------------- | ------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| Cache TTL       | 24h     | no           | Whether a cached analysis is loaded at boot. Past it, `serve` / `start` run a fresh analysis instead |
+| Cache TTL       | 24h     | no           | Whether a cached snapshot can be loaded. HTTP `serve` and `start` load eagerly; stdio waits until the first infrastructure tool call |
 | Refresh hint    | 6h      | yes          | The value of `suggestRefresh` on every response. Changes nothing about the data returned             |
 | `maxAgeSeconds` | none    | per call     | A caller-supplied tolerance. Sets `requestedMaxAgeSeconds` and `withinRequestedAge`                  |
 
-`maxAgeSeconds` is **advisory**: exceeding it does not withhold data or fail the call. The result still comes back, marked. No tool call re-reads AWS — refreshing is `infrawise analyze`.
+`maxAgeSeconds` is **advisory**: exceeding it does not withhold data or fail the call. The result still comes back, marked. After initialization, tool calls do not re-read AWS. Refresh immediately with `infrawise analyze`, or opt into background refreshes.
 
 ## The cache entries and their clock
 
@@ -94,3 +95,9 @@ freshness:
 ```
 
 Applies to `infrawise serve`, `infrawise stdio`, and editor-launched MCP servers. Accepts fractional values (`0.5` for 30 minutes). The 24h cache TTL is fixed and unaffected.
+
+## Background refreshes
+
+`freshness.refreshIntervalMinutes` optionally schedules full background analysis after the first snapshot load. 1–1440 minutes, off by default. Refreshes are serialized with code updates and pause on config changes until restart. This bounds snapshot age while the server runs, not the time at which real drift occurs. Run `infrawise analyze` after deployments for an immediate refresh.
+
+`codeCoverage.refreshError` is null after a successful load or refresh. On a failed session refresh it explains why the previous graph was retained; do not treat that graph as reflecting the latest code.

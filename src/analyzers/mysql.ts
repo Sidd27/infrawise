@@ -1,3 +1,4 @@
+import { relationalIndexFindings } from './relational-indexes.js';
 import type { SystemGraph, Finding, GraphNode } from '../types.js';
 import { getScanEdges } from '../graph/index.js';
 
@@ -5,45 +6,7 @@ import { getScanEdges } from '../graph/index.js';
  * Detects MySQL tables that are queried without any indexes defined.
  */
 export async function MissingMySQLIndexAnalyzer(graph: SystemGraph): Promise<Finding[]> {
-  const findings: Finding[] = [];
-
-  const mysqlTables = graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'table' }> =>
-      n.type === 'table' && n.databaseType === 'mysql' && !n.placeholder,
-  );
-
-  for (const table of mysqlTables) {
-    const indexEdges = graph.edges.filter((e) => e.from === table.id && e.type === 'uses_index');
-    const hasIndexes = indexEdges.length > 0;
-
-    const queryEdges = graph.edges.filter(
-      (e) => e.to === table.id && (e.type === 'query' || e.type === 'scan'),
-    );
-
-    if (queryEdges.length > 0 && !hasIndexes) {
-      const callerFunctions = queryEdges
-        .map((e) => {
-          const node = graph.nodes.find((n) => n.id === e.from);
-          return node?.type === 'function' ? node.name : e.from;
-        })
-        .join(', ');
-
-      findings.push({
-        severity: 'medium',
-        issue: `MySQL table "${table.name}" has no indexes but is queried by ${queryEdges.length} function(s)`,
-        description: `Table "${table.name}" is accessed by functions (${callerFunctions}) but has no secondary indexes defined. Queries on non-primary-key columns will result in full table scans.`,
-        recommendation:
-          'Add indexes on columns used in WHERE clauses. Run EXPLAIN on slow queries. Consider composite indexes for multi-column filters.',
-        metadata: {
-          tableName: table.name,
-          queryCount: queryEdges.length,
-          callerFunctions,
-        },
-      });
-    }
-  }
-
-  return findings;
+  return relationalIndexFindings(graph, 'mysql');
 }
 
 /**

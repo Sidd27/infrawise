@@ -63,7 +63,7 @@ Returns all high and medium severity findings. Secrets rotation, log retention, 
 get_secrets_overview()     // rotation status per secret
 get_s3_overview()          // versioning, encryption, public access per bucket
 get_lambda_overview()      // memory, timeout, trigger config per function
-get_log_errors()           // retention days and error patterns per log group
+get_log_errors()           // retention metadata per log group; error messages are not read
 ```
 
 Each tool returns the relevant security metadata alongside operational data.

@@ -41,6 +41,13 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
 -- ── Seed rows ──
 
+CREATE TABLE IF NOT EXISTS index_access_cases (
+  id SERIAL PRIMARY KEY,
+  tenant_id INT NOT NULL,
+  customer_id INT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_access_tenant_customer ON index_access_cases (tenant_id, customer_id);
+
 INSERT INTO users (email, name) VALUES
   ('alice@example.com', 'Alice'),
   ('bob@example.com', 'Bob'),

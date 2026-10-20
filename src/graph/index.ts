@@ -74,7 +74,12 @@ export function buildGraph(
     });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
-      addNode({ id: indexNodeId, type: 'index', name: indexName });
+      addNode({
+        id: indexNodeId,
+        type: 'index',
+        name: indexName,
+        ...table.indexDetails?.find((index) => index.name === indexName),
+      });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
@@ -92,7 +97,12 @@ export function buildGraph(
     });
     for (const indexName of table.indexes) {
       const indexNodeId = `index:${table.schema}.${table.table}:${indexName}`;
-      addNode({ id: indexNodeId, type: 'index', name: indexName });
+      addNode({
+        id: indexNodeId,
+        type: 'index',
+        name: indexName,
+        ...table.indexDetails?.find((index) => index.name === indexName),
+      });
       edges.push({ from: nodeId, to: indexNodeId, type: 'uses_index' });
     }
   }
@@ -589,10 +599,46 @@ export function buildGraph(
     }
 
     const edgeType = resolveEdgeType(op.operationType);
-    edges.push({ from: funcNodeId, to: tableNodeId, type: edgeType });
+    edges.push({
+      from: funcNodeId,
+      to: tableNodeId,
+      type: edgeType,
+      ...(op.sqlAccess ? { sqlAccess: op.sqlAccess } : {}),
+    });
   }
 
-  return { nodes, edges };
+  const unresolvedTargets = new Set(
+    nodes
+      .filter((node) => node.placeholder && 'name' in node)
+      .map((node) => ('name' in node ? node.name.split('.').pop() : '')),
+  );
+  return {
+    nodes,
+    edges,
+    codeCoverage: {
+      recognizedOperations: operations.filter(
+        (operation) => operation.operationType !== 'batch_item_failures_response',
+      ).length,
+      unsupportedSqlOperations: operations.filter(
+        (operation) =>
+          ['postgres', 'mysql'].includes(operation.serviceType) && !operation.sqlAccess?.complete,
+      ).length,
+      unresolvedReferences: operations
+        .filter(
+          (operation) =>
+            operation.operationType !== 'batch_item_failures_response' &&
+            (!operation.target ||
+              operation.target === 'unknown' ||
+              unresolvedTargets.has(operation.target.split('.').pop())),
+        )
+        .map((operation) => ({
+          file: operation.filePath,
+          function: operation.functionName,
+          service: operation.serviceType,
+          operation: operation.operationType,
+        })),
+    },
+  };
 }
 
 export interface StackOutputInfo {

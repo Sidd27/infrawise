@@ -73,11 +73,10 @@ export async function extractMySQLMetadata(
     // Get all indexes
     const [indexRows] = await connection.execute<mysql.RowDataPacket[]>(
       `
-      SELECT TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
+      SELECT TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, INDEX_TYPE, IS_VISIBLE
       FROM information_schema.statistics
       WHERE TABLE_SCHEMA NOT IN (${[...SYSTEM_SCHEMAS].map(() => '?').join(', ')})
-      GROUP BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
-      ORDER BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
+      ORDER BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
     `,
       [...SYSTEM_SCHEMAS],
     );
@@ -168,6 +167,21 @@ export async function extractMySQLMetadata(
         table,
         columns: columnMap.get(key) ?? [],
         indexes: indexMap.get(key) ?? [],
+        indexDetails: (indexMap.get(key) ?? []).map((name) => {
+          const rows = indexRows.filter(
+            (row) =>
+              row['TABLE_SCHEMA'] === schema &&
+              row['TABLE_NAME'] === table &&
+              row['INDEX_NAME'] === name,
+          );
+          return {
+            name,
+            columns: rows.map((row) => (row['COLUMN_NAME'] as string) ?? ''),
+            method: String(rows[0]?.['INDEX_TYPE'] ?? '').toLowerCase(),
+            partial: false,
+            valid: rows[0]?.['IS_VISIBLE'] === 'YES',
+          };
+        }),
         primaryKeys: pkMap.get(key) ?? [],
         engine,
         columnDetails: columnDetailMap.get(key) ?? [],

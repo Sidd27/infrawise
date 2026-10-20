@@ -23,6 +23,10 @@ interface IndexRow {
   schemaname: string;
   tablename: string;
   indexname: string;
+  columns: string[];
+  method: string;
+  partial: boolean;
+  valid: boolean;
 }
 
 interface PrimaryKeyRow {
@@ -67,9 +71,19 @@ export async function extractPostgresMetadata(
 
       // Get all indexes
       const indexesResult = await client.query<IndexRow>(`
-        SELECT schemaname, tablename, indexname
-        FROM pg_indexes
-        WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+        SELECT ns.nspname AS schemaname, tbl.relname AS tablename,
+               idx.relname AS indexname, am.amname AS method,
+               i.indpred IS NOT NULL AS partial, i.indisvalid AS valid,
+               ARRAY(SELECT COALESCE(a.attname::text, '')
+                     FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, position)
+                     LEFT JOIN pg_attribute a ON a.attrelid = tbl.oid AND a.attnum = k.attnum
+                     WHERE k.position <= i.indnkeyatts ORDER BY k.position) AS columns
+        FROM pg_index i
+        JOIN pg_class tbl ON tbl.oid = i.indrelid
+        JOIN pg_class idx ON idx.oid = i.indexrelid
+        JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+        JOIN pg_am am ON am.oid = idx.relam
+        WHERE ns.nspname NOT IN ('pg_catalog', 'information_schema')
         ORDER BY schemaname, tablename, indexname
       `);
 
@@ -178,6 +192,17 @@ export async function extractPostgresMetadata(
           table: table.table_name,
           columns: columnMap.get(key) ?? [],
           indexes: indexMap.get(key) ?? [],
+          indexDetails: indexesResult.rows
+            .filter(
+              (row) => row.schemaname === table.table_schema && row.tablename === table.table_name,
+            )
+            .map((row) => ({
+              name: row.indexname,
+              columns: row.columns,
+              method: row.method,
+              partial: row.partial,
+              valid: row.valid,
+            })),
           primaryKeys: pkMap.get(key) ?? [],
           columnDetails: columnDetailMap.get(key) ?? [],
           foreignKeys: fkMap.get(key) ?? [],

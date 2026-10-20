@@ -126,3 +126,5 @@ Checked against floci 1.5.x. None of these affect real AWS.
   cache policy id resolves to its name (for example `CachingDisabled`).
 - MSK is best effort: Floci backs it with a real Redpanda container, which is the
   heaviest thing in the seed. If it does not come up, everything else still does.
+
+Background refresh is enabled every 15 minutes after initial snapshot loading. Source-only edits keep the cloud read timestamp unchanged. CloudWatch log extraction reads group metadata only; `get_log_errors` retains its compatibility name but returns null counts and empty patterns. Failed or partial sources make `check` incomplete by default.

@@ -15,6 +15,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readdirSync } from 'node:fs'
+import { behaviorErrors } from './check-behavior.mjs'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dir, '..')
@@ -116,6 +118,17 @@ if (!agCount) {
 } else {
   fail(`AGENTS.md: "exposes ${agCount} tools via MCP" (expected ${tools.length})`)
 }
+
+const behaviorDocs = { 'README.md': readme, 'AGENTS.md': ag, 'llms.txt': llms }
+const collectDocs = (dir) => {
+  for (const entry of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`
+    if (entry.isDirectory()) collectDocs(rel)
+    else if (entry.name.endsWith('.md')) behaviorDocs[rel] = read(rel)
+  }
+}
+collectDocs('website/src/content/docs')
+for (const error of behaviorErrors(server, behaviorDocs)) fail(error)
 
 console.log('')
 if (errors.length > 0) {

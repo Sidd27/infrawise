@@ -1,7 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, logger, readCache, readCacheTimestamp, setCacheDir } from '../core/index.js';
-import { setGraphState, setServerConfig, setSnapshotLoader } from '../server/index.js';
+import {
+  setGraphState,
+  setServerConfig,
+  setSnapshotLoader,
+  setCodeRefreshError,
+} from '../server/index.js';
 import type { SystemGraph, Finding, InfrawiseConfig, AnalysisProvenance } from '../types.js';
 
 const WATCHED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
@@ -142,18 +147,30 @@ export function watchCode(
 ): void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let refreshing = false;
+  let pendingCloud = false;
+  let configChanged = false;
   const pending = new Set<string>();
   let scanner: import('../context/incremental.js').RepositoryScanner | undefined;
 
   const refresh = async () => {
-    if (refreshing || pending.size === 0) return;
+    if (refreshing || (pending.size === 0 && !pendingCloud)) return;
     refreshing = true;
     const changedFiles = [...pending];
     pending.clear();
     let succeeded = false;
+    const refreshCloud = pendingCloud;
+    pendingCloud = false;
     hooks.onStart?.();
     try {
-      const { runCodeRefresh } = await import('./commands/analyze.js');
+      const { runCodeRefresh, runAnalyze } = await import('./commands/analyze.js');
+      if (refreshCloud) {
+        await runAnalyze({ repo: repoPath, config: configFile, silent: true });
+        scanner = undefined;
+        const snapshot = reloadFromCache();
+        if (snapshot) hooks.onDone(snapshot.graph, snapshot.findings);
+        succeeded = true;
+        return;
+      }
       const { RepositoryScanner } = await import('../context/incremental.js');
       scanner ??= new RepositoryScanner(repoPath);
       const currentScanner = scanner;
@@ -161,13 +178,16 @@ export function watchCode(
         currentScanner.scan(changedFiles),
       );
       hooks.onDone(graph, findings);
+      setCodeRefreshError(null);
       succeeded = true;
     } catch (err) {
+      setCodeRefreshError(err instanceof Error ? err.message : String(err));
       for (const file of changedFiles) pending.add(file);
       hooks.onError?.(err);
     } finally {
       refreshing = false;
-      if (succeeded && pending.size > 0) debounceTimer = setTimeout(refresh, 2000);
+      if (succeeded && (pending.size > 0 || pendingCloud))
+        debounceTimer = setTimeout(refresh, pendingCloud ? 0 : 2000);
     }
   };
 
@@ -175,6 +195,7 @@ export function watchCode(
     fs.watch(repoPath, { recursive: true }, (_, filename) => {
       if (!filename) return;
       if (path.join(repoPath, filename) === configFile) {
+        configChanged = true;
         hooks.onConfigChange?.();
         return;
       }
@@ -187,5 +208,12 @@ export function watchCode(
     });
   } catch {
     // fs.watch may not support recursive on all platforms — silently skip
+  }
+  if (cfg.freshness?.refreshIntervalMinutes) {
+    setInterval(() => {
+      if (configChanged) return;
+      pendingCloud = true;
+      void refresh();
+    }, cfg.freshness.refreshIntervalMinutes * 60_000).unref();
   }
 }

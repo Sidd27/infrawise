@@ -305,6 +305,8 @@ class Visitor(ast.NodeVisitor):
             sql = self.resolve_string(arg)
         service = 'mysql' if any(h in recv_text for h in MYSQL_HINTS) else 'postgres'
         self.add('query', service, sql_table(sql) if sql else 'unknown')
+        if sql:
+            self.ops[-1]['sql'] = sql
         return True
 
     def detect_mongo(self, node, method, recv, recv_text):

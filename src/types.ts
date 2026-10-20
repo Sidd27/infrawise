@@ -29,6 +29,10 @@ export type GraphNode = (
       partitionKey?: string;
       sortKey?: string;
       projectionType?: string;
+      columns?: string[];
+      method?: string;
+      partial?: boolean;
+      valid?: boolean;
     }
   | { id: string; type: 'query'; operation: string }
   | {
@@ -85,7 +89,7 @@ export type GraphNode = (
       name: string;
       provider: string;
       retentionDays?: number;
-      errorCount?: number;
+      errorCount?: number | null;
       topErrorPatterns?: Array<{ pattern: string; count: number }>;
     }
   | {
@@ -219,8 +223,8 @@ export type GraphNode = (
 ) & { placeholder?: true };
 
 export type GraphEdge =
-  | { from: string; to: string; type: 'query' }
-  | { from: string; to: string; type: 'scan' }
+  | { from: string; to: string; type: 'query'; sqlAccess?: SqlAccess }
+  | { from: string; to: string; type: 'scan'; sqlAccess?: SqlAccess }
   | { from: string; to: string; type: 'joins' }
   | { from: string; to: string; type: 'uses_index' }
   | { from: string; to: string; type: 'publishes_to' }
@@ -237,6 +241,16 @@ export type GraphEdge =
 export interface SystemGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  codeCoverage?: {
+    recognizedOperations: number;
+    unsupportedSqlOperations: number;
+    unresolvedReferences: Array<{
+      file: string;
+      function: string;
+      service: string;
+      operation: string;
+    }>;
+  };
 }
 
 // ─── Database metadata ───────────────────────────────────────────────────────
@@ -278,6 +292,7 @@ export interface PostgresTableMetadata {
   primaryKeys: string[];
   columnDetails?: ColumnDetail[];
   foreignKeys?: ForeignKeyMetadata[];
+  indexDetails?: RelationalIndex[];
 }
 
 export interface MySQLTableMetadata {
@@ -289,6 +304,23 @@ export interface MySQLTableMetadata {
   engine: string;
   columnDetails?: ColumnDetail[];
   foreignKeys?: ForeignKeyMetadata[];
+  indexDetails?: RelationalIndex[];
+}
+
+export interface RelationalIndex {
+  name: string;
+  columns: string[];
+  method: string;
+  partial: boolean;
+  valid: boolean;
+}
+
+export interface SqlAccess {
+  equalityColumns: string[];
+  rangeColumns: string[];
+  complete: boolean;
+  hasWhere: boolean;
+  selectAll: boolean;
 }
 
 export interface MongoIndexMetadata {
@@ -448,8 +480,8 @@ export interface LambdaFunctionMetadata {
 export interface LogGroupSummary {
   logGroupName: string;
   retentionDays?: number; // undefined = never expires
-  errorCount: number;
-  warnCount: number;
+  errorCount: number | null;
+  warnCount: number | null;
   topErrorPatterns: Array<{ pattern: string; count: number }>;
   lastErrorTime?: string;
 }
@@ -584,6 +616,7 @@ export interface ExtractedOperation {
     | 'kafka';
   target: string;
   filePath: string;
+  sqlAccess?: SqlAccess;
   // secretsmanager only — key names accessed on the parsed secret value in code, never the values themselves
   keys?: string[];
 }

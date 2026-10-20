@@ -1,7 +1,7 @@
 import { CloudWatchClient, GetMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import type { MetricDataQuery } from '@aws-sdk/client-cloudwatch';
 import { clientConfig, type AWSConfig } from './services.js';
-import { logger } from '../../core/index.js';
+import { logger, PartialExtractionError } from '../../core/index.js';
 
 export interface LambdaSignals {
   throttles: number;
@@ -87,6 +87,8 @@ export async function extractRuntimeSignals(
           }),
         );
         for (const r of res.MetricDataResults ?? []) {
+          if (r.StatusCode && r.StatusCode !== 'Complete')
+            throw new Error(`CloudWatch metric result was ${r.StatusCode}`);
           const id = r.Id ?? '';
           const value = r.Values?.[0] ?? 0;
           const idx = parseInt(id.slice(2), 10);
@@ -110,6 +112,10 @@ export async function extractRuntimeSignals(
     logger.warn(
       `Runtime signals fetch failed: ${err instanceof Error ? err.message : String(err)}`,
     );
+    throw new PartialExtractionError(err instanceof Error ? err.message : String(err), {
+      lambdas,
+      queues,
+    });
   }
   return { lambdas, queues };
 }

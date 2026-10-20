@@ -272,6 +272,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
     setCacheDir(path.dirname(path.resolve(options.config ?? 'infrawise.yaml')));
     if (!options.silent) log.success('Config loaded', options.config ?? 'infrawise.yaml');
   } catch (err) {
+    if (options.silent) throw err;
     console.error(formatError(err));
     process.exit(1);
   }
@@ -299,6 +300,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   const iacTask = trackTask(
     (async () => {
       if (config.terraform?.enabled === false) {
+        sourceStatuses.push({ service: 'iac', status: 'disabled' });
         return {
           drift: undefined as IaCSchema | undefined,
           lambdas: [] as IaCLambda[],
@@ -320,6 +322,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
           iacSchema.apiGateways.length +
           iacSchema.outputs.length;
         log.success('IaC schema', `${total} resource(s) across TF/CFN/CDK`);
+        sourceStatuses.push({ service: 'iac', status: 'ok' });
         return {
           drift: iacSchema as IaCSchema | undefined,
           lambdas: iacSchema.lambdas,
@@ -327,6 +330,11 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         };
       } catch (err) {
         log.warn('IaC scan skipped', err instanceof Error ? err.message : String(err));
+        sourceStatuses.push({
+          service: 'iac',
+          status: 'failed',
+          error: err instanceof Error ? err.message : String(err),
+        });
         return {
           drift: undefined as IaCSchema | undefined,
           lambdas: [] as IaCLambda[],
@@ -341,10 +349,16 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
       try {
         const ops = await scanRepository(repoPath);
         log.success('Repository scanned', `${ops.length} service operation(s) found`);
+        sourceStatuses.push({ service: 'code', status: 'ok' });
         return ops;
       } catch (err) {
         log.warn('Repository scan failed', err instanceof Error ? err.message : String(err));
-        return [] as ExtractedOperation[];
+        sourceStatuses.push({
+          service: 'code',
+          status: err instanceof PartialExtractionError ? 'partial' : 'failed',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return err instanceof PartialExtractionError ? (err.data as ExtractedOperation[]) : [];
       }
     })(),
   );
@@ -516,7 +530,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
           logGroupPrefixes: cwLogs?.logGroupPrefixes,
           windowHours: cwLogs?.windowHours,
         }),
-      (r) => `${r.length} group(s), ${r.filter((lg) => lg.errorCount > 0).length} with errors`,
+      (r) => `${r.length} group(s), metadata only`,
     ),
     iacTask,
     repoTask,
@@ -578,16 +592,27 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         const sig = signals.queues.get(q.name);
         if (sig) q.oldestMessageAgeSec = sig.oldestMessageAgeSec;
       }
+      sourceStatuses.push({ service: 'runtimeSignals', status: 'ok' });
       s.succeed(
         chalk.green('Runtime signals') +
           chalk.dim(`  ${signals.lambdas.size} function(s), ${signals.queues.size} queue(s)`),
       );
     } catch (err) {
+      sourceStatuses.push({
+        service: 'runtimeSignals',
+        status: err instanceof PartialExtractionError ? 'partial' : 'failed',
+        error: err instanceof Error ? err.message : String(err),
+      });
       s.warn(
         chalk.yellow('Runtime signals skipped') +
           chalk.dim(`  ${err instanceof Error ? err.message : String(err)}`),
       );
     }
+  } else {
+    sourceStatuses.push({
+      service: 'runtimeSignals',
+      status: config.runtimeSignals?.enabled ? 'ok' : 'disabled',
+    });
   }
 
   // ── Build graph ──────────────────────────────────────────────────────────────
@@ -608,7 +633,13 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
   {
     const s = mkSpinner('Running analyzers...');
     const analyzers = buildAnalyzers(config, iacDriftSchema, iacLambdas);
-    findings = await A.runAllAnalyzers(graph, analyzers);
+    findings = await A.runAllAnalyzers(graph, analyzers, (name, error) =>
+      sourceStatuses.push({
+        service: `analyzer:${name}`,
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
     s.succeed(chalk.green('Analysis complete') + chalk.dim(`  ${findings.length} finding(s)`));
   }
 
@@ -640,7 +671,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<void> {
         ? findings.filter((f: Finding) => (SEVERITY_ORDER[f.severity] ?? 0) >= minSeverity)
         : findings;
 
-    const failed = sourceStatuses.filter((s) => s.status === 'failed');
+    const failed = sourceStatuses.filter((s) => s.status === 'failed' || s.status === 'partial');
     if (failed.length > 0) {
       console.log('');
       log.warn(
@@ -725,8 +756,8 @@ export async function runCodeRefresh(
       iacLambdas = iacSchema.lambdas;
       iacOutputs = iacSchema.outputs;
     }
-  } catch {
-    // IaC scan is best-effort
+  } catch (error) {
+    throw new Error('IaC refresh failed; keeping the previous analysis.', { cause: error });
   }
 
   // Re-run repo scan
@@ -749,7 +780,9 @@ export async function runCodeRefresh(
   A.addLambdaCodeLinks(graph, iacLambdas);
 
   const analyzers = buildAnalyzers(config, iacDriftSchema, iacLambdas);
-  const findings = await A.runAllAnalyzers(graph, analyzers);
+  const findings = await A.runAllAnalyzers(graph, analyzers, (name, error) => {
+    throw new Error(`Analyzer ${name} failed; keeping the previous analysis.`, { cause: error });
+  });
 
   writeCache('graph', graph);
   writeCache('findings', findings);

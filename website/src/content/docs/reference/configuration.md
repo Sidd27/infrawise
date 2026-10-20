@@ -161,3 +161,15 @@ infrawise start --claude --config infrawise.staging.yaml
 ### What happens if a database or service is unreachable?
 
 Infrawise logs a warning for the unreachable service and continues. Every extractor is independent — one failing service never aborts the whole analysis. The affected MCP tools return empty results. Run `infrawise doctor` to diagnose connectivity issues before starting a session.
+
+## Optional background refresh
+
+```yaml
+freshness:
+  suggestRefreshAfterHours: 6
+  refreshIntervalMinutes: 15
+```
+
+`refreshIntervalMinutes` is disabled by default and must be between 1 and 1440 minutes. After the initial snapshot loads, a running server periodically performs full analysis without putting a cloud read on every tool request. It is serialized with source refreshes and pauses after configuration changes until restart. It can incur AWS/API/database costs; it measures new snapshots rather than proving when drift happened. Run `infrawise analyze` after a deployment when an immediate refresh matters. Failed or partial reads are visible in source health and make `check` exit 2 by default.
+
+The legacy `cloudwatchLogs.windowHours` key remains accepted for configuration compatibility but no longer enables event sampling: log group extraction is metadata only. `runtimeSignals.windowHours` still controls the opt-in CloudWatch metrics window.

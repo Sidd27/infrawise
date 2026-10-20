@@ -54,3 +54,7 @@ cloudwatchLogs:
   windowHours: 24
 analysis:
   hotPartitionThreshold: 5
+
+freshness:
+  suggestRefreshAfterHours: 6
+  refreshIntervalMinutes: 15

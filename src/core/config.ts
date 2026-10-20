@@ -88,6 +88,7 @@ export const InfrawiseConfigSchema = z.object({
   freshness: z
     .object({
       suggestRefreshAfterHours: z.number().positive().optional().default(6),
+      refreshIntervalMinutes: z.number().min(1).max(1440).optional(),
     })
     .optional(),
 });

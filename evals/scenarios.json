@@ -1,0 +1,66 @@
+[
+  {
+    "id": "schema-before-query",
+    "prompt": "Write an orders query filtering by customer_id. Confirm the deployed schema and whether an index supports it before writing code.",
+    "requiredTools": ["get_infra_overview", "get_table_schema"],
+    "requiredArguments": {
+      "get_table_schema": {
+        "tables": ["orders"]
+      }
+    },
+    "facts": {
+      "schemaChecked": true,
+      "queryPlanObserved": false,
+      "requestedColumnExists": false,
+      "queryWrittenAgainstMissingColumn": false
+    },
+    "fixture": "demo/local: seeded orders table has user_id, not customer_id"
+  },
+  {
+    "id": "handler-before-code",
+    "prompt": "Implement the SQS handler in app/orders.ts for its deployed trigger. Use the observed event shape and report uncertainty if it cannot be linked.",
+    "requiredTools": ["get_infra_overview", "analyze_function"],
+    "requiredArguments": {
+      "analyze_function": {
+        "function": "handler",
+        "file": "app/orders.ts"
+      }
+    },
+    "facts": {
+      "fileBound": true,
+      "ambiguousAttributionGuessed": false,
+      "eventBodyPath": "event.Records[0].body"
+    },
+    "fixture": "demo/floci: processOrders Lambda, app/orders.ts, SQS trigger"
+  },
+  {
+    "id": "failed-source",
+    "prompt": "Does orders have a customer_id index? The schema tool reports postgres failed and found false. Explain what can be concluded.",
+    "requiredTools": ["get_table_schema"],
+    "requiredArguments": {
+      "get_table_schema": {
+        "tables": ["orders"]
+      }
+    },
+    "facts": {
+      "absenceProven": false,
+      "incompleteSourceDisclosed": true
+    },
+    "fixture": "Temporary config: enable PostgreSQL with localhost:19999; existing snapshot records source failed"
+  },
+  {
+    "id": "stale-snapshot",
+    "prompt": "Does the payments queue have a DLQ right now? Request data no older than 60 seconds; if older, state the limitation and the refresh command.",
+    "requiredTools": ["get_queue_details"],
+    "requiredArguments": {
+      "get_queue_details": {
+        "maxAgeSeconds": 60
+      }
+    },
+    "facts": {
+      "freshnessDisclosed": true,
+      "refreshCommand": "infrawise analyze"
+    },
+    "fixture": "demo/floci: snapshot provenance analyzedAt older than 60 seconds but younger than 24 hours"
+  }
+]

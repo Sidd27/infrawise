@@ -15,22 +15,28 @@ interface CheckOptions {
   config?: string;
   repo?: string;
   failOn?: 'high' | 'medium' | 'low';
+  allowIncomplete?: boolean;
 }
 
 export interface CheckEvaluation {
   violations: Finding[];
   failedSources: SourceStatus[];
+  exitCode: 0 | 1 | 2;
 }
 
 export function evaluateCheck(
   findings: Finding[],
   failOn: 'high' | 'medium' | 'low' = 'high',
   sources: SourceStatus[] = [],
+  allowIncomplete = false,
 ): CheckEvaluation {
   const threshold = SEVERITY_ORDER[failOn] ?? 3;
+  const violations = findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold);
+  const failedSources = sources.filter((s) => s.status === 'failed' || s.status === 'partial');
   return {
-    violations: findings.filter((f) => (SEVERITY_ORDER[f.severity] ?? 0) >= threshold),
-    failedSources: sources.filter((s) => s.status === 'failed'),
+    violations,
+    failedSources,
+    exitCode: violations.length ? 1 : failedSources.length && !allowIncomplete ? 2 : 0,
   };
 }
 
@@ -48,10 +54,11 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
   // "nothing was read" rather than "nothing is wrong".
   const findings = readCache<Finding[]>('findings') ?? [];
 
-  const { violations, failedSources } = evaluateCheck(
+  const { violations, failedSources, exitCode } = evaluateCheck(
     findings,
     failOn,
     readCache<AnalysisProvenance>('provenance')?.sources ?? [],
+    options.allowIncomplete,
   );
   if (failedSources.length > 0) {
     console.log('');
@@ -64,10 +71,19 @@ export async function runCheck(options: CheckOptions = {}): Promise<void> {
 
   console.log('');
   if (violations.length === 0) {
+    if (exitCode === 2) {
+      log.fail(
+        'Check incomplete',
+        'required sources were not fully read; retry or explicitly use --allow-incomplete',
+      );
+      process.exit(2);
+    }
     log.success(
       'Check passed',
       `no ${failOn}+ findings (${findings.length} total below threshold)` +
-        (failedSources.length > 0 ? ` — but ${failedSources.length} source(s) went unread` : ''),
+        (failedSources.length > 0
+          ? ` — incomplete analysis explicitly allowed (${failedSources.length} source(s))`
+          : ''),
     );
     console.log('');
     return;

@@ -311,20 +311,15 @@ Check `publicAccessBlocked` before assuming a bucket's contents are private. A b
 
 ## get_log_errors
 
-Returns recent error patterns from CloudWatch log groups. Raw log messages are **never included** — only aggregated patterns.
+Returns CloudWatch log group names and retention metadata. The legacy tool name is retained for compatibility. Message bodies are never requested.
 
 | Input | Type | Required |
 |---|---|---|
-| `logGroup` | string | no — filters by name substring; omit to return all groups |
+| `logGroup` | string | no, filters group names by substring |
 
-**Returns**
+Per group: `name`, `retentionDays`, `errorCount: null`, `topErrorPatterns: []`, `errorsObserved: false`. Null means error frequency was not observed, not zero errors.
 
-Per log group:
-- Name and retention period in days (missing retention = no auto-expiry = cost risk)
-- Error count
-- Top error patterns with frequency — the recurring message shapes, not raw log lines
-
-**When to call:** When investigating a production error, checking which log groups have no retention policy configured, or getting a baseline of error frequency before and after a deployment.
+**When to call:** Check retention policies. Do not use this tool to diagnose runtime errors or infer error frequency.
 
 ---
 

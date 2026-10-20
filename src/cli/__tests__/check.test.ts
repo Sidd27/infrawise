@@ -7,6 +7,15 @@ function finding(severity: Finding['severity'], issue = 'planted'): Finding {
 }
 
 describe('evaluateCheck — negative controls for the CI gate', () => {
+  it('uses a distinct exit code for failed or partial extraction unless explicitly allowed', () => {
+    for (const status of ['failed', 'partial'] as const) {
+      expect(evaluateCheck([], 'high', [{ service: 'postgres', status }]).exitCode).toBe(2);
+      expect(evaluateCheck([], 'high', [{ service: 'postgres', status }], true).exitCode).toBe(0);
+      expect(
+        evaluateCheck([finding('high')], 'high', [{ service: 'postgres', status }], true).exitCode,
+      ).toBe(1);
+    }
+  });
   it('a planted HIGH finding must flip the verdict (check would fail)', () => {
     const { violations } = evaluateCheck([finding('high')]);
     expect(violations).toHaveLength(1);

@@ -1,3 +1,4 @@
+import { relationalIndexFindings } from './relational-indexes.js';
 import type { SystemGraph, Finding, GraphNode } from '../types.js';
 
 /**
@@ -5,47 +6,7 @@ import type { SystemGraph, Finding, GraphNode } from '../types.js';
  * but don't have a corresponding index.
  */
 export async function MissingIndexAnalyzer(graph: SystemGraph): Promise<Finding[]> {
-  const findings: Finding[] = [];
-
-  const postgresTables = graph.nodes.filter(
-    (n): n is Extract<GraphNode, { type: 'table' }> =>
-      n.type === 'table' && n.databaseType === 'postgres' && !n.placeholder,
-  );
-
-  for (const table of postgresTables) {
-    // Find indexes for this table via uses_index edges
-    const indexEdges = graph.edges.filter((e) => e.from === table.id && e.type === 'uses_index');
-    const hasIndexes = indexEdges.length > 0;
-
-    // Find all query operations targeting this table
-    const queryEdges = graph.edges.filter(
-      (e) => e.to === table.id && (e.type === 'query' || e.type === 'scan'),
-    );
-
-    if (queryEdges.length > 0 && !hasIndexes) {
-      const callerFunctions = queryEdges
-        .map((e) => {
-          const node = graph.nodes.find((n) => n.id === e.from);
-          return node?.type === 'function' ? node.name : e.from;
-        })
-        .join(', ');
-
-      findings.push({
-        severity: 'medium',
-        issue: `PostgreSQL table "${table.name}" has no indexes but is queried by ${queryEdges.length} function(s)`,
-        description: `Table "${table.name}" is accessed by functions (${callerFunctions}) but has no secondary indexes defined. Queries on non-primary-key columns will result in sequential scans.`,
-        recommendation:
-          'Add indexes on columns used in WHERE clauses. Use EXPLAIN ANALYZE to identify slow queries. Consider composite indexes for multi-column filters.',
-        metadata: {
-          tableName: table.name,
-          queryCount: queryEdges.length,
-          callerFunctions,
-        },
-      });
-    }
-  }
-
-  return findings;
+  return relationalIndexFindings(graph, 'postgres');
 }
 
 /**
@@ -115,6 +76,25 @@ export async function NplusOneAnalyzer(graph: SystemGraph): Promise<Finding[]> {
  */
 export async function LargeSelectAnalyzer(graph: SystemGraph): Promise<Finding[]> {
   const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  for (const edge of graph.edges) {
+    if ((edge.type !== 'query' && edge.type !== 'scan') || !edge.sqlAccess?.selectAll) continue;
+    const table = nodes.get(edge.to);
+    if (table?.type !== 'table' || table.databaseType !== 'postgres') continue;
+    const key = `${edge.from}:${edge.to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    findings.push({
+      severity: 'low',
+      issue: `SELECT * usage detected on PostgreSQL table "${table.name}"`,
+      description:
+        'The source query selects all columns. This is a static observation, not a measured query cost.',
+      recommendation:
+        'Select only needed columns and inspect EXPLAIN before making performance claims.',
+      metadata: { tableName: table.name, functionIds: [edge.from] },
+    });
+  }
 
   // Find query nodes that represent SELECT * patterns
   const queryNodes = graph.nodes.filter(

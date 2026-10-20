@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { CacheEntry } from '../types.js';
 
-const CACHE_VERSION = '1.0.0';
+const CACHE_VERSION = '1.1.0';
 let cacheDir = path.join(process.cwd(), '.infrawise', 'cache');
 
 export function setCacheDir(dir: string): void {

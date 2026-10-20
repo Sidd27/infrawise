@@ -15,7 +15,7 @@ Your AI assistant can query these findings via MCP tools like `get_infra_overvie
 | `medium` | Operational risk or reliability gap that should be addressed soon. |
 | `low` | Best-practice deviation with low immediate impact. Worth fixing in a planned cleanup. |
 
-Use the `--severity` flag on `infrawise analyze` or `infrawise start` to filter findings to a minimum level. The `analysis.severity` key in `infrawise.yaml` sets the default.
+Use `infrawise analyze --severity high` (or medium/low) to filter report output. `start` has no severity flag; use `check --fail-on` to set a CI gate threshold.
 
 ## AWS analyzers
 
@@ -90,4 +90,4 @@ For DynamoDB, Infrawise reads the table's GSI list from the AWS API and cross-re
 
 ### How do I suppress a finding I don't care about?
 
-Currently, Infrawise does not have a built-in suppression list. The recommended approach is to use `--severity high` or `analysis.severity: high` in `infrawise.yaml` to filter out lower-severity findings you have consciously accepted. Per-rule suppression is on the roadmap — contributions welcome at [github.com/Sidd27/infrawise](https://github.com/Sidd27/infrawise).
+Currently, Infrawise does not have a built-in suppression list. The recommended approach is to use `infrawise analyze --severity high` to filter out lower-severity findings you have consciously accepted. Per-rule suppression is on the roadmap — contributions welcome at [github.com/Sidd27/infrawise](https://github.com/Sidd27/infrawise).

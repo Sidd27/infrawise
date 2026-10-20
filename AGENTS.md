@@ -110,7 +110,7 @@ mcp-publisher publish server.json
 
 Two demos validate the adapter stack against emulated AWS. No AWS account needed for either.
 
-`demo/floci` is the one to reach for when a change touches adapters, analyzers, or MCP tools: Floci emulates every service infrawise supports, so a single run exercises the whole stack. `demo/localstack` runs on the LocalStack community image, which has no Cognito, Kinesis, ElastiCache, API Gateway v2, RDS, MSK, or CloudFront. Both listen on port 4566 — run only one at a time.
+`demo/floci` is the one to reach for when a change touches adapters, analyzers, or MCP tools: Floci emulates every service infrawise supports, so a single run exercises the whole stack. `demo/localstack` runs on the LocalStack community image, which lacks Cognito, ElastiCache, API Gateway v2, RDS, MSK, and CloudFront in this demo. The current community demo does extract Kinesis. Both listen on port 4566 — run only one at a time.
 
 ### LocalStack
 
@@ -131,7 +131,7 @@ infrawise analyze --config infrawise.yaml
 
 Extraction shows a live `n/19 sources` counter while it runs.
 
-Expected: 39+ findings across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 API, 4 routes extracted). Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
+Expected: 43 findings, graph 33 nodes / 9 edges (verified 2026-10-20 with the current community image), across DynamoDB (missing GSI, IaC drift), SQS (missing DLQs, visibility timeout mismatch), Lambda (128 MB default, 300s timeout), Secrets Manager (rotation disabled), CloudWatch Logs (retention), S3 (missing versioning, verify public access), API Gateway (1 REST API, 4 routes extracted), and Kinesis (1 stream). API Gateway source health is partial because the combined extractor cannot read HTTP/WebSocket APIs on this community license. The demo source directory has no application operations; the source count is not proof of runtime coverage. Note: Kinesis-triggered Lambdas no longer produce the SQS-style missing-DLQ finding (kinesis trigger sources are now stream nodes, not queue placeholders), and a queue that is another queue's dead-letter target (orders-dlq) is not itself flagged for missing a DLQ.
 
 ### Floci
 
@@ -145,7 +145,7 @@ cp .env.example .env
 
 `demo/floci/seed/aws-seed.sh` sources the LocalStack seed unchanged, then adds the Floci-only services. Keep the shared resources in the LocalStack seed so both demos stay in step; put anything LocalStack community cannot emulate in the Floci seed.
 
-Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), MSK (`demo-events`), API Gateway (2 APIs, 4 routes). **56 findings total, graph 47 nodes / 15 edges** — verified 2026-08-24 against a fresh emulator.
+Expected on top of the LocalStack findings: Cognito (1 user pool), Kinesis (1 stream), ElastiCache (1 cluster, transit encryption finding), RDS (`demo-postgres`, all five RDS analyzers), MSK (`demo-events`), API Gateway (2 APIs, 4 routes). **56 findings total, graph 47 nodes / 15 edges** — verified 2026-10-20 against a fresh emulator.
 
 Two Floci gaps the numbers already account for, so neither is an infrawise regression:
 
@@ -205,7 +205,7 @@ src/
     db/       extractors (postgres, mysql, mongodb)
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
-  context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python)
+  context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python; sql.ts normalizes SQL predicates)
               incremental.ts retains the watch session's project and per-file operations
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/        CLI commands (loaded on demand; mcp-boot.ts holds the serve/stdio bootstrap)
@@ -269,11 +269,11 @@ Returns: summary counts (tables, functions, queues, topics, secrets, lambdas, bu
 
 ### `get_graph_summary`
 
-Full graph: every node, every edge, all findings.
+Extracted graph: observed resource nodes, recognized code edges, all findings, and unresolved recognized references.
 
 No inputs required.
 
-Returns: all `nodes` (tables, functions, queues, lambdas, etc.), all `edges` (query, scan, publishes_to, etc.), all `findings` with severity/recommendation, summary counts.
+Returns: extracted `nodes`, recognized `edges` (SQL edges carry value-free `sqlAccess` predicate metadata), `unresolvedReferences`, all `findings`, and summary counts. Read `dataHealth.codeCoverage` before interpreting missing edges.
 
 **When to call:** When you need the full picture or are tracing relationships across multiple services.
 
@@ -287,7 +287,7 @@ Column-level schema for specific tables or collections, on demand. **Row data is
 |---|---|---|
 | `tables` | string[] (1-20) | yes |
 
-Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes (DynamoDB indexes carry `indexType`, `partitionKey`, `sortKey` and `projectionType`, so you can tell whether an index covers a query before writing it), DynamoDB partitionKey/sortKey/billingMode/provisionedThroughput, MongoDB estimatedCount. DynamoDB matches include a `costSignal` string when `billingMode` is `PROVISIONED` (no billing API — a config-level heuristic, not real utilization data). Unknown names return up to 5 `suggestions`.
+Returns: per requested name — `found` flag, and `matches` (short names like "orders" match "public.orders", case-insensitive; a name can match tables in multiple databases). Each match: databaseType, columns (name, dataType, nullable), primaryKeys, foreignKeys (column → referencesTable.referencesColumn — join paths), indexes (relational indexes carry ordered `columns`, `method`, `partial`, and `valid`; DynamoDB indexes carry `indexType`, `partitionKey`, `sortKey` and `projectionType`, so you can tell whether an index covers a query before writing it), DynamoDB partitionKey/sortKey/billingMode/provisionedThroughput, MongoDB estimatedCount. DynamoDB matches include a `costSignal` string when `billingMode` is `PROVISIONED` (no billing API — a config-level heuristic, not real utilization data). Unknown names return up to 5 `suggestions`.
 
 **When to call:** After `get_infra_overview`, when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables. This is the progressive-disclosure path for large databases — fetch only the schemas you need instead of dumping everything with `get_graph_summary`.
 
@@ -303,6 +303,8 @@ Analyze a single function for infrastructure issues, including trigger event sha
 | `file` | string | no — binds the result to one source file |
 
 Returns: **resolvedLambda** (`{ lambda, confidence }`) when the deployed Lambda name differs from the function name and the link was resolved from IaC or name normalization — this is how a Lambda deployed as `processOrders` still returns triggers when you ask about the `handler` function in `orders.ts`, **candidateLambdas** when several Lambdas share one handler path (`index.handler` across a stack) so no single one can be attributed — `triggers` is then absent, not an empty array, and the candidates are named instead of guessing, **unresolvedLambdas** when no Lambda could be linked to this function at all — one entry per Lambda that was considered, with `reason` (`no_match`, `multiple_functions`, `multiple_lambdas`) and `candidates`, so an empty `triggers` reads as "refused" rather than "not deployed", **matches** (one entry per source file defining a function with this name — file path, all services/tables accessed with edge types under `accesses`, and **missingPermissions**: AWS service names the function accesses in code but the execution role does not allow, present only when IAM data is available), **ambiguous: true** when more than one file matched — `accesses` is then absent from every entry rather than empty, **fileMatched: false** with **requestedFile** and **availableFiles** when a `file` was given that matched nothing (`matches` is omitted, never filled with every candidate), **triggers** with correct handler event shape (e.g. `event.Records[0].body` for SQS), `batchSize` and `reportsBatchItemFailures` on batch-polling triggers, EventBridge rule name and event pattern when the trigger is EventBridge, related findings, deduplicated recommendations.
+
+`found: false` with `reason: "not_in_recognized_graph"` means no recognized operation or Lambda node was found, not that the source function does not exist. Check code source health and coverage limitations.
 
 Function nodes are file-scoped, so one name can legitimately match several files. Every candidate is returned rather than the first, so a same-named function in a scratch or experiments directory never silently stands in for the real one.
 
@@ -472,15 +474,15 @@ Returns: per-API — name, type (REST/HTTP/WEBSOCKET), routes (method, path, lam
 
 ### `get_log_errors`
 
-Recent error patterns from CloudWatch log groups. **Raw log messages are never included.**
+CloudWatch log group metadata. **Log message bodies are never requested.** The legacy tool name is retained for compatibility.
 
 | Input | Type | Required |
 |---|---|---|
 | `logGroup` | string | no — filters by name substring |
 
-Returns: per-log-group — name, retention days, error count, top error patterns with frequency.
+Returns: per-log-group — name, retention days, `errorCount: null`, `topErrorPatterns: []`, `errorsObserved: false`. Null means not observed, never zero errors.
 
-**When to call:** When investigating errors or checking which log groups have no retention policy.
+**When to call:** When checking log retention policies. Do not use to diagnose runtime errors or infer error frequency.
 
 ---
 
@@ -587,7 +589,7 @@ Behaviors are returned in CloudFront match order: ordered cache behaviors first,
 4. `get_lambda_overview` → default memory / high timeout
 5. `get_s3_overview` → public access verify, missing versioning/encryption
 6. `get_api_routes` → route-to-Lambda coverage
-7. `get_log_errors` → error patterns
+7. `get_log_errors` → log group retention metadata
 
 ## What infrawise never does
 
@@ -598,3 +600,19 @@ Behaviors are returned in CloudFront match order: ordered cache behaviors first,
 - Never writes to AWS or your database
 - Never executes DDL
 - No telemetry — everything stays local
+
+## Analysis confidence contract
+
+`check`: exit 0 means no blocking findings and no failed/partial sources; exit 1 means blocking findings; exit 2 means incomplete extraction or analyzer failures. `--allow-incomplete` permits exit 0 for incomplete reads only when there are no blocking findings. Code and IaC scan failures participate in source health.
+
+`dataHealth.codeCoverage` always reports scope `recognized_patterns_only`, recognized operation count, unresolved reference count, unsupported SQL count, and limitations. Counts are null when no coverage record exists. `get_graph_summary.unresolvedReferences` identifies recognized accesses whose resource is unresolved. These are not a complete inventory of undetected code paths.
+
+`get_table_schema` relational indexes include ordered `columns`, `method`, `partial`, and `valid`. Missing-index findings compare simple SQL equality/range predicates with usable leading columns. Unsupported predicates, partial/expression indexes, and unknown legacy index metadata are not proof of absence; request EXPLAIN rather than claiming a proven sequential scan. Python SQL predicates use the same normalization as TS/JS and do not retain literal values.
+
+`freshness.refreshIntervalMinutes` optionally schedules full background analysis after snapshot loading, 1–1440 minutes, disabled by default. Refreshes are serialized with source updates and pause after config changes until restart. This reduces age but does not detect actual drift; use `infrawise analyze` after deployments. These changes do not add MCP tools or alter the seeded LocalStack/Floci infrastructure findings counts; rerun demos to verify extraction.
+
+Assistant evaluations live in `evals/`, with the scorer in `scripts/evaluate-assistant.mjs`; performance fixtures are generated by `scripts/benchmark.mjs`. The assistant workflow is `docs/assistant-workflow.md`. Keep fixture results separate from real-model measurements.
+
+`dataHealth.codeCoverage.refreshError` reports a failed session refresh while the previous graph is retained; a successful refresh or new snapshot clears it. If Python scanning fails during full analysis, TS operations are retained with source `code` marked partial, and CI exits 2 by default.
+
+Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.

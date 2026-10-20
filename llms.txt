@@ -68,7 +68,7 @@ All tools are read-only (annotated `readOnlyHint: true`) and answer from the ana
 - `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal; `unresolvedLink` records why a Lambda was not linked to a source function (`no_match`, `multiple_functions`, `multiple_lambdas`) instead of linking nothing silently
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
-- `get_log_errors` — CloudWatch error patterns (never raw log messages)
+- `get_log_errors` — log group names and retention; errorCount null, patterns empty, errorsObserved false; message bodies never requested
 - `get_api_routes` — API Gateway APIs (REST, HTTP, WebSocket) with routes, methods, and Lambda integrations
 - `get_stack_outputs` — stack outputs and cross-stack exports from local IaC files (Terraform outputs, CFN/CDK Outputs), with per-stack staleness flags for orphaned cdk.out templates
 - `get_cognito_overview` — Cognito user pools and app client config: auth flows, OAuth settings, token validity (secrets never included)
@@ -87,3 +87,23 @@ Claude Code, Cursor, VS Code (Copilot agent mode), and any MCP-compatible client
 - Never writes to AWS or your database
 - Never executes DDL
 - No telemetry — everything stays local
+
+## Confidence and operations
+
+CI: exit 0 = complete, below threshold; exit 1 = blocking findings; exit 2 = incomplete extraction or analyzer failures. Failed/partial sources block unless --allow-incomplete is explicit. --severity filters analyze output only.
+
+get_table_schema includes relational index columns in key order, method, partial, and valid. SQL index findings compare supported filters against leading columns; they are not observed query plans. Partial/expression indexes and unsupported predicates require manual EXPLAIN verification.
+
+dataHealth.codeCoverage reports recognized patterns only, with unresolved-reference and unsupported-SQL counts. get_graph_summary includes unresolvedReferences. Wrappers and dynamic code can still be missed; missing edges are not proof of no access.
+
+freshness.refreshIntervalMinutes optionally runs serialized full background analysis after snapshot loading (1–1440 minutes; off by default). It bounds age, not drift. Run infrawise analyze after deployments for an immediate refresh. Config changes require restart.
+
+get_log_errors is metadata only: errorCount null, topErrorPatterns empty, errorsObserved false. Log message bodies are never requested. Old caches are invalidated.
+
+Assistant workflow: docs/assistant-workflow.md. Evaluate recorded editor runs: pnpm eval:assistant traces.json (evals/README.md). Performance/equivalence checks: pnpm benchmark (benchmarks/README.md). Synthetic controls are not actual model-quality measurements.
+
+analyze_function found:false means no recognized graph node, not proof the source function does not exist. dataHealth.codeCoverage.refreshError exposes a failed session refresh while retaining the previous snapshot.
+
+Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
+
+Repeatable database/MCP regression: pnpm test:demo (after seeding demo/local); add --background for the one-minute refresh test.

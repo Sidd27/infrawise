@@ -283,7 +283,7 @@ export async function runDoctor(options: { config?: string } = {}): Promise<void
           name: 'CloudWatch Logs',
           status: 'warn',
           message: err instanceof Error ? err.message : String(err),
-          detail: 'Check IAM: logs:DescribeLogGroups, logs:FilterLogEvents',
+          detail: 'Check IAM: logs:DescribeLogGroups',
         };
       }
     }),

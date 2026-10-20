@@ -12,6 +12,21 @@ import {
 } from '../config.js';
 
 describe('InfrawiseConfigSchema', () => {
+  it('keeps background refresh opt-in and rejects intervals shorter than one minute', () => {
+    expect(
+      InfrawiseConfigSchema.parse({ project: 'test' }).freshness?.refreshIntervalMinutes,
+    ).toBeUndefined();
+    expect(
+      InfrawiseConfigSchema.safeParse({
+        project: 'test',
+        freshness: { refreshIntervalMinutes: 0.5 },
+      }).success,
+    ).toBe(false);
+    expect(
+      InfrawiseConfigSchema.parse({ project: 'test', freshness: { refreshIntervalMinutes: 15 } })
+        .freshness?.refreshIntervalMinutes,
+    ).toBe(15);
+  });
   it('parses a valid minimal config', () => {
     const result = InfrawiseConfigSchema.safeParse({ project: 'my-service' });
     expect(result.success).toBe(true);

@@ -50,6 +50,11 @@ import {
 
 let currentGraph: SystemGraph = { nodes: [], edges: [] };
 let currentFindings: Finding[] = [];
+let codeRefreshError: string | null = null;
+
+export function setCodeRefreshError(error: string | null): void {
+  codeRefreshError = error;
+}
 // When the loaded analysis was produced (ms epoch). null when serving an empty
 // graph with no analysis. Surfaced via get_infra_overview so assistants can
 // judge how stale the facts are and decide to refresh.
@@ -58,15 +63,12 @@ let analyzedAt: number | null = null;
 // infrawise still renders: `ageSeconds` is the fact the caller decides on, this
 // is a coarse backstop for when it does not, defaulting well below the 24h cache
 // TTL because a working day is long enough for infrastructure to move underneath
-// a session. `logWindowHours` is the window the log adapter actually scanned —
-// reporting a fixed 24 would state a window nobody used.
+// a session.
 //
 // Assigned together from one config so a value can never be left over from a
 // previous load, and so the next config key does not add a third setter.
 const DEFAULT_SUGGEST_REFRESH_HOURS = 6;
-const DEFAULT_LOG_WINDOW_HOURS = 24;
 let suggestRefreshAfterMs = DEFAULT_SUGGEST_REFRESH_HOURS * 60 * 60 * 1000;
-let logWindowHours = DEFAULT_LOG_WINDOW_HOURS;
 // False when the server booted without an infrawise.yaml (e.g. a hosted MCP
 // runtime). Used to return a "run locally" hint instead of a bare empty graph.
 let configured = true;
@@ -88,6 +90,7 @@ export function setGraphState(
 ): void {
   currentGraph = graph;
   currentFindings = findings;
+  codeRefreshError = null;
   provenance = sourceProvenance;
   analyzedAt = sourceProvenance?.analyzedAt ?? null;
 }
@@ -121,7 +124,15 @@ function sourcesFor(tool: { name: string; service?: string; sources?: string[] }
   const graphWide = tool === undefined || (!tool.service && !tool.sources);
   const wanted = graphWide ? null : [tool.service, ...(tool.sources ?? [])].filter(Boolean);
   return provenance.sources
-    .filter((s) => wanted === null || wanted.includes(s.service))
+    .filter(
+      (s) =>
+        wanted === null ||
+        wanted.includes(s.service) ||
+        s.service.startsWith('analyzer:') ||
+        (s.service === 'runtimeSignals' &&
+          s.status !== 'disabled' &&
+          ['get_lambda_overview', 'get_queue_details'].includes(tool?.name ?? '')),
+    )
     .map((s) => ({ service: s.service, status: s.status, error: s.error ?? null }));
 }
 
@@ -218,6 +229,18 @@ function dataHealth(
       region: provenance?.region ?? null,
       profile: provenance?.profile ?? null,
       sources: sourcesFor(tool),
+      codeCoverage: {
+        refreshError: codeRefreshError,
+        status:
+          provenance?.sources.find((source) => source.service === 'code')?.status ?? 'unknown',
+        scope: 'recognized_patterns_only',
+        recognizedOperations: currentGraph.codeCoverage?.recognizedOperations ?? null,
+        unresolvedReferences: currentGraph.codeCoverage?.unresolvedReferences.length ?? null,
+        unsupportedSqlOperations: currentGraph.codeCoverage?.unsupportedSqlOperations ?? null,
+        limitations: [
+          'Static scanning is not complete runtime coverage. Wrappers, dynamic names, and unsupported expressions may be missed. Missing edges do not prove no access. Index warnings are not observed query plans; partial, expression, and unknown index metadata require manual verification.',
+        ],
+      },
       iac: iacHealth(),
     },
   };
@@ -227,7 +250,6 @@ export function setServerConfig(config: InfrawiseConfig | undefined): void {
   configured = config !== undefined;
   suggestRefreshAfterMs =
     (config?.freshness?.suggestRefreshAfterHours ?? DEFAULT_SUGGEST_REFRESH_HOURS) * 60 * 60 * 1000;
-  logWindowHours = config?.cloudwatchLogs?.windowHours ?? DEFAULT_LOG_WINDOW_HOURS;
 }
 
 const NOT_CONFIGURED_HINT =
@@ -311,7 +333,7 @@ const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 const INSTRUCTIONS =
   'Infrawise answers from a snapshot of the infrastructure taken by `infrawise analyze`; no tool call re-reads AWS or a database, and none writes anything. ' +
   'Call get_infra_overview first to see what is in scope, then the narrowest tool for the task: get_table_schema for columns and keys, analyze_function before writing or reviewing a Lambda handler. get_graph_summary returns everything and is the escape hatch, not the default. ' +
-  'Every response carries dataHealth. A source whose status is not "ok" means an empty result was not read, not that nothing exists. Check ageSeconds against the question, and run `infrawise analyze` to refresh. In stdio mode the first tool call loads the snapshot and may wait for an initial analysis if the cache is missing or expired; initialization and tool discovery do not run analysis.';
+  'Every response carries dataHealth. A source whose status is not "ok" means an empty result was not read, not that nothing exists. Check ageSeconds against the question, and run `infrawise analyze` to refresh. Read codeCoverage before claiming an access list is complete: static scanning recognizes patterns, not every runtime path. Before generating database code call get_table_schema for the specific tables; before generating a Lambda handler call analyze_function with both function and file. If attribution is ambiguous, resolve it instead of guessing. In stdio mode the first tool call loads the snapshot and may wait for an initial analysis if the cache is missing or expired; initialization and tool discovery do not run analysis.';
 
 export function createMcpServer(): McpServer {
   const mcp = new McpServer({ name: 'infrawise', version }, { instructions: INSTRUCTIONS });
@@ -393,7 +415,7 @@ export function createMcpServer(): McpServer {
       title: 'Full infrastructure graph',
       annotations: READ_ONLY,
       description:
-        'Returns every node (tables, functions, lambdas, queues, etc.), every edge (query, scan, triggers, publishes_to), and all findings. Use this when you need to trace relationships across multiple services or require the complete finding set — not just high-severity ones. For a quick overview use get_infra_overview instead.',
+        'Returns extracted nodes, recognized code edges, all findings, and unresolvedReferences. Read dataHealth.codeCoverage: wrappers, dynamic names, and unsupported expressions may be missed, so missing edges never prove no runtime access. Use when tracing relationships across services or inspecting the full finding set; prefer get_infra_overview for quick orientation.',
       inputSchema: z.object({
         maxAgeSeconds,
       }),
@@ -402,6 +424,7 @@ export function createMcpServer(): McpServer {
       toText({
         nodes: withNodeSource(currentGraph.nodes),
         edges: currentGraph.edges,
+        unresolvedReferences: currentGraph.codeCoverage?.unresolvedReferences ?? [],
         findings: currentFindings,
         summary: {
           totalNodes: currentGraph.nodes.length,
@@ -515,14 +538,19 @@ export function createMcpServer(): McpServer {
         return toText({
           function: functionName,
           found: false,
+          reason: 'not_in_recognized_graph',
           issues: [],
-          recommendations: [`Function "${functionName}" not found in the analyzed codebase.`],
+          recommendations: [
+            `No recognized infrastructure operations or deployed Lambda were found for "${functionName}". The function may still exist, use wrappers or dynamic calls, or require a successful code scan.`,
+          ],
         });
       }
 
       const nodeMap = new Map(currentGraph.nodes.map((n) => [n.id, n]));
       const relatedFindings = currentFindings.filter((f) => {
         const meta = f.metadata as Record<string, unknown> | undefined;
+        if (Array.isArray(meta?.functionIds))
+          return meta.functionIds.some((id) => selected.some((node) => node.id === id));
         return (
           meta?.functionName === functionName ||
           String(meta?.callerFunctions ?? '').includes(functionName)
@@ -1058,10 +1086,10 @@ export function createMcpServer(): McpServer {
   mcp.registerTool(
     'get_log_errors',
     {
-      title: 'CloudWatch log error patterns',
+      title: 'CloudWatch log group metadata',
       annotations: READ_ONLY,
       description:
-        'Returns recent error pattern summaries from CloudWatch log groups: pattern counts and frequencies grouped by log group. Raw log messages are never returned. Use the optional logGroup filter to scope to one group by name substring. Call this when investigating errors or identifying log groups with no retention policy.',
+        'Returns CloudWatch log group names and retention metadata without reading log events. The legacy get_log_errors name is retained for compatibility; errorCount is null, topErrorPatterns is empty, and errorsObserved is false because no message bodies are requested. Use logGroup to filter names. Call when checking retention policies; do NOT use to diagnose runtime errors or infer that no errors occurred.',
       inputSchema: z.object({
         logGroup: z.string().describe('Filter to a specific log group name (optional)').optional(),
         maxAgeSeconds,
@@ -1072,13 +1100,14 @@ export function createMcpServer(): McpServer {
         (lg) => !filterName || lg.name.includes(filterName),
       );
       return toText({
-        note: 'Only error patterns and counts are returned — no raw log messages.',
-        windowHours: logWindowHours,
+        note: 'Metadata only: log event bodies are never requested. Error counts and patterns are not observed.',
+        windowHours: null,
         logGroups: logGroups.map((lg) => ({
           name: lg.name,
           retentionDays: lg.retentionDays ?? 'never-expires',
-          errorCount: lg.errorCount,
-          topErrorPatterns: lg.topErrorPatterns,
+          errorCount: null,
+          topErrorPatterns: [],
+          errorsObserved: false,
         })),
       });
     }),
@@ -1090,7 +1119,7 @@ export function createMcpServer(): McpServer {
       title: 'Table and collection schemas',
       annotations: READ_ONLY,
       description:
-        'Returns the full schema for specific tables or collections by name: columns with data types and nullability, primary keys, foreign keys (join paths), indexes, DynamoDB partition/sort keys and billing mode, and MongoDB estimated document counts. Accepts short names ("orders" matches "public.orders") and is case-insensitive. Call this after get_infra_overview when you need column-level detail to write a SQL query, DynamoDB expression, or MongoDB filter for specific tables — instead of pulling every schema with get_graph_summary. Do NOT call for a table inventory; use get_infra_overview for that. Row data is never included. DynamoDB matches include a costSignal note for provisioned-capacity tables.',
+        'Returns schemas for named tables or collections: column types/nullability, keys, foreign keys, indexes, DynamoDB keys/billing mode, and MongoDB estimated counts. Relational indexes include ordered columns, method, partial and valid flags; these describe possible access paths, not observed query plans. Short names match qualified names case-insensitively. Call after get_infra_overview before writing queries; request only needed tables. Do NOT use for inventory; use get_infra_overview. Row data is never included. Read source health before treating found:false as absence. DynamoDB provisioned tables may include an advisory costSignal.',
       inputSchema: z.object({
         tables: z
           .array(z.string())
@@ -1110,7 +1139,17 @@ export function createMcpServer(): McpServer {
             n?.type === 'index'
               ? [
                   n.partitionKey === undefined
-                    ? { name: n.name }
+                    ? {
+                        name: n.name,
+                        ...(n.columns
+                          ? {
+                              columns: n.columns,
+                              method: n.method,
+                              partial: n.partial,
+                              valid: n.valid,
+                            }
+                          : {}),
+                      }
                     : {
                         name: n.name,
                         indexType: n.indexType,

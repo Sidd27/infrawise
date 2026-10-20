@@ -21,7 +21,7 @@ The first week on an unfamiliar service is spent reconstructing a picture that a
 get_infra_overview()
 ```
 
-Also returns a `freshness` object — `analyzedAt`, `ageSeconds`, and a `stale` flag once the analysis passes 24 hours — so you know whether you are looking at today's account or last week's.
+Every response carries `dataHealth`: `analyzedAt`, `ageSeconds`, source health, and `suggestRefresh` (6 hours by default). Read it before trusting an empty result; age is not proof of deployment state.
 
 **Then trace the specific thing you were asked to change:**
 

@@ -113,7 +113,7 @@ Findings (3 total)
    Recommendation: Replace Scan with Query using a partition key or add a GSI.
 
 2. [MEDIUM] PostgreSQL table "users" has no index on column "email"
-   Filtering on "email" causes sequential scans.
+   No matching leading-column index was observed for "email"; verify with EXPLAIN.
    Recommendation: CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
 
 3. [MEDIUM] DynamoDB table "Sessions" accessed by 6 distinct code paths
@@ -205,7 +205,7 @@ Every tool is annotated read-only (`readOnlyHint: true`, `openWorldHint: false`)
 | `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names, cost signal, why a Lambda could not be linked to its source (`unresolvedLink`) |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
-| `get_log_errors`             | CloudWatch error patterns and counts (no raw log messages)                                                  |
+| `get_log_errors`             | CloudWatch log group names and retention (metadata only; no message bodies)                                                  |
 | `get_stack_outputs`          | Stack outputs and cross-stack exports parsed from local IaC files, with staleness flags for orphaned `cdk.out` templates |
 | `get_cognito_overview`       | Cognito user pools — MFA config, app client auth flows, OAuth settings, token validity (secrets never included) |
 | `get_stream_details`         | Kinesis streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)          |
@@ -265,6 +265,7 @@ infrawise analyze --severity high --output report.md
 | `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
 | `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
 | `--fail-on <level>`   | Severity that fails the build: `high` (default) \| `medium` \| `low`   |
+| `--allow-incomplete` | Explicitly permit success when sources failed or were partly read |
 
 ```bash
 # Block a deploy if any high-severity finding exists (exit 1)
@@ -587,3 +588,31 @@ Bumps `package.json`, commits, tags, pushes, and creates a draft GitHub release 
 ## License
 
 MIT
+
+## Analysis confidence and refresh policy
+
+`check` uses exit 0 for a completed check below the severity threshold, exit 1 for blocking findings, and exit 2 for incomplete extraction or analyzer failures. Failed and partial sources block by default; `--allow-incomplete` explicitly permits success when there are no blocking findings. `--severity` only filters `analyze` report output and never changes CI policy.
+
+Relational schemas include ordered index `columns`, `method`, `partial`, and `valid` metadata. SQL analysis compares supported filter columns with leading index columns; an unrelated primary key no longer hides a missing access path. Findings are static warnings, not observed query plans. Partial/expression indexes and unsupported predicates require manual verification with EXPLAIN. Query values are not retained in predicate metadata.
+
+Every response includes `dataHealth.codeCoverage`: recognized operation counts, unresolved reference counts, unsupported SQL counts, and limitations. These counts describe recognized patterns only. Wrappers, dynamic names, and unsupported constructs can be missed. `get_graph_summary` lists unresolved recognized references; absence of an edge never proves no runtime access.
+
+`get_log_errors` now returns retention metadata only: `errorCount: null`, `topErrorPatterns: []`, `errorsObserved: false`. The compatibility name does not imply error sampling. Log message bodies are never requested. Older caches are invalidated so previously sampled patterns are not served.
+
+For optional background refreshes after the initial snapshot loads:
+
+```yaml
+freshness:
+  suggestRefreshAfterHours: 6
+  refreshIntervalMinutes: 15
+```
+
+`refreshIntervalMinutes` is opt-in, between 1 and 1440 minutes, and performs full cloud/database/code analysis between tool requests. It is serialized with source refreshes, can incur API/DB costs, and stops scheduling if the config changes until restart. It bounds snapshot age while the server runs; it does not detect deployments instantly. For exact deployment boundaries run `infrawise analyze --config infrawise.yaml` after deployment; already-running MCP sessions see the refreshed cache on their next call.
+
+To improve assistant use, follow [the assistant workflow](docs/assistant-workflow.md). Evaluate real editor runs with `pnpm eval:assistant traces.json`; see [evaluation instructions](evals/README.md). Use `pnpm benchmark` for repeatable performance and result-equivalence checks; see [benchmark methodology](benchmarks/README.md). Synthetic controls are not a measured model-quality score.
+
+`analyze_function` returning `found: false` means absent from the recognized graph, not proven absent from source code. Check source health, wrappers, and dynamic references before making an absence claim. Failed session refreshes appear in `dataHealth.codeCoverage.refreshError` while the previous graph is retained.
+
+Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
+
+Validation commands: `pnpm test:demo` exercises seeded local databases, index metadata, coverage, and CI exit codes; `pnpm test:demo --background` also verifies the timed refresh. Start and seed the database demo first.
