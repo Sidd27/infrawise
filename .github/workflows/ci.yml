@@ -64,6 +64,9 @@ jobs:
           test -f dist/server/index.js
           test -f dist/types.js
 
+      - name: Scanner memory regression (256 MiB heap)
+        run: node scripts/scanner-memory.mjs
+
       - name: Lint
         run: pnpm lint
 

@@ -80,6 +80,14 @@ Infrawise detects missing indexes by inspecting existing index definitions again
 
 ## FAQ
 
+### How are large repositories scanned?
+
+TS/JS source files feed a lazy async generator. Infrawise processes one batch at a time, releasing its ASTs before continuing. Batches contain up to 32 files or 512 KiB of source; a larger supported file runs alone. Watch sessions retain operation results and dependency paths instead of a whole-project compiler AST.
+
+Source selection respects `tsconfig.json`, while dependency folders, declarations, and common generated outputs such as `dist`, `build`, `.next`, `.nuxt`, `.output`, and `coverage` are excluded before parsing. Imported dependency types and standard libraries are not loaded. Files over 2 MiB are reported as incomplete code coverage with their paths in source health; readable files still contribute results. `infrawise check` exits 2 for incomplete analysis unless `--allow-incomplete` is explicit.
+
+This reduces scanner memory without raising Node's heap allowance. Extracted operations and the infrastructure graph still grow with the project. `pnpm test:memory` exercises full scans, incremental updates, and the actual `analyze` CLI under a 256 MiB JavaScript heap; CI runs the same regression.
+
 ### What is IaC drift?
 
 IaC drift is when the live state of an AWS resource — as it actually exists in your account — differs from how it is defined in your infrastructure-as-code source (Terraform, CloudFormation, or CDK). Drift happens when someone manually changes a resource in the AWS console or via the CLI without updating the IaC source. Infrawise compares the two and flags the differences so you can reconcile them before the next deployment overwrites the manual change.

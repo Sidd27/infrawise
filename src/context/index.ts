@@ -1,6 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import { setImmediate } from 'node:timers/promises';
 import { Project, SyntaxKind, Node, CallExpression, StringLiteral, SourceFile } from 'ts-morph';
+import { getTypeScriptInputs, MAX_SOURCE_BYTES } from './inputs.js';
 import type { ExtractedOperation } from '../types.js';
 import { InfrawiseError, PartialExtractionError, logger } from '../core/index.js';
 import { scanPythonRepository } from './python.js';
@@ -248,7 +250,13 @@ function detectDynamoOperations(
   return null;
 }
 
-function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
+function resolveStringValue(
+  node: Node,
+  sourceFile: SourceFile,
+  seen = new Set<Node>(),
+): string | null {
+  if (seen.has(node) || seen.size >= 64) return null;
+  seen = new Set(seen).add(node);
   if (Node.isStringLiteral(node)) {
     return (node as StringLiteral).getLiteralValue();
   }
@@ -258,7 +266,7 @@ function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
   if (Node.isTemplateExpression(node)) {
     let result = node.getHead().getLiteralText();
     for (const span of node.getTemplateSpans()) {
-      const resolved = resolveStringValue(span.getExpression(), sourceFile);
+      const resolved = resolveStringValue(span.getExpression(), sourceFile, seen);
       if (resolved === null) return null;
       result += resolved + span.getLiteral().getLiteralText();
     }
@@ -270,7 +278,7 @@ function resolveStringValue(node: Node, sourceFile: SourceFile): string | null {
       for (const decl of symbol.getDeclarations()) {
         if (Node.isVariableDeclaration(decl)) {
           const init = decl.getInitializer();
-          if (init) return resolveStringValue(init, sourceFile);
+          if (init) return resolveStringValue(init, sourceFile, seen);
         }
       }
     }
@@ -762,56 +770,90 @@ export async function scanRepository(repoPath: string): Promise<ExtractedOperati
   logger.info(`Detected languages: ${detected.length > 0 ? detected.join(', ') : 'none'}`);
 
   const operations: ExtractedOperation[] = [];
-  if (hasTypeScript) {
-    operations.push(...scanTypeScriptRepository(resolvedPath));
-  }
-  if (hasPython) {
+  const failures: string[] = [];
+  for (const scan of [
+    ...(hasTypeScript ? [() => scanTypeScriptRepository(resolvedPath)] : []),
+    ...(hasPython ? [() => scanPythonRepository(resolvedPath)] : []),
+  ]) {
     try {
-      operations.push(...(await scanPythonRepository(resolvedPath)));
+      operations.push(...(await scan()));
     } catch (error) {
-      throw new PartialExtractionError(
-        error instanceof Error ? error.message : String(error),
-        operations,
-      );
+      if (error instanceof PartialExtractionError) operations.push(...error.data);
+      failures.push(error instanceof Error ? error.message : String(error));
     }
   }
+  if (failures.length) throw new PartialExtractionError(failures.join('\n'), operations);
   return operations;
 }
 
-function scanTypeScriptRepository(resolvedPath: string): ExtractedOperation[] {
-  return scanTypeScriptFiles(createTypeScriptProject(resolvedPath).getSourceFiles());
+async function scanTypeScriptRepository(resolvedPath: string): Promise<ExtractedOperation[]> {
+  return scanTypeScriptPaths(getTypeScriptInputs(resolvedPath).files);
 }
 
-export function createTypeScriptProject(resolvedPath: string): Project {
-  const tsconfigPath = path.join(resolvedPath, 'tsconfig.json');
-  const hasTsConfig = fs.existsSync(tsconfigPath);
-
-  const project = new Project({
-    tsConfigFilePath: hasTsConfig ? tsconfigPath : undefined,
-    compilerOptions: hasTsConfig
-      ? undefined
-      : {
-          target: 99,
-          allowJs: true,
-        },
-    skipAddingFilesFromTsConfig: !hasTsConfig,
-  });
-
-  if (!hasTsConfig) {
-    // Manually add .ts and .tsx files
-    project.addSourceFilesAtPaths([
-      path.join(resolvedPath, '**/*.ts'),
-      path.join(resolvedPath, '**/*.tsx'),
-      path.join(resolvedPath, '**/*.js'),
-      path.join(resolvedPath, '**/*.jsx'),
-      path.join(resolvedPath, '**/*.mjs'),
-      path.join(resolvedPath, '**/*.cjs'),
-      `!${path.join(resolvedPath, '**/node_modules/**')}`,
-      `!${path.join(resolvedPath, '**/dist/**')}`,
-    ]);
+async function* typeScriptBatches(
+  files: Iterable<string>,
+  failures: string[],
+): AsyncGenerator<string[]> {
+  let batch: string[] = [];
+  let bytes = 0;
+  for (const file of files) {
+    let size: number;
+    try {
+      size = (await fs.promises.stat(file)).size;
+    } catch (error) {
+      failures.push(`${file}: ${String(error)}`);
+      continue;
+    }
+    if (size > MAX_SOURCE_BYTES) {
+      failures.push(`${file}: exceeds the 2 MiB source-file scan limit`);
+      continue;
+    }
+    if (batch.length && (batch.length >= 32 || bytes + size > 512 * 1024)) {
+      yield batch;
+      await setImmediate();
+      batch = [];
+      bytes = 0;
+    }
+    batch.push(file);
+    bytes += size;
   }
+  if (batch.length) yield batch;
+}
 
-  return project;
+export async function scanTypeScriptPaths(files: Iterable<string>): Promise<ExtractedOperation[]> {
+  const operations: ExtractedOperation[] = [];
+  const failures: string[] = [];
+  for await (const batch of typeScriptBatches(files, failures)) {
+    operations.push(...scanTypeScriptBatch(batch, failures));
+  }
+  if (failures.length) throw new PartialExtractionError(failures.join('\n'), operations);
+  return operations;
+}
+
+function scanTypeScriptBatch(files: string[], failures: string[]): ExtractedOperation[] {
+  const project = new Project({
+    compilerOptions: { allowJs: true, target: 99, noResolve: true, noLib: true, types: [] },
+    skipAddingFilesFromTsConfig: true,
+    skipFileDependencyResolution: true,
+    skipLoadingLibFiles: true,
+  });
+  const operations: ExtractedOperation[] = [];
+  try {
+    for (const file of files) {
+      let source: SourceFile | undefined;
+      try {
+        source = project.addSourceFileAtPath(file);
+        operations.push(...scanTypeScriptFiles([source]));
+      } catch (error) {
+        failures.push(`${file}: ${String(error)}`);
+      } finally {
+        source?.forget();
+      }
+    }
+  } finally {
+    for (const source of project.getSourceFiles()) source.forget();
+  }
+  return operations;
 }
 
 export function scanTypeScriptFiles(sourceFiles: SourceFile[]): ExtractedOperation[] {

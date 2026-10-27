@@ -206,7 +206,8 @@ src/
     iac/      extractors (terraform, CDK, CloudFormation — local file parsing)
   analyzers/  rule-based analyzers
   context/    AST scanners (ts-morph for TS/JS, scanner.py subprocess for Python; sql.ts normalizes SQL predicates)
-              incremental.ts retains the watch session's project and per-file operations
+              inputs.ts selects source paths without loading dependency ASTs
+              incremental.ts retains per-file operations and dependency paths, not compiler projects
   server/     Fastify MCP server (@modelcontextprotocol/sdk, Streamable HTTP)
   cli/        CLI commands (loaded on demand; mcp-boot.ts holds the serve/stdio bootstrap)
 ```
@@ -551,6 +552,8 @@ Behaviors are returned in CloudFront match order: ordered cache behaviors first,
 ---
 
 ## Recommended usage patterns
+
+**Large repository scanning:** TS/JS source paths feed a lazy async generator consumed sequentially in batches of up to 32 files or 512 KiB; a larger supported file runs alone. Compiler dependencies, standard libraries, declaration files, dependency directories, and common build outputs are excluded before AST creation. Each batch forgets its ASTs. Files above 2 MiB produce partial code source health with their paths, retaining readable operations; `check` exits 2 unless incomplete analysis is explicitly allowed. Run `pnpm test:memory` to exercise full/incremental scanning and the real CLI under a 256 MiB heap. Operations and graph memory still grow with extracted data. MCP tool inputs and shapes and emulator finding counts are unchanged.
 
 **During a coding session:** `serve` and `serve --stdio` batch source saves for two seconds. After the first refresh initializes a scanner, only changed files and transitive TS/JS importers are rescanned; Python scans receive the changed file paths. Deletions remove old operations, and saves during an active refresh are queued. A `tsconfig*.json` change rebuilds the scanner. IaC extraction, graph construction, and analyzers still run in full against cached cloud metadata, so the MCP tool contracts and expected emulator findings counts are unchanged. Run `infrawise analyze` to re-read infrastructure.
 

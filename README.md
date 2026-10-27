@@ -543,7 +543,7 @@ src/
 - Code-level correlation supports TypeScript, JavaScript, and Python (Python requires python3 on PATH)
 - Dynamically constructed queries may not always be resolved statically
 - Runtime tracing is not yet implemented
-- Large monorepos may require future incremental analysis optimization
+- Static scanning covers recognized patterns; extracted operations and graph size still affect memory use
 
 ---
 
@@ -616,3 +616,9 @@ To improve assistant use, follow [the assistant workflow](docs/assistant-workflo
 Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
 
 Validation commands: `pnpm test:demo` exercises seeded local databases, index metadata, coverage, and CI exit codes; `pnpm test:demo --background` also verifies the timed refresh. Start and seed the database demo first.
+
+### Large repository memory
+
+TS/JS scanning uses a lazy async generator and sequential batches capped at 32 files or 512 KiB of source (a larger supported file is scanned alone). Each batch releases its ASTs before the next; watch sessions retain extracted operations and dependency paths rather than a whole-project compiler AST. Imported dependency types and standard-library declarations are not loaded. Configured source selection is respected, and dependency folders, declarations, and common generated outputs (`dist`, `build`, `.next`, `.nuxt`, `.output`, `coverage`) are excluded before parsing.
+
+A source file above 2 MiB is reported as incomplete code coverage, with its path in source health, while readable files are still scanned. `check` exits 2 for incomplete analysis unless `--allow-incomplete` is explicit. Memory still scales with extracted operations and the infrastructure graph; this is not an unlimited-repository guarantee. No larger Node heap setting is required for ordinary scanning. Run `pnpm test:memory` for a repeatable 256 MiB heap regression, including full scans, incremental edits, shared-import updates, and the actual `analyze` CLI.

@@ -30,10 +30,10 @@ describe('incremental repository scan', () => {
     write('users.ts', source('Users'));
     const scanner = new RepositoryScanner(dir);
     await scanner.scan();
-    const scan = vi.spyOn(context, 'scanTypeScriptFiles');
+    const scan = vi.spyOn(context, 'scanTypeScriptPaths');
     write('orders.ts', source('UpdatedOrders'));
     const operations = await scanner.scan(['orders.ts']);
-    expect(scan.mock.calls[0]?.[0].map((file) => path.basename(file.getFilePath()))).toEqual([
+    expect(Array.from(scan.mock.calls[0]?.[0] ?? []).map((file) => path.basename(file))).toEqual([
       'orders.ts',
     ]);
     expect(operations.map((op) => op.target).sort()).toEqual(['UpdatedOrders', 'Users']);
@@ -59,12 +59,14 @@ describe('incremental repository scan', () => {
     write('unrelated.ts', source('Users'));
     const scanner = new RepositoryScanner(dir);
     await scanner.scan();
-    const scan = vi.spyOn(context, 'scanTypeScriptFiles');
+    const scan = vi.spyOn(context, 'scanTypeScriptPaths');
     fs.unlinkSync(path.join(dir, 'shared.ts'));
     await scanner.scan(['shared.ts']);
-    expect(scan.mock.calls[0]?.[0].map((file) => path.basename(file.getFilePath())).sort()).toEqual(
-      ['handler.ts', 'middle.ts'],
-    );
+    expect(
+      Array.from(scan.mock.calls[0]?.[0] ?? [])
+        .map((file) => path.basename(file))
+        .sort(),
+    ).toEqual(['handler.ts', 'middle.ts']);
   });
 
   it('rebuilds the project when tsconfig changes its included files', async () => {

@@ -73,7 +73,8 @@
     "dev": "node dist/cli/index.js serve",
     "release": "node scripts/release.js",
     "publish-smithery": "node scripts/smithery-publish.mjs",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "test:memory": "pnpm build && node scripts/scanner-memory.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm format && git add $(git diff --cached --name-only --diff-filter=ACMR) && pnpm lint && pnpm typecheck && pnpm test:staged"

@@ -107,3 +107,5 @@ analyze_function found:false means no recognized graph node, not proof the sourc
 Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
 
 Repeatable database/MCP regression: pnpm test:demo (after seeding demo/local); add --background for the one-minute refresh test.
+
+Large repositories: TS/JS scanning consumes lazy async batches sequentially (32 files or 512 KiB, larger supported files alone), releases ASTs between batches, and retains only operations/dependency paths for watch updates. Dependency types, standard libraries, declarations and common build outputs are excluded before parsing. Files over 2 MiB produce partial code source health and `check` exit 2 by default. Graph/operation memory still scales with extracted data. Run pnpm test:memory for a 256 MiB heap regression including analyze CLI. Tool count and inputs are unchanged.
