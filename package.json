@@ -101,7 +101,7 @@
     "@aws-sdk/client-ssm": "^3.1152.0",
     "@aws-sdk/credential-providers": "^3.1152.0",
     "@fastify/cors": "^11.2.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@smithy/shared-ini-file-loader": "^4.7.2",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
