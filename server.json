@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://sidd27.github.io/infrawise/",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "infrawise",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "runtimeHint": "node",
       "transport": {
         "type": "stdio",
