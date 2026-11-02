@@ -57,14 +57,6 @@ Infrawise replaces guessing with infrastructure-aware context.
 
 ---
 
-## What Infrawise is not
-
-Infrawise is not an AI agent framework, an infrastructure provisioning tool, an observability platform, or a cloud management dashboard.
-
-It is a deterministic infrastructure intelligence layer for AI-assisted development.
-
----
-
 ## Installation
 
 Requires **Node.js 22 or later** (`node --version`).
@@ -103,7 +95,7 @@ claude    # no infrawise command needed — editor manages the connection
 
 Analysis is cached for 24 hours. `infrawise serve --stdio` (spawned automatically by your editor) connects and lists tools without loading the snapshot or running analysis. The first infrastructure tool call loads the cache; if it is missing or expired, that call waits for a fresh analysis. Concurrent calls share that initial analysis. Run `infrawise start` before opening your editor to prepare the cache and avoid that first-call wait. File watching starts once the snapshot is loaded. HTTP `serve` still loads its snapshot before listening.
 
-After the first code refresh, the server keeps its TypeScript project in memory and scans only changed files and their transitive importers. Python saves scan only the changed Python files. Added and deleted files update the snapshot, saves are batched for two seconds, and edits made during a refresh are queued. Changing a `tsconfig*.json` rebuilds the scanner. IaC extraction, graph construction, and analyzers still run across the full snapshot to preserve cross-resource findings; cloud metadata stays cached. No configuration or CLI flags are needed.
+After the first code refresh, the server retains extracted operations and dependency paths, then scans only changed files and their transitive importers. TypeScript ASTs are released as files are processed. Python saves scan only the changed Python files. Added and deleted files update the snapshot, saves are batched for two seconds, and edits made during a refresh are queued. Changing a `tsconfig*.json` rebuilds the scanner. IaC extraction, graph construction, and analyzers still run across the full snapshot to preserve cross-resource findings; cloud metadata stays cached. No configuration or CLI flags are needed.
 
 ```
 Findings (3 total)
@@ -119,6 +111,19 @@ Findings (3 total)
 3. [MEDIUM] DynamoDB table "Sessions" accessed by 6 distinct code paths
    High access concentration may create hot partition issues at scale.
 ```
+
+---
+
+## Demo
+
+Two demos run infrawise against real AWS APIs emulated locally in Docker, at zero cost and with no real AWS account.
+
+- [`demo/floci/`](demo/floci/README.md) uses [Floci](https://floci.io), an MIT-licensed emulator that covers every service infrawise supports — including CloudFront, API Gateway v2, RDS, Cognito, Kinesis, ElastiCache, and MSK. No auth token, no sign-up. Start here.
+- [`demo/localstack/`](demo/localstack/README.md) uses [LocalStack](https://localstack.cloud) community edition, which covers the core services.
+
+Both listen on port 4566, so run one at a time.
+
+![infrawise analyze running against the LocalStack demo and reporting the high-severity findings](https://raw.githubusercontent.com/Sidd27/infrawise/main/docs/demo/gifs/analyze.gif)
 
 ---
 
@@ -220,68 +225,113 @@ Age is a proxy for drift, not drift itself — a three-day-old snapshot of an un
 
 ---
 
-## CLI reference
+## Analysis capabilities
 
-| Command                       | What it does                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| `infrawise start`             | **Primary command** — probe env, generate config, analyze, write editor MCP config |
-| `infrawise start --claude`    | Same as above, then opens Claude Code                                             |
-| `infrawise start --cursor`    | Same as above, then opens Cursor                                                  |
-| `infrawise start --vscode`    | Same as above, then opens VS Code (merges into `.vscode/mcp.json`)                |
-| `infrawise start --interactive` | Run the guided setup wizard instead of auto-discovery                           |
-| `infrawise start --rediscover` | Delete `infrawise.yaml` + `.infrawise/`, then re-probe and re-analyze            |
-| `infrawise analyze`           | Force a full re-scan with extraction progress and a time estimate from past runs — useful after major infrastructure changes                  |
-| `infrawise check`             | CI gate — analyze and exit non-zero when findings reach the threshold severity    |
-| `infrawise serve`             | Start the MCP server — HTTP by default, or `--stdio` for editor integration       |
-| `infrawise doctor`            | Diagnostic escape hatch — validate AWS/DB access, config, and repo scan            |
+Infrawise has two analysis layers:
 
-### `infrawise analyze` options
+### Infrastructure analysis (all languages)
 
-| Flag                  | Description                                                            |
-| --------------------- | ---------------------------------------------------------------------- |
-| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
-| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
-| `--no-cache`          | Skip reading/writing the cache                                         |
-| `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md`                   |
-| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` |
+Works from AWS APIs, database schema introspection, and IaC files — no dependency on application code:
 
-```bash
-# Export a shareable findings report
-infrawise analyze --output report.md
+| Service                          | What it checks                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| DynamoDB schema                  | Tables, GSIs, partition keys, billing mode, cost signal (provisioned capacity)                                     |
+| PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
+| MongoDB schema                   | Collections, indexes                                                                                               |
+| SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout below the consumer Lambda timeout (high) or below AWS's recommended 6× (medium) |
+| SNS                              | Subscription filter policies — required message attributes per subscription                                        |
+| Apache Kafka (kafkajs)           | Producer/consumer topic mapping from code — any broker (self-hosted, Confluent, Redpanda, MSK); distinct from the MSK Lambda trigger |
+| Secrets Manager                  | Missing secret rotation                                                                                            |
+| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source, cost signal (high memory with no throttling evidence) |
+| S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
+| EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
+| API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
+| RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ, cost signal (Multi-AZ on a non-production-looking instance) |
+| CloudWatch Logs                  | Log groups with no retention policy                                                                                |
+| Cognito                          | User pools and app client config — auth flows, OAuth settings, token validity, client secret presence              |
+| Kinesis / MSK                    | Streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)                        |
+| ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication, cost signal (more than 3 nodes)           |
+| CloudFront                       | Behaviors serving traffic over plain HTTP (`allow-all` viewer protocol policy)                                    |
+| Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
+| Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
 
-# Only show high-severity issues
-infrawise analyze --severity high
+### Code correlation analysis (TypeScript / JavaScript / Python)
 
-# High-severity issues only, saved to a file
-infrawise analyze --severity high --output report.md
+Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions call which tables and how:
+
+Python repositories are scanned with a bundled stdlib-`ast` scanner (requires `python3` on PATH; skipped with a warning otherwise): boto3 clients and `dynamodb.Table()` resources, `cursor.execute` SQL, pymongo collections, and kafka-python/confluent-kafka producers and consumers. Language detection is automatic — TypeScript and Python scans each run only when matching files exist.
+
+| Analyzer                   | Severity | What it detects                               |
+| -------------------------- | -------- | --------------------------------------------- |
+| Full Table Scan (DynamoDB) | High     | `.scan()` calls without filters               |
+| Missing GSI                | Medium   | Queries on attributes without a matching GSI  |
+| Hot Partition              | Medium   | 5+ distinct code paths hitting the same table |
+| Missing Index (PostgreSQL) | Medium   | Tables queried without indexes                |
+| N+1 Query                  | High     | Repeated query patterns from ORM loops        |
+| Large SELECT               | Low      | `SELECT *` usage                              |
+| Missing MySQL Index        | Medium   | MySQL tables queried without indexes          |
+| MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |
+| Missing Mongo Index        | Medium   | Collections queried without secondary indexes |
+| Collection Scan            | High     | `find()` calls without filter predicates      |
+| Pipeline: scan in consumer | High / Verify | Full scan inside an event-triggered Lambda handler (High when the lambda-to-code link is IaC-proven, Verify when name-matched) |
+| Pipeline: repeated table access | Medium / Verify | Same table read by 2+ functions in one service pipeline |
+| Pipeline: missing DLQ hop  | Medium   | Mid-pipeline queue (has producer and consumer) with no Dead Letter Queue |
+
+Projects in other languages still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) currently supports TypeScript, JavaScript, and Python.
+
+The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda, and `kafkajs` for Kafka topics (producer/consumer).
+
+---
+
+## How it works
+
+1. Infrawise scans your repository and infrastructure metadata
+2. A graph engine maps services, schemas, indexes, and query patterns
+3. Rule-based analyzers detect infrastructure and query anti-patterns
+4. The resulting context is exposed through MCP
+5. AI coding assistants query this context while generating code
+
+---
+
+## Deterministic analysis
+
+Infrawise does not use an LLM to analyze your infrastructure. All extraction and analysis are deterministic: AST parsing, schema introspection, rule-based analyzers, and graph correlation. LLMs are only consumers of the generated context through MCP.
+
+---
+
+## Analysis confidence and refresh policy
+
+`check` uses exit 0 for a completed check below the severity threshold, exit 1 for blocking findings, and exit 2 for incomplete extraction or analyzer failures. Failed and partial sources block by default; `--allow-incomplete` explicitly permits success when there are no blocking findings. `--severity` only filters `analyze` report output and never changes CI policy.
+
+Relational schemas include ordered index `columns`, `method`, `partial`, and `valid` metadata. SQL analysis compares supported filter columns with leading index columns; an unrelated primary key no longer hides a missing access path. Findings are static warnings, not observed query plans. Partial/expression indexes and unsupported predicates require manual verification with EXPLAIN. Query values are not retained in predicate metadata.
+
+Every response includes `dataHealth.codeCoverage`: recognized operation counts, unresolved reference counts, unsupported SQL counts, and limitations. These counts describe recognized patterns only. Wrappers, dynamic names, and unsupported constructs can be missed. `get_graph_summary` lists unresolved recognized references; absence of an edge never proves no runtime access.
+
+`get_log_errors` now returns retention metadata only: `errorCount: null`, `topErrorPatterns: []`, `errorsObserved: false`. The compatibility name does not imply error sampling. Log message bodies are never requested. Older caches are invalidated so previously sampled patterns are not served.
+
+For optional background refreshes after the initial snapshot loads:
+
+```yaml
+freshness:
+  suggestRefreshAfterHours: 6
+  refreshIntervalMinutes: 15
 ```
 
-### `infrawise check` options (CI/CD)
+`refreshIntervalMinutes` is opt-in, between 1 and 1440 minutes, and performs full cloud/database/code analysis between tool requests. It is serialized with source refreshes, can incur API/DB costs, and stops scheduling if the config changes until restart. It bounds snapshot age while the server runs; it does not detect deployments instantly. For exact deployment boundaries run `infrawise analyze --config infrawise.yaml` after deployment; already-running MCP sessions see the refreshed cache on their next call.
 
-`check` runs a fresh analysis and sets a non-zero exit code when blocking findings exist, so it can gate a pipeline without an AI editor.
+To improve assistant use, follow [the assistant workflow](docs/assistant-workflow.md). Evaluate real editor runs with `pnpm eval:assistant traces.json`; see [evaluation instructions](evals/README.md). Use `pnpm benchmark` for repeatable performance and result-equivalence checks; see [benchmark methodology](benchmarks/README.md). Synthetic controls are not a measured model-quality score.
 
-| Flag                  | Description                                                            |
-| --------------------- | ---------------------------------------------------------------------- |
-| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
-| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
-| `--fail-on <level>`   | Severity that fails the build: `high` (default) \| `medium` \| `low`   |
-| `--allow-incomplete` | Explicitly permit success when sources failed or were partly read |
+`analyze_function` returning `found: false` means absent from the recognized graph, not proven absent from source code. Check source health, wrappers, and dynamic references before making an absence claim. Failed session refreshes appear in `dataHealth.codeCoverage.refreshError` while the previous graph is retained.
 
-```bash
-# Block a deploy if any high-severity finding exists (exit 1)
-infrawise check
+Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
 
-# Stricter gate — fail on medium and above
-infrawise check --fail-on medium
-```
+Validation commands: `pnpm test:demo` exercises seeded local databases, index metadata, coverage, and CI exit codes; `pnpm test:demo --background` also verifies the timed refresh. Start and seed the database demo first.
 
-### `infrawise serve` options
+### Large repository memory
 
-| Flag                  | Description                                                            |
-| --------------------- | ---------------------------------------------------------------------- |
-| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
-| `--stdio`             | Use stdio transport (for editors via `.mcp.json`) instead of HTTP      |
-| `-p, --port <number>` | Port to listen on, HTTP only (default: `3000`)                         |
+TS/JS scanning uses a lazy async generator and sequential batches capped at 32 files or 512 KiB of source (a larger supported file is scanned alone). Each batch releases its ASTs before the next; watch sessions retain extracted operations and dependency paths rather than a whole-project compiler AST. Imported dependency types and standard-library declarations are not loaded. Configured source selection is respected, and dependency folders, declarations, and common generated outputs (`dist`, `build`, `.next`, `.nuxt`, `.output`, `coverage`) are excluded before parsing.
+
+A source file above 2 MiB is reported as incomplete code coverage, with its path in source health, while readable files are still scanned. `check` exits 2 for incomplete analysis unless `--allow-incomplete` is explicit. Memory still scales with extracted operations and the infrastructure graph; this is not an unlimited-repository guarantee. No larger Node heap setting is required for ordinary scanning. Run `pnpm test:memory` for a repeatable 256 MiB heap regression, including full scans, incremental edits, shared-import updates, and the actual `analyze` CLI.
 
 ---
 
@@ -428,77 +478,68 @@ For Amazon RDS: allow inbound on port 5432 from your machine's IP in the securit
 
 ---
 
-## Analysis capabilities
+## CLI reference
 
-Infrawise has two analysis layers:
+| Command                       | What it does                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `infrawise start`             | **Primary command** — probe env, generate config, analyze, write editor MCP config |
+| `infrawise start --claude`    | Same as above, then opens Claude Code                                             |
+| `infrawise start --cursor`    | Same as above, then opens Cursor                                                  |
+| `infrawise start --vscode`    | Same as above, then opens VS Code (merges into `.vscode/mcp.json`)                |
+| `infrawise start --interactive` | Run the guided setup wizard instead of auto-discovery                           |
+| `infrawise start --rediscover` | Delete `infrawise.yaml` + `.infrawise/`, then re-probe and re-analyze            |
+| `infrawise analyze`           | Force a full re-scan with extraction progress and a time estimate from past runs — useful after major infrastructure changes                  |
+| `infrawise check`             | CI gate — analyze and exit non-zero when findings reach the threshold severity    |
+| `infrawise serve`             | Start the MCP server — HTTP by default, or `--stdio` for editor integration       |
+| `infrawise doctor`            | Diagnostic escape hatch — validate AWS/DB access, config, and repo scan            |
 
-### Infrastructure analysis (all languages)
+### `infrawise analyze` options
 
-Works from AWS APIs, database schema introspection, and IaC files — no dependency on application code:
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
+| `--no-cache`          | Skip reading/writing the cache                                         |
+| `-o, --output <path>` | Save findings as a markdown report, e.g. `report.md`                   |
+| `--severity <level>`  | Only show findings at or above this level: `high` \| `medium` \| `low` |
 
-| Service                          | What it checks                                                                                                     |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| DynamoDB schema                  | Tables, GSIs, partition keys, billing mode, cost signal (provisioned capacity)                                     |
-| PostgreSQL / MySQL schema        | Tables, indexes, column types                                                                                      |
-| MongoDB schema                   | Collections, indexes                                                                                               |
-| SQS                              | Missing DLQs, unencrypted queues, large backlogs, FIFO detection, visibility timeout below the consumer Lambda timeout (high) or below AWS's recommended 6× (medium) |
-| SNS                              | Subscription filter policies — required message attributes per subscription                                        |
-| Apache Kafka (kafkajs)           | Producer/consumer topic mapping from code — any broker (self-hosted, Confluent, Redpanda, MSK); distinct from the MSK Lambda trigger |
-| Secrets Manager                  | Missing secret rotation                                                                                            |
-| Lambda                           | Default memory (128 MB), high timeouts, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), missing DLQ on trigger source, cost signal (high memory with no throttling evidence) |
-| S3                               | Public access blocking (verify), missing versioning, missing encryption                                            |
-| EventBridge                      | Rules, schedules, event patterns, target Lambda functions                                                          |
-| API Gateway                      | REST, HTTP, and WebSocket APIs — routes, methods, Lambda integrations                                             |
-| RDS                              | Publicly accessible, no backups, unencrypted, no deletion protection, single-AZ, cost signal (Multi-AZ on a non-production-looking instance) |
-| CloudWatch Logs                  | Log groups with no retention policy                                                                                |
-| Cognito                          | User pools and app client config — auth flows, OAuth settings, token validity, client secret presence              |
-| Kinesis / MSK                    | Streams (shards, retention, capacity mode) and MSK clusters (state, Kafka version, brokers)                        |
-| ElastiCache                      | Missing in-transit encryption, single-node clusters with no replication, cost signal (more than 3 nodes)           |
-| CloudFront                       | Behaviors serving traffic over plain HTTP (`allow-all` viewer protocol policy)                                    |
-| Runtime signals (opt-in)         | Lambda throttling/errors and stale queue messages from CloudWatch metrics                                          |
-| Terraform / CloudFormation / CDK | IaC drift vs deployed state; stack outputs and cross-stack exports                                                 |
+```bash
+# Export a shareable findings report
+infrawise analyze --output report.md
 
-### Code correlation analysis (TypeScript / JavaScript / Python)
+# Only show high-severity issues
+infrawise analyze --severity high
 
-Uses [ts-morph](https://ts-morph.com/) AST analysis to detect which functions call which tables and how:
+# High-severity issues only, saved to a file
+infrawise analyze --severity high --output report.md
+```
 
-Python repositories are scanned with a bundled stdlib-`ast` scanner (requires `python3` on PATH; skipped with a warning otherwise): boto3 clients and `dynamodb.Table()` resources, `cursor.execute` SQL, pymongo collections, and kafka-python/confluent-kafka producers and consumers. Language detection is automatic — TypeScript and Python scans each run only when matching files exist.
+### `infrawise check` options (CI/CD)
 
-| Analyzer                   | Severity | What it detects                               |
-| -------------------------- | -------- | --------------------------------------------- |
-| Full Table Scan (DynamoDB) | High     | `.scan()` calls without filters               |
-| Missing GSI                | Medium   | Queries on attributes without a matching GSI  |
-| Hot Partition              | Medium   | 5+ distinct code paths hitting the same table |
-| Missing Index (PostgreSQL) | Medium   | Tables queried without indexes                |
-| N+1 Query                  | High     | Repeated query patterns from ORM loops        |
-| Large SELECT               | Low      | `SELECT *` usage                              |
-| Missing MySQL Index        | Medium   | MySQL tables queried without indexes          |
-| MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |
-| Missing Mongo Index        | Medium   | Collections queried without secondary indexes |
-| Collection Scan            | High     | `find()` calls without filter predicates      |
-| Pipeline: scan in consumer | High / Verify | Full scan inside an event-triggered Lambda handler (High when the lambda-to-code link is IaC-proven, Verify when name-matched) |
-| Pipeline: repeated table access | Medium / Verify | Same table read by 2+ functions in one service pipeline |
-| Pipeline: missing DLQ hop  | Medium   | Mid-pipeline queue (has producer and consumer) with no Dead Letter Queue |
+`check` runs a fresh analysis and sets a non-zero exit code when blocking findings exist, so it can gate a pipeline without an AI editor.
 
-Projects in other languages still get full value from infrastructure-level analyzers — code correlation (function-to-table mapping, N+1 patterns) currently supports TypeScript, JavaScript, and Python.
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `-r, --repo <path>`   | Repository to scan (default: current directory)                        |
+| `--fail-on <level>`   | Severity that fails the build: `high` (default) \| `medium` \| `low`   |
+| `--allow-incomplete` | Explicitly permit success when sources failed or were partly read |
 
-The scanner supports: AWS SDK v3/v2 for DynamoDB, `pg`/Prisma/Knex for PostgreSQL, `mysql2`/Knex for MySQL, driver/Mongoose for MongoDB, AWS SDK v3 for SQS/SNS/SSM/Secrets/Lambda, and `kafkajs` for Kafka topics (producer/consumer).
+```bash
+# Block a deploy if any high-severity finding exists (exit 1)
+infrawise check
 
----
+# Stricter gate — fail on medium and above
+infrawise check --fail-on medium
+```
 
-## How it works
+### `infrawise serve` options
 
-1. Infrawise scans your repository and infrastructure metadata
-2. A graph engine maps services, schemas, indexes, and query patterns
-3. Rule-based analyzers detect infrastructure and query anti-patterns
-4. The resulting context is exposed through MCP
-5. AI coding assistants query this context while generating code
-
----
-
-## Deterministic analysis
-
-Infrawise does not use an LLM to analyze your infrastructure. All extraction and analysis are deterministic: AST parsing, schema introspection, rule-based analyzers, and graph correlation. LLMs are only consumers of the generated context through MCP.
+| Flag                  | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `-c, --config <path>` | Path to `infrawise.yaml` (default: `infrawise.yaml`)                   |
+| `--stdio`             | Use stdio transport (for editors via `.mcp.json`) instead of HTTP      |
+| `-p, --port <number>` | Port to listen on, HTTP only (default: `3000`)                         |
 
 ---
 
@@ -512,6 +553,23 @@ Infrawise does not use an LLM to analyze your infrastructure. All extraction and
 ### 🔒 Security & Project Naming Note
 
 You might see this package flagged on certain supply-chain security scanners under "deceptive naming." This is a false positive triggered by automated tools because of the prefix "infra." This project is completely safe, independent, and unaffiliated with any commercial trademarks.
+
+---
+
+## What Infrawise is not
+
+Infrawise is not an AI agent framework, an infrastructure provisioning tool, an observability platform, or a cloud management dashboard.
+
+It is a deterministic infrastructure intelligence layer for AI-assisted development.
+
+---
+
+## Current limitations
+
+- Code-level correlation supports TypeScript, JavaScript, and Python (Python requires python3 on PATH)
+- Dynamically constructed queries may not always be resolved statically
+- Runtime tracing is not yet implemented
+- Static scanning covers recognized patterns; extracted operations and graph size still affect memory use
 
 ---
 
@@ -538,31 +596,9 @@ src/
 
 ---
 
-## Current limitations
-
-- Code-level correlation supports TypeScript, JavaScript, and Python (Python requires python3 on PATH)
-- Dynamically constructed queries may not always be resolved statically
-- Runtime tracing is not yet implemented
-- Static scanning covers recognized patterns; extracted operations and graph size still affect memory use
-
----
-
 ## Roadmap
 
 Feature roadmap is tracked in the [Infrawise v1](https://github.com/users/Sidd27/projects/1) project board. Feature requests and upvotes welcome.
-
----
-
-## Demo
-
-Two demos run infrawise against real AWS APIs emulated locally in Docker, at zero cost and with no real AWS account.
-
-- [`demo/floci/`](demo/floci/README.md) uses [Floci](https://floci.io), an MIT-licensed emulator that covers every service infrawise supports — including CloudFront, API Gateway v2, RDS, Cognito, Kinesis, ElastiCache, and MSK. No auth token, no sign-up. Start here.
-- [`demo/localstack/`](demo/localstack/README.md) uses [LocalStack](https://localstack.cloud) community edition, which covers the core services.
-
-Both listen on port 4566, so run one at a time.
-
-![infrawise analyze running against the LocalStack demo and reporting the high-severity findings](https://raw.githubusercontent.com/Sidd27/infrawise/main/docs/demo/gifs/analyze.gif)
 
 ---
 
@@ -588,37 +624,3 @@ Bumps `package.json`, commits, tags, pushes, and creates a draft GitHub release 
 ## License
 
 MIT
-
-## Analysis confidence and refresh policy
-
-`check` uses exit 0 for a completed check below the severity threshold, exit 1 for blocking findings, and exit 2 for incomplete extraction or analyzer failures. Failed and partial sources block by default; `--allow-incomplete` explicitly permits success when there are no blocking findings. `--severity` only filters `analyze` report output and never changes CI policy.
-
-Relational schemas include ordered index `columns`, `method`, `partial`, and `valid` metadata. SQL analysis compares supported filter columns with leading index columns; an unrelated primary key no longer hides a missing access path. Findings are static warnings, not observed query plans. Partial/expression indexes and unsupported predicates require manual verification with EXPLAIN. Query values are not retained in predicate metadata.
-
-Every response includes `dataHealth.codeCoverage`: recognized operation counts, unresolved reference counts, unsupported SQL counts, and limitations. These counts describe recognized patterns only. Wrappers, dynamic names, and unsupported constructs can be missed. `get_graph_summary` lists unresolved recognized references; absence of an edge never proves no runtime access.
-
-`get_log_errors` now returns retention metadata only: `errorCount: null`, `topErrorPatterns: []`, `errorsObserved: false`. The compatibility name does not imply error sampling. Log message bodies are never requested. Older caches are invalidated so previously sampled patterns are not served.
-
-For optional background refreshes after the initial snapshot loads:
-
-```yaml
-freshness:
-  suggestRefreshAfterHours: 6
-  refreshIntervalMinutes: 15
-```
-
-`refreshIntervalMinutes` is opt-in, between 1 and 1440 minutes, and performs full cloud/database/code analysis between tool requests. It is serialized with source refreshes, can incur API/DB costs, and stops scheduling if the config changes until restart. It bounds snapshot age while the server runs; it does not detect deployments instantly. For exact deployment boundaries run `infrawise analyze --config infrawise.yaml` after deployment; already-running MCP sessions see the refreshed cache on their next call.
-
-To improve assistant use, follow [the assistant workflow](docs/assistant-workflow.md). Evaluate real editor runs with `pnpm eval:assistant traces.json`; see [evaluation instructions](evals/README.md). Use `pnpm benchmark` for repeatable performance and result-equivalence checks; see [benchmark methodology](benchmarks/README.md). Synthetic controls are not a measured model-quality score.
-
-`analyze_function` returning `found: false` means absent from the recognized graph, not proven absent from source code. Check source health, wrappers, and dynamic references before making an absence claim. Failed session refreshes appear in `dataHealth.codeCoverage.refreshError` while the previous graph is retained.
-
-Incomplete runtime metric reads are recorded in source health and block `check` by default; they are not interpreted as zero activity.
-
-Validation commands: `pnpm test:demo` exercises seeded local databases, index metadata, coverage, and CI exit codes; `pnpm test:demo --background` also verifies the timed refresh. Start and seed the database demo first.
-
-### Large repository memory
-
-TS/JS scanning uses a lazy async generator and sequential batches capped at 32 files or 512 KiB of source (a larger supported file is scanned alone). Each batch releases its ASTs before the next; watch sessions retain extracted operations and dependency paths rather than a whole-project compiler AST. Imported dependency types and standard-library declarations are not loaded. Configured source selection is respected, and dependency folders, declarations, and common generated outputs (`dist`, `build`, `.next`, `.nuxt`, `.output`, `coverage`) are excluded before parsing.
-
-A source file above 2 MiB is reported as incomplete code coverage, with its path in source health, while readable files are still scanned. `check` exits 2 for incomplete analysis unless `--allow-incomplete` is explicit. Memory still scales with extracted operations and the infrastructure graph; this is not an unlimited-repository guarantee. No larger Node heap setting is required for ordinary scanning. Run `pnpm test:memory` for a repeatable 256 MiB heap regression, including full scans, incremental edits, shared-import updates, and the actual `analyze` CLI.
