@@ -107,35 +107,64 @@ function detectScanInPipeline(
   for (const e of graph.edges) {
     if (e.type === 'triggers') triggeredLambdas.add(e.to);
   }
-  const triggeredFunctionLinks = new Map<string, LambdaCodeLink>();
+  // Several Lambdas declaring one handler is the ordinary shape of a shared
+  // entrypoint, so one function can be reached by more than one deployment.
+  // Collapsing them to a single link made the named Lambda depend on link
+  // order, and let a later name-heuristic link mask a proven one.
+  const triggeredFunctionLinks = new Map<string, LambdaCodeLink[]>();
   for (const l of links) {
-    if (triggeredLambdas.has(l.lambdaId)) triggeredFunctionLinks.set(l.functionId, l);
+    if (!triggeredLambdas.has(l.lambdaId)) continue;
+    const existing = triggeredFunctionLinks.get(l.functionId);
+    if (existing) existing.push(l);
+    else triggeredFunctionLinks.set(l.functionId, [l]);
   }
   const findings: Finding[] = [];
   const seen = new Set<string>();
   for (const e of graph.edges) {
     if (e.type !== 'scan') continue;
-    const link = triggeredFunctionLinks.get(e.from);
-    if (!link) continue;
+    const fnLinks = triggeredFunctionLinks.get(e.from);
+    if (!fnLinks) continue;
     const fn = nodeById.get(e.from);
     const table = nodeById.get(e.to);
-    const lambda = nodeById.get(link.lambdaId);
     if (!fn || fn.type !== 'function' || !table || table.type !== 'table') continue;
     const dedupe = `${e.from}\0${e.to}`;
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
-    const inferred = link.confidence === 'inferred';
-    const lambdaName = lambda && lambda.type === 'lambda' ? lambda.name : link.lambdaId;
+    // The same Lambda can be declared twice (a module and its root, or two
+    // workspaces the parser cannot tell apart). Reporting that name twice would
+    // inflate the very count this finding exists to get right.
+    const lambdas = [...new Map(fnLinks.map((l) => [l.lambdaId, l])).values()]
+      .map((l) => {
+        const node = nodeById.get(l.lambdaId);
+        return {
+          lambda: node && node.type === 'lambda' ? node.name : l.lambdaId,
+          confidence: l.confidence,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (a.lambda < b.lambda ? -1 : a.lambda > b.lambda ? 1 : 0) ||
+          (a.confidence < b.confidence ? -1 : a.confidence > b.confidence ? 1 : 0),
+      );
+    const named = lambdas.map((l) => `"${l.lambda}" (${l.confidence})`).join(', ');
+    const many = lambdas.length > 1;
+    const inferred = lambdas.some((l) => l.confidence === 'inferred');
     findings.push({
-      severity: inferred ? 'verify' : 'high',
-      issue: `Full scan runs inside event-triggered Lambda "${lambdaName}"`,
+      severity: lambdas.some((l) => l.confidence === 'proven') ? 'high' : 'verify',
+      issue: many
+        ? `Full scan runs inside ${lambdas.length} event-triggered Lambdas: ${named}`
+        : `Full scan runs inside event-triggered Lambda ${named}`,
       description:
-        `Function "${fn.name}" (${fn.file}) performs a full scan on table "${table.name}" and runs as the handler for event-triggered Lambda "${lambdaName}". A scan inside an event-driven consumer executes on every invocation, multiplying read cost with traffic.` +
+        `Function "${fn.name}" (${fn.file}) performs a full scan on table "${table.name}" and runs as the handler for ${many ? 'event-triggered Lambdas:' : 'event-triggered Lambda'} ${named}. A scan inside an event-driven consumer executes on every invocation, multiplying read cost with traffic.` +
         (inferred
-          ? ` The Lambda-to-code link is inferred by name match (not proven from IaC), so verify it before acting.`
-          : ` The Lambda-to-code link is proven from IaC handler configuration.`),
+          ? many
+            ? ` Lambdas marked inferred are matched by name, not proven from IaC, so verify them before acting.`
+            : ` The link is inferred by name match, not proven from IaC, so verify it before acting.`
+          : many
+            ? ` Every link is proven from IaC handler configuration.`
+            : ` The Lambda-to-code link is proven from IaC handler configuration.`),
       recommendation: `Replace the scan with a Query using a partition key, or add a GSI for the access pattern. Scans in per-event handlers are the highest-leverage place to fix.`,
-      metadata: { function: fn.name, table: table.name, lambda: lambdaName, inferred },
+      metadata: { function: fn.name, table: table.name, lambdas },
     });
   }
   return findings;
