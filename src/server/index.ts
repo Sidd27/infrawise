@@ -503,7 +503,12 @@ export function createMcpServer(): McpServer {
         byName ?? (linkEdge ? currentGraph.nodes.find((n) => n.id === linkEdge.from) : undefined);
       const resolvedVia =
         linkEdge && linkEdge.type === 'implemented_by'
-          ? { lambda: lambdaNameOf(linkEdge.from), confidence: linkEdge.confidence }
+          ? {
+              lambda: lambdaNameOf(linkEdge.from),
+              confidence: linkEdge.confidence,
+              ...(linkEdge.handlerSource ? { handlerSource: linkEdge.handlerSource } : {}),
+              ...(linkEdge.handlerDrift ? { handlerDrift: linkEdge.handlerDrift } : {}),
+            }
           : undefined;
       const ambiguousLambdas =
         linkEdges.length > 1
@@ -965,6 +970,8 @@ export function createMcpServer(): McpServer {
             envVarCount: l.envVarKeys?.length ?? 0,
             envVarKeys: l.envVarKeys,
             roleArn: l.roleArn,
+            ...(l.handler !== undefined ? { handler: l.handler } : {}),
+            ...(l.declaredHandler !== undefined ? { declaredHandler: l.declaredHandler } : {}),
             recentThrottles: l.recentThrottles,
             recentErrors: l.recentErrors,
             ...(costSignal ? { costSignal } : {}),

@@ -530,6 +530,67 @@ describe('MCP Server — tool results', () => {
     }
   });
 
+  it('exposes handler provenance on the link and both handlers in the overview', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:src/orders.ts:handler',
+          type: 'function',
+          name: 'handler',
+          file: 'src/orders.ts',
+        },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          handler: 'orders.handler',
+          declaredHandler: 'index.handler',
+          triggers: [
+            {
+              type: 'sqs',
+              sourceName: 'orders',
+              sourceArn: 'arn:aws:sqs:us-east-1:1:orders',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
+        { id: 'lambda:aws:opaque', type: 'lambda', name: 'opaque' },
+      ],
+      edges: [
+        {
+          from: 'lambda:aws:processOrders',
+          to: 'function:src/orders.ts:handler',
+          type: 'implemented_by',
+          confidence: 'proven',
+          handlerSource: 'deployed',
+          handlerDrift: 'modified',
+        },
+      ],
+    };
+    const c = await makeClient(graph, []);
+    try {
+      const fn = await callTool(c, 'analyze_function', { function: 'handler', file: 'orders.ts' });
+      expect(fn.resolvedLambda).toEqual({
+        lambda: 'processOrders',
+        confidence: 'proven',
+        handlerSource: 'deployed',
+        handlerDrift: 'modified',
+      });
+
+      const overview = await callTool(c, 'get_lambda_overview');
+      const byName = Object.fromEntries(
+        overview.lambdas.map((l: Record<string, unknown>) => [l.name, l]),
+      );
+      expect(byName.processOrders.handler).toBe('orders.handler');
+      expect(byName.processOrders.declaredHandler).toBe('index.handler');
+      // Never read is absent, not null: an image function has no handler string.
+      expect('handler' in byName.opaque).toBe(false);
+      expect('declaredHandler' in byName.opaque).toBe(false);
+    } finally {
+      await c.close();
+    }
+  });
+
   it('suggest_gsi sanitizes special characters in attribute name', async () => {
     const data = await callTool(client, 'suggest_gsi', { table: 'T', attribute: 'user.id' });
     expect(data.index.name).toBe('T-user_id-index');

@@ -2,11 +2,17 @@ import type { SystemGraph, UnresolvedLink } from '../types.js';
 import type { IaCLambda } from '../adapters/iac/terraform.js';
 
 export type LinkConfidence = 'inferred' | 'proven';
+export type HandlerSource = 'deployed' | 'declared';
+export type HandlerDrift = 'in_sync' | 'modified' | 'not_checked';
 
 export interface LambdaCodeLink {
   lambdaId: string;
   functionId: string;
   confidence: LinkConfidence;
+  // Set only on proven links: which source resolved the handler, and whether a
+  // declared and a deployed handler were both read and disagree.
+  handlerSource?: HandlerSource;
+  handlerDrift?: HandlerDrift;
 }
 
 export interface UnresolvedLambdaLink extends UnresolvedLink {
@@ -50,16 +56,18 @@ function functionNodes(graph: SystemGraph) {
     (n): n is Extract<typeof n, { type: 'function' }> => n.type === 'function',
   );
 }
+type FunctionNode = ReturnType<typeof functionNodes>[number];
 
 function resolve(
   lambdaId: string,
   matches: { id: string }[],
   confidence: LinkConfidence,
   out: LinkResult,
+  provenance: Pick<LambdaCodeLink, 'handlerSource' | 'handlerDrift'> = {},
 ): void {
   const [only] = matches;
   if (matches.length === 1 && only) {
-    out.links.push({ lambdaId, functionId: only.id, confidence });
+    out.links.push({ lambdaId, functionId: only.id, confidence, ...provenance });
   } else if (matches.length === 0) {
     out.unresolved.push({ lambdaId, reason: 'no_match', candidates: [] });
   } else {
@@ -123,42 +131,73 @@ function parseHandler(handler: string): { fileBase: string; exportName: string }
 }
 
 function fileBaseNoExt(file: string): string {
-  const base = file.split('/').pop() ?? file;
-  return base.replace(/\.(ts|js|mjs|cjs)$/, '');
+  // Scanner paths are posix for TS on every platform, but the Python scanner
+  // emits os.path.join output, which is backslash-separated on Windows.
+  const base = file.split(/[\\/]/).pop() ?? file;
+  return base.replace(/\.(ts|js|mjs|cjs|py)$/, '');
 }
 
-export class IaCHandlerLinker {
+function handlerMatches(handler: string, fns: FunctionNode[]): FunctionNode[] {
+  const { fileBase, exportName } = parseHandler(handler);
+  if (!exportName || !fileBase) return [];
+  return fns.filter((f) => f.name === exportName && fileBaseNoExt(f.file) === fileBase);
+}
+
+function driftOf(deployed?: string, declared?: string): HandlerDrift {
+  if (!deployed || !declared) return 'not_checked';
+  return deployed === declared ? 'in_sync' : 'modified';
+}
+
+// The deployed handler is what the running function uses, so it resolves first;
+// the declaration is the fallback, not a competitor. A Lambda whose deployment
+// names code outside the scan keeps that refusal instead of falling through to
+// a name guess: the name is not evidence against the handler string.
+export class HandlerLinker {
   constructor(private readonly iacLambdas: IaCLambda[]) {}
 
   link(graph: SystemGraph): LinkResult {
-    const lambdaIds = new Set(lambdaNodes(graph).map((n) => n.id));
     const fns = functionNodes(graph);
     const out: LinkResult = { links: [], unresolved: [] };
+    const declaredByName = new Map<string, string | undefined>();
     for (const il of this.iacLambdas) {
-      if (!il.handler) continue;
-      const lambdaId = `lambda:aws:${il.name}`;
-      if (!lambdaIds.has(lambdaId)) continue;
-      const { fileBase, exportName } = parseHandler(il.handler);
-      if (!exportName || !fileBase) continue;
-      const matches = fns.filter(
-        (f) => f.name === exportName && fileBaseNoExt(f.file) === fileBase,
-      );
-      resolve(lambdaId, matches, 'proven', out);
+      if (!declaredByName.has(il.name)) declaredByName.set(il.name, il.handler);
+    }
+    for (const lam of lambdaNodes(graph)) {
+      const deployed = lam.handler;
+      const declared = declaredByName.get(lam.name);
+      const drift = driftOf(deployed, declared);
+      const viaDeployed = deployed ? handlerMatches(deployed, fns) : [];
+      const viaDeclared = declared ? handlerMatches(declared, fns) : [];
+      if (viaDeployed.length > 0) {
+        resolve(lam.id, viaDeployed, 'proven', out, {
+          handlerSource: 'deployed',
+          handlerDrift: drift,
+        });
+      } else if (viaDeclared.length > 0) {
+        resolve(lam.id, viaDeclared, 'proven', out, {
+          handlerSource: 'declared',
+          handlerDrift: drift,
+        });
+      } else if (deployed) {
+        out.unresolved.push({ lambdaId: lam.id, reason: 'deployed_no_match', candidates: [] });
+      } else if (declared) {
+        out.unresolved.push({ lambdaId: lam.id, reason: 'no_match', candidates: [] });
+      }
     }
     return out;
   }
 }
 
 export function compositeLink(iacLambdas: IaCLambda[], graph: SystemGraph): LinkResult {
-  const iac = new IaCHandlerLinker(iacLambdas).link(graph);
+  const handler = new HandlerLinker(iacLambdas).link(graph);
   const heuristic = new HeuristicLinker().link(graph);
-  const covered = new Set(iac.links.map((l) => l.lambdaId));
-  const links = [...iac.links, ...heuristic.links.filter((l) => !covered.has(l.lambdaId))];
+  const covered = new Set(handler.links.map((l) => l.lambdaId));
+  const links = [...handler.links, ...heuristic.links.filter((l) => !covered.has(l.lambdaId))];
   const linked = new Set(links.map((l) => l.lambdaId));
-  // The IaC linker's refusal names the declared handler's failure, which is
-  // more specific than the name heuristic's, so it wins when both refused.
+  // The handler refusal names the file the deployment runs, which is more
+  // specific than the name heuristic's, so it wins when both refused.
   const byLambda = new Map<string, UnresolvedLambdaLink>();
-  for (const u of [...heuristic.unresolved, ...iac.unresolved]) byLambda.set(u.lambdaId, u);
+  for (const u of [...heuristic.unresolved, ...handler.unresolved]) byLambda.set(u.lambdaId, u);
   const unresolved = [...byLambda.values()].filter((u) => !linked.has(u.lambdaId));
   return { links, unresolved };
 }

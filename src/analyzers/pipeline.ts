@@ -9,6 +9,11 @@ const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 // answer "what triggers the handler I am editing" when the deployed name is
 // stack-prefixed and shares no string with the function name.
 export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] = []): void {
+  for (const il of iacLambdas) {
+    if (!il.handler) continue;
+    const node = graph.nodes.find((n) => n.type === 'lambda' && n.name === il.name);
+    if (node?.type === 'lambda') node.declaredHandler = il.handler;
+  }
   const { links, unresolved } = compositeLink(iacLambdas, graph);
   for (const link of links) {
     graph.edges.push({
@@ -16,6 +21,8 @@ export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] =
       to: link.functionId,
       type: 'implemented_by',
       confidence: link.confidence,
+      ...(link.handlerSource ? { handlerSource: link.handlerSource } : {}),
+      ...(link.handlerDrift ? { handlerDrift: link.handlerDrift } : {}),
     });
   }
   for (const { lambdaId, reason, candidates } of unresolved) {

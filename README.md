@@ -197,7 +197,7 @@ Every tool is annotated read-only (`readOnlyHint: true`, `openWorldHint: false`)
 | `get_infra_overview`         | Complete snapshot — services, counts, high-severity findings, `configured` flag (data age and per-source status ride the `dataHealth` block on every response) |
 | `get_graph_summary`          | Full infrastructure graph — all nodes, edges, and findings                                                  |
 | `get_table_schema`           | Column-level schema for named tables/collections — types, PKs, FKs, indexes, DynamoDB keys/billing mode, cost signal (no row data) |
-| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions; returns every same-named file as a separate match, or bind to one with the optional `file` input; names refused Lambda links and why (`unresolvedLambdas`) |
+| `analyze_function`           | Issues in a specific function — scans, missing indexes, N+1, trigger event shapes, missing IAM permissions; returns every same-named file as a separate match, or bind to one with the optional `file` input; `resolvedLambda` names which source resolved the running handler (`handlerSource`, `handlerDrift`); names refused Lambda links and why (`unresolvedLambdas`) |
 | `suggest_gsi`                | Exact GSI config for a DynamoDB table + attribute — names the existing index instead when one already covers it |
 | `postgres_index_suggestions` | Exact `CREATE INDEX` SQL for your actual table                                                              |
 | `suggest_mongo_index`        | Exact `createIndex` command for a MongoDB collection + field                                                |
@@ -207,7 +207,7 @@ Every tool is annotated read-only (`readOnlyHint: true`, `openWorldHint: false`)
 | `get_topic_details`          | SNS topics — subscription counts, protocols, and filter policies (required message attributes per subscription) |
 | `get_secrets_overview`       | Secrets Manager — names, rotation status, and key names inferred from code (values never included)          |
 | `get_parameter_overview`     | SSM Parameter Store — names, types, tiers (values never included)                                           |
-| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names, cost signal, why a Lambda could not be linked to its source (`unresolvedLink`) |
+| `get_lambda_overview`        | Lambda functions — runtime, memory, timeout, execution role ARN, deployed `handler` and IaC `declaredHandler`, triggers (SQS/SNS/DynamoDB/Kinesis/MSK/EventBridge/S3), env var key names, cost signal, why a Lambda could not be linked to its source (`unresolvedLink`) |
 | `get_eventbridge_details`    | EventBridge rules — name, state, schedule/event pattern, target functions                                   |
 | `get_s3_overview`            | S3 buckets — versioning, encryption, public access, event notifications                                     |
 | `get_log_errors`             | CloudWatch log group names and retention (metadata only; no message bodies)                                                  |
