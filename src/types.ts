@@ -447,13 +447,11 @@ export interface SecretsManagerMetadata {
 }
 
 export interface UnresolvedLink {
-  // no_match: nothing in the scanned code matched.
+  // no_match: nothing in the scanned code matched, including when the deployed
+  // handler names code that was not scanned.
   // multiple_functions: several source functions matched; candidates are their node ids.
   // multiple_lambdas: several Lambdas normalize to one key; candidates are the other Lambda names.
-  // deployed_no_match: the deployed handler names code that was not scanned, and
-  // the declaration resolved nothing either. Distinct from no_match: the source
-  // of the handler is known, the file it names is not in the scan.
-  reason: 'no_match' | 'multiple_functions' | 'multiple_lambdas' | 'deployed_no_match';
+  reason: 'no_match' | 'multiple_functions' | 'multiple_lambdas';
   candidates: string[];
 }
 

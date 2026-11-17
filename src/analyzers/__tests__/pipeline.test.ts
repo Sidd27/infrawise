@@ -169,7 +169,7 @@ describe('addLambdaCodeLinks — handler provenance on the edge', () => {
     const lambda = graph.nodes.find((n) => n.type === 'lambda');
     expect(graph.edges).toEqual([]);
     expect(lambda?.type === 'lambda' ? lambda.unresolvedLink : undefined).toEqual({
-      reason: 'deployed_no_match',
+      reason: 'no_match',
       candidates: [],
     });
   });

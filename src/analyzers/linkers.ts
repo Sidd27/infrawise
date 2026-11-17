@@ -191,7 +191,7 @@ export class HandlerLinker {
           handlerDrift: drift,
         });
       } else if (deployed) {
-        out.unresolved.push({ lambdaId: lam.id, reason: 'deployed_no_match', candidates: [] });
+        out.unresolved.push({ lambdaId: lam.id, reason: 'no_match', candidates: [] });
       } else if (declared) {
         out.unresolved.push({ lambdaId: lam.id, reason: 'no_match', candidates: [] });
       }

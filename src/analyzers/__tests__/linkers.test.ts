@@ -337,16 +337,14 @@ describe('HandlerLinker - deployed handler is the authority', () => {
     });
   });
 
-  it('records deployed_no_match when neither source resolves', () => {
+  it('records no_match when neither source resolves', () => {
     const g: SystemGraph = {
       nodes: [lamNode('orders-prod', 'ghost.handler'), fnNode('src/orders.ts')],
       edges: [],
     };
     expect(new HandlerLinker([iacLambda('orders-prod', 'missing.handler')]).link(g)).toEqual({
       links: [],
-      unresolved: [
-        { lambdaId: 'lambda:aws:orders-prod', reason: 'deployed_no_match', candidates: [] },
-      ],
+      unresolved: [{ lambdaId: 'lambda:aws:orders-prod', reason: 'no_match', candidates: [] }],
     });
   });
 
@@ -403,7 +401,7 @@ describe('compositeLink - a read handler outranks the name heuristic', () => {
     };
     expect(compositeLink([], g)).toEqual({
       links: [],
-      unresolved: [{ lambdaId: 'lambda:aws:orders', reason: 'deployed_no_match', candidates: [] }],
+      unresolved: [{ lambdaId: 'lambda:aws:orders', reason: 'no_match', candidates: [] }],
     });
   });
 

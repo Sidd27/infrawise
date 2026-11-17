@@ -65,7 +65,7 @@ All tools are read-only (annotated `readOnlyHint: true`) and answer from the ana
 - `get_topic_details` — SNS topics with subscription count and filter policies (required message attributes)
 - `get_secrets_overview` — Secrets Manager rotation status + key names inferred from code (no values)
 - `get_parameter_overview` — SSM parameter names and types (no values)
-- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal; deployed `handler` and IaC `declaredHandler` per function; `unresolvedLink` records why a Lambda was not linked to a source function (`no_match`, `multiple_functions`, `multiple_lambdas`, `deployed_no_match`) instead of linking nothing silently
+- `get_lambda_overview` — Lambda config, memory, timeout, execution role ARN, trigger event shapes, cost signal; deployed `handler` and IaC `declaredHandler` per function; `unresolvedLink` records why a Lambda was not linked to a source function (`no_match`, `multiple_functions`, `multiple_lambdas`; `no_match` includes a deployed handler that names code outside the scan) instead of linking nothing silently
 - `get_eventbridge_details` — EventBridge rules, schedules, target functions
 - `get_s3_overview` — S3 buckets, versioning, encryption, public access status
 - `get_log_errors` — log group names and retention; errorCount null, patterns empty, errorsObserved false; message bodies never requested
