@@ -442,3 +442,45 @@ describe('compositeLink - a read handler outranks the name heuristic', () => {
     ]);
   });
 });
+
+describe('HandlerLinker - drift is a property of the declarations, not of file order', () => {
+  const graph = (): SystemGraph => ({
+    nodes: [lamNode('orders', 'orders.handler'), fnNode('src/orders.ts')],
+    edges: [],
+  });
+
+  it('reports modified for duplicate declarations that disagree, in either order', () => {
+    const a = new HandlerLinker([
+      iacLambda('orders', 'index.handler'),
+      iacLambda('orders', 'orders.handler'),
+    ]).link(graph());
+    const b = new HandlerLinker([
+      iacLambda('orders', 'orders.handler'),
+      iacLambda('orders', 'index.handler'),
+    ]).link(graph());
+    expect(a.links[0]?.handlerDrift).toBe('modified');
+    expect(b.links[0]?.handlerDrift).toBe('modified');
+  });
+
+  it('compares resolved identities, so a leading ./ is not a disagreement', () => {
+    const { links } = new HandlerLinker([iacLambda('orders', './orders.handler')]).link(graph());
+    expect(links[0]?.handlerDrift).toBe('in_sync');
+  });
+
+  it('treats an empty handler string as never read', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders', ''), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([], g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:orders',
+          functionId: 'function:src/orders.ts:handler',
+          confidence: 'inferred',
+        },
+      ],
+      unresolved: [],
+    });
+  });
+});

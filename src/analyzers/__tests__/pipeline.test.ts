@@ -120,6 +120,7 @@ describe('PipelineAnalyzer — scan in pipeline', () => {
     expect(scan).toHaveLength(1);
     expect(scan[0]!.severity).toBe('high');
     expect(scan[0]!.issue).toContain('(proven)');
+    expect(scan[0]!.description).toContain('proven from a deployed or declared handler');
   });
 });
 
@@ -171,6 +172,31 @@ describe('addLambdaCodeLinks — handler provenance on the edge', () => {
       reason: 'deployed_no_match',
       candidates: [],
     });
+  });
+
+  it('keeps the first declaration for a Lambda declared twice', () => {
+    const graph = linkedGraph('orders.handler');
+    addLambdaCodeLinks(graph, [
+      iac[0]!,
+      {
+        name: 'processOrders',
+        handler: 'orders.handler',
+        source: 'terraform',
+        filePath: 'main.tf',
+      },
+    ]);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(lambda?.type === 'lambda' ? lambda.declaredHandler : undefined).toBe('index.handler');
+  });
+
+  it('ignores a declaration without a handler and uses the next one', () => {
+    const graph = linkedGraph('orders.handler');
+    addLambdaCodeLinks(graph, [
+      { name: 'processOrders', source: 'terraform', filePath: 'main.tf' },
+      iac[0]!,
+    ]);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(lambda?.type === 'lambda' ? lambda.declaredHandler : undefined).toBe('index.handler');
   });
 });
 

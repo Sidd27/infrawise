@@ -273,7 +273,7 @@ Python repositories are scanned with a bundled stdlib-`ast` scanner (requires `p
 | MySQL Full Table Scan      | High     | Full table scan patterns in MySQL queries     |
 | Missing Mongo Index        | Medium   | Collections queried without secondary indexes |
 | Collection Scan            | High     | `find()` calls without filter predicates      |
-| Pipeline: scan in consumer | High / Verify | Full scan inside an event-triggered Lambda handler, naming every Lambda that shares the handler (High when any lambda-to-code link is IaC-proven, Verify when all are name-matched) |
+| Pipeline: scan in consumer | High / Verify | Full scan inside an event-triggered Lambda handler, naming every Lambda that shares the handler (High when any lambda-to-code link is proven from a deployed or declared handler, Verify when all are name-matched) |
 | Pipeline: repeated table access | Medium / Verify | Same table read by 2+ functions in one service pipeline |
 | Pipeline: missing DLQ hop  | Medium   | Mid-pipeline queue (has producer and consumer) with no Dead Letter Queue |
 

@@ -143,9 +143,17 @@ function handlerMatches(handler: string, fns: FunctionNode[]): FunctionNode[] {
   return fns.filter((f) => f.name === exportName && fileBaseNoExt(f.file) === fileBase);
 }
 
-function driftOf(deployed?: string, declared?: string): HandlerDrift {
-  if (!deployed || !declared) return 'not_checked';
-  return deployed === declared ? 'in_sync' : 'modified';
+function driftOf(deployed: string | undefined, declared: string[]): HandlerDrift {
+  if (!deployed || declared.length === 0) return 'not_checked';
+  const target = parseHandler(deployed);
+  // Compared as resolved identities, not raw strings: './orders.handler' and
+  // 'orders.handler' name the same file and export, and two declarations that
+  // disagree must never read as agreement because of record order.
+  const same = declared.every((handler) => {
+    const other = parseHandler(handler);
+    return other.fileBase === target.fileBase && other.exportName === target.exportName;
+  });
+  return same ? 'in_sync' : 'modified';
 }
 
 // The deployed handler is what the running function uses, so it resolves first;
@@ -158,14 +166,18 @@ export class HandlerLinker {
   link(graph: SystemGraph): LinkResult {
     const fns = functionNodes(graph);
     const out: LinkResult = { links: [], unresolved: [] };
-    const declaredByName = new Map<string, string | undefined>();
+    const declaredByName = new Map<string, string[]>();
     for (const il of this.iacLambdas) {
-      if (!declaredByName.has(il.name)) declaredByName.set(il.name, il.handler);
+      if (!il.handler) continue;
+      const declared = declaredByName.get(il.name);
+      if (declared) declared.push(il.handler);
+      else declaredByName.set(il.name, [il.handler]);
     }
     for (const lam of lambdaNodes(graph)) {
-      const deployed = lam.handler;
-      const declared = declaredByName.get(lam.name);
-      const drift = driftOf(deployed, declared);
+      const deployed = lam.handler || undefined;
+      const declaredList = declaredByName.get(lam.name) ?? [];
+      const [declared] = declaredList;
+      const drift = driftOf(deployed, declaredList);
       const viaDeployed = deployed ? handlerMatches(deployed, fns) : [];
       const viaDeclared = declared ? handlerMatches(declared, fns) : [];
       if (viaDeployed.length > 0) {

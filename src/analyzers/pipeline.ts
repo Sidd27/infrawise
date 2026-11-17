@@ -12,7 +12,10 @@ export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] =
   for (const il of iacLambdas) {
     if (!il.handler) continue;
     const node = graph.nodes.find((n) => n.type === 'lambda' && n.name === il.name);
-    if (node?.type === 'lambda') node.declaredHandler = il.handler;
+    // First record wins, matching the linker; the last would make the tool
+    // report a different declaration than the one the drift was computed from.
+    if (node?.type === 'lambda' && node.declaredHandler === undefined)
+      node.declaredHandler = il.handler;
   }
   const { links, unresolved } = compositeLink(iacLambdas, graph);
   for (const link of links) {
@@ -165,11 +168,11 @@ function detectScanInPipeline(
         `Function "${fn.name}" (${fn.file}) performs a full scan on table "${table.name}" and runs as the handler for ${many ? 'event-triggered Lambdas:' : 'event-triggered Lambda'} ${named}. A scan inside an event-driven consumer executes on every invocation, multiplying read cost with traffic.` +
         (inferred
           ? many
-            ? ` Lambdas marked inferred are matched by name, not proven from IaC, so verify them before acting.`
-            : ` The link is inferred by name match, not proven from IaC, so verify it before acting.`
+            ? ` Lambdas marked inferred are matched by name, not proven from a handler string, so verify them before acting.`
+            : ` The link is inferred by name match, not proven from a handler string, so verify it before acting.`
           : many
-            ? ` Every link is proven from IaC handler configuration.`
-            : ` The Lambda-to-code link is proven from IaC handler configuration.`),
+            ? ` Every link is proven from a deployed or declared handler.`
+            : ` The Lambda-to-code link is proven from a deployed or declared handler.`),
       recommendation: `Replace the scan with a Query using a partition key, or add a GSI for the access pattern. Scans in per-event handlers are the highest-leverage place to fix.`,
       metadata: { function: fn.name, table: table.name, lambdas },
     });
@@ -213,7 +216,7 @@ function detectRepeatedTableAccess(
       description:
         `Table "${table.name}" is read by ${fns.size} functions linked in the same service pipeline: ${fnNames.join(', ')}. Re-reading the same table across pipeline stages often signals redundant work that could be passed forward in the message payload.` +
         (inferred
-          ? ` One or more Lambda-to-code links on this pipeline are inferred by name match (not proven from IaC), so verify the chain before acting.`
+          ? ` One or more Lambda-to-code links on this pipeline are inferred by name match (not proven from a handler string), so verify the chain before acting.`
           : ''),
       recommendation: `Confirm each access is necessary. Consider carrying the needed fields in the event payload, caching the first read, or consolidating the reads. If the duplication is intentional, no action needed.`,
       metadata: { tableName: table.name, functions: fnNames, inferred },
