@@ -12,6 +12,8 @@ import {
   setCodeRefreshError,
 } from '../index.js';
 import type { SystemGraph, Finding } from '../../types.js';
+import { addLambdaCodeLinks } from '../../analyzers/pipeline.js';
+import type { IaCLambda } from '../../adapters/iac/terraform.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
 
@@ -544,7 +546,6 @@ describe('MCP Server — tool results', () => {
           type: 'lambda',
           name: 'processOrders',
           handler: 'orders.handler',
-          declaredHandler: 'index.handler',
           triggers: [
             {
               type: 'sqs',
@@ -556,17 +557,12 @@ describe('MCP Server — tool results', () => {
         },
         { id: 'lambda:aws:opaque', type: 'lambda', name: 'opaque' },
       ],
-      edges: [
-        {
-          from: 'lambda:aws:processOrders',
-          to: 'function:src/orders.ts:handler',
-          type: 'implemented_by',
-          confidence: 'proven',
-          handlerSource: 'deployed',
-          handlerDrift: 'modified',
-        },
-      ],
+      edges: [],
     };
+    const iac: IaCLambda[] = [
+      { name: 'processOrders', handler: 'index.handler', source: 'terraform', filePath: 'main.tf' },
+    ];
+    addLambdaCodeLinks(graph, iac);
     const c = await makeClient(graph, []);
     try {
       const fn = await callTool(c, 'analyze_function', { function: 'handler', file: 'orders.ts' });
