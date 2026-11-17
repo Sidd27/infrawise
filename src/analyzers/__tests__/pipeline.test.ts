@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SystemGraph } from '../../types.js';
+import type { Finding, SystemGraph } from '../../types.js';
 import type { IaCLambda } from '../../adapters/iac/terraform.js';
 import { PipelineAnalyzer } from '../pipeline.js';
 
@@ -287,5 +287,126 @@ describe('PipelineAnalyzer — repeated table access across a pipeline', () => {
     const repeated = findings.filter((f) => f.issue.includes('multiple stages'));
     expect(repeated).toHaveLength(1);
     expect(repeated[0]!.severity).toBe('verify');
+  });
+});
+
+// One source function, several deployments. `index.handler` declared by each
+// Lambda is the ordinary shared-entrypoint shape, not a normalization edge case.
+const SHARED_FN = 'function:src/orders/index.ts:handler';
+
+function sharedHandlerGraph(lambdaNames: string[]): SystemGraph {
+  return {
+    nodes: [
+      { id: SHARED_FN, type: 'function', name: 'handler', file: 'src/orders/index.ts' },
+      { id: 'table:dynamo:Orders', type: 'table', name: 'Orders', databaseType: 'dynamodb' },
+      ...lambdaNames.map((n) => ({ id: `lambda:aws:${n}`, type: 'lambda' as const, name: n })),
+    ],
+    edges: [
+      ...lambdaNames.map((n) => ({
+        from: 'queue:aws:order-events',
+        to: `lambda:aws:${n}`,
+        type: 'triggers' as const,
+      })),
+      { from: SHARED_FN, to: 'table:dynamo:Orders', type: 'scan' as const },
+    ],
+  };
+}
+
+const sharedHandlerIac = (lambdaNames: string[]): IaCLambda[] =>
+  lambdaNames.map((n) => ({
+    name: n,
+    handler: 'src/orders/index.handler',
+    source: 'terraform' as const,
+    filePath: 'main.tf',
+  }));
+
+const scanFindings = (findings: Finding[]) =>
+  findings.filter((f) => f.issue.includes('Full scan runs inside'));
+
+describe('PipelineAnalyzer - several Lambdas share one handler', () => {
+  it('names every linked Lambda in one finding at HIGH when all links are proven', async () => {
+    const names = ['orders-prod', 'orders-reindex', 'orders-legacy'];
+    const findings = scanFindings(
+      await PipelineAnalyzer(sharedHandlerGraph(names), sharedHandlerIac(names)),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.severity).toBe('high');
+    expect(findings[0]!.metadata?.lambdas).toEqual([
+      { lambda: 'orders-legacy', confidence: 'proven' },
+      { lambda: 'orders-prod', confidence: 'proven' },
+      { lambda: 'orders-reindex', confidence: 'proven' },
+    ]);
+    expect(findings[0]!.issue).toContain('3 event-triggered Lambdas');
+    for (const name of names) expect(findings[0]!.issue).toContain(`"${name}" (proven)`);
+  });
+
+  it('keeps HIGH when one link is proven and another is inferred, marking each name', async () => {
+    const graph = sharedHandlerGraph(['orders-prod', 'index']);
+    const findings = scanFindings(await PipelineAnalyzer(graph, sharedHandlerIac(['orders-prod'])));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.severity).toBe('high');
+    expect(findings[0]!.issue).toContain('"orders-prod" (proven)');
+    expect(findings[0]!.issue).toContain('"index" (inferred)');
+    expect(findings[0]!.description).toContain('verify them before acting');
+  });
+
+  it('caps to VERIFY when no link is proven', async () => {
+    const findings = scanFindings(await PipelineAnalyzer(sharedHandlerGraph(['index']), []));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.severity).toBe('verify');
+    expect(findings[0]!.issue).toContain('"index" (inferred)');
+  });
+
+  it('produces identical output when the links arrive in another order', async () => {
+    const names = ['orders-prod', 'orders-reindex', 'orders-legacy'];
+    const forward = scanFindings(
+      await PipelineAnalyzer(sharedHandlerGraph(names), sharedHandlerIac(names)),
+    );
+    const reversedGraph = sharedHandlerGraph(names);
+    const reversed = scanFindings(
+      await PipelineAnalyzer(
+        { nodes: [...reversedGraph.nodes].reverse(), edges: [...reversedGraph.edges].reverse() },
+        sharedHandlerIac([...names].reverse()),
+      ),
+    );
+    expect(reversed).toEqual(forward);
+  });
+
+  it('names every Lambda in the text, not only in metadata', async () => {
+    const names = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7'];
+    const findings = scanFindings(
+      await PipelineAnalyzer(sharedHandlerGraph(names), sharedHandlerIac(names)),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.metadata?.lambdas).toHaveLength(7);
+    for (const name of names) expect(findings[0]!.issue).toContain(`"${name}" (proven)`);
+  });
+
+  it('does not name a Lambda twice when IaC declares it twice', async () => {
+    const names = ['orders-prod'];
+    const findings = scanFindings(
+      await PipelineAnalyzer(sharedHandlerGraph(names), [
+        ...sharedHandlerIac(names),
+        ...sharedHandlerIac(names),
+      ]),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.metadata?.lambdas).toEqual([
+      { lambda: 'orders-prod', confidence: 'proven' },
+    ]);
+  });
+
+  it('ignores a Lambda that shares the handler but has no trigger', async () => {
+    const graph = sharedHandlerGraph(['orders-prod']);
+    const findings = scanFindings(
+      await PipelineAnalyzer(graph, [
+        ...sharedHandlerIac(['orders-prod']),
+        ...sharedHandlerIac(['orders-cron']),
+      ]),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.metadata?.lambdas).toEqual([
+      { lambda: 'orders-prod', confidence: 'proven' },
+    ]);
   });
 });
