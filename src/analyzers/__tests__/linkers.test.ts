@@ -396,6 +396,17 @@ describe('HandlerLinker - deployed handler is the authority', () => {
 });
 
 describe('compositeLink - a read handler outranks the name heuristic', () => {
+  it('refuses a name match when the deployed handler names unscanned code', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders', 'ghost.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([], g)).toEqual({
+      links: [],
+      unresolved: [{ lambdaId: 'lambda:aws:orders', reason: 'deployed_no_match', candidates: [] }],
+    });
+  });
+
   it('keeps the declared link when only the deployment disagrees', () => {
     const g: SystemGraph = {
       nodes: [lamNode('orders', 'ghost.handler'), fnNode('src/orders.ts')],

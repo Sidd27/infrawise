@@ -192,7 +192,19 @@ export function compositeLink(iacLambdas: IaCLambda[], graph: SystemGraph): Link
   const handler = new HandlerLinker(iacLambdas).link(graph);
   const heuristic = new HeuristicLinker().link(graph);
   const covered = new Set(handler.links.map((l) => l.lambdaId));
-  const links = [...handler.links, ...heuristic.links.filter((l) => !covered.has(l.lambdaId))];
+  // A handler that was read and still left the Lambda unresolved is stronger
+  // evidence than a name similarity, so those Lambdas are not eligible for the
+  // heuristic either. Without this the refusal is dropped for exactly the
+  // Lambdas whose name collides with a scanned file, and the edge silently
+  // reads `inferred`.
+  const byId = new Map(lambdaNodes(graph).map((n) => [n.id, n] as const));
+  const contradicted = new Set(
+    handler.unresolved.filter((u) => Boolean(byId.get(u.lambdaId)?.handler)).map((u) => u.lambdaId),
+  );
+  const links = [
+    ...handler.links,
+    ...heuristic.links.filter((l) => !covered.has(l.lambdaId) && !contradicted.has(l.lambdaId)),
+  ];
   const linked = new Set(links.map((l) => l.lambdaId));
   // The handler refusal names the file the deployment runs, which is more
   // specific than the name heuristic's, so it wins when both refused.
