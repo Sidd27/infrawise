@@ -69,6 +69,17 @@ describe('incremental repository scan', () => {
     ).toEqual(['handler.ts', 'middle.ts']);
   });
 
+  it('rescans a file announced with native separators, as the watcher does', async () => {
+    fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+    write('src/orders.ts', source('Orders'));
+    const scanner = new RepositoryScanner(dir);
+    await scanner.scan();
+    write('src/orders.ts', source('UpdatedOrders'));
+    const operations = await scanner.scan([path.join('src', 'orders.ts')]);
+    expect(operations.map((op) => op.target)).toEqual(['UpdatedOrders']);
+    expect(operations[0]?.filePath).not.toContain('\\');
+  });
+
   it('rebuilds the project when tsconfig changes its included files', async () => {
     write('orders.ts', source('Orders'));
     write('users.ts', source('Users'));

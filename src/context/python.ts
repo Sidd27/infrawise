@@ -4,6 +4,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import type { ExtractedOperation } from '../types.js';
 import { logger } from '../core/index.js';
+import { toPosixPath } from './paths.js';
 import { analyzeSql, sqlTableName } from './sql.js';
 
 const execFileAsync = promisify(execFile);
@@ -46,6 +47,7 @@ export async function scanPythonRepository(
     return (JSON.parse(stdout) as (ExtractedOperation & { sql?: string })[]).map(
       ({ sql, ...operation }) => ({
         ...operation,
+        filePath: toPosixPath(operation.filePath),
         ...(sql ? { sqlAccess: analyzeSql(sql), target: sqlTableName(sql) } : {}),
       }),
     );

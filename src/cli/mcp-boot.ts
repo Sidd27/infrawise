@@ -30,6 +30,10 @@ const IGNORED_DIRS = new Set([
   '__pycache__',
 ]);
 
+export function isConfigFile(repoPath: string, filename: string, configFile: string): boolean {
+  return path.resolve(repoPath, filename) === path.resolve(configFile);
+}
+
 export function triggersRefresh(filename: string): boolean {
   if (
     !WATCHED_EXTS.includes(path.extname(filename)) &&
@@ -194,7 +198,7 @@ export function watchCode(
   try {
     fs.watch(repoPath, { recursive: true }, (_, filename) => {
       if (!filename) return;
-      if (path.join(repoPath, filename) === configFile) {
+      if (isConfigFile(repoPath, filename, configFile)) {
         configChanged = true;
         hooks.onConfigChange?.();
         return;

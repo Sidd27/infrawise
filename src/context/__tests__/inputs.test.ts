@@ -41,7 +41,9 @@ it('filters dependency declarations and generated output before loading even wit
       compilerOptions: { allowJs: true },
     }),
   );
-  expect(getTypeScriptInputs(root).files).toEqual([path.join(root, 'src/orders.ts')]);
+  expect(getTypeScriptInputs(root).files).toEqual([
+    `${root.split(path.sep).join('/')}/src/orders.ts`,
+  ]);
   expect((await scanRepository(root)).map((op) => op.target)).toEqual(['Orders']);
 });
 

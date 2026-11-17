@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { ExtractedOperation } from '../types.js';
 import { scanTypeScriptPaths, detectLanguages } from './index.js';
 import { getTypeScriptInputs, sourceDependencies } from './inputs.js';
+import { toPosixPath } from './paths.js';
 import { scanPythonRepository } from './python.js';
 
 export class RepositoryScanner {
@@ -42,7 +43,7 @@ export class RepositoryScanner {
       return operations;
     }
 
-    const changed = changedFiles.map((file) => path.resolve(this.repoPath, file));
+    const changed = changedFiles.map((file) => toPosixPath(path.resolve(this.repoPath, file)));
     const affected = new Set<string>();
     const visit = (file: string) => {
       const pending = [file];
