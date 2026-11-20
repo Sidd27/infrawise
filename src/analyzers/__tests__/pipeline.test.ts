@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Finding, SystemGraph } from '../../types.js';
 import type { IaCLambda } from '../../adapters/iac/terraform.js';
-import { PipelineAnalyzer } from '../pipeline.js';
+import { PipelineAnalyzer, addLambdaCodeLinks } from '../pipeline.js';
 
 // producer fn -> queue -> lambda consumer; consumer code scans a table.
 function pipelineGraph(opts: {
@@ -9,6 +9,7 @@ function pipelineGraph(opts: {
   consumerFnName: string;
   consumerFnFile: string;
   dlq: boolean;
+  consumerHandler?: string;
 }): SystemGraph {
   return {
     nodes: [
@@ -26,7 +27,12 @@ function pipelineGraph(opts: {
         hasDLQ: opts.dlq,
         encrypted: true,
       },
-      { id: `lambda:aws:${opts.consumerLambda}`, type: 'lambda', name: opts.consumerLambda },
+      {
+        id: `lambda:aws:${opts.consumerLambda}`,
+        type: 'lambda',
+        name: opts.consumerLambda,
+        ...(opts.consumerHandler === undefined ? {} : { handler: opts.consumerHandler }),
+      },
       {
         id: `function:${opts.consumerFnFile}:${opts.consumerFnName}`,
         type: 'function',
@@ -98,6 +104,99 @@ describe('PipelineAnalyzer — scan in pipeline', () => {
     const analyzer = PipelineAnalyzer;
     const findings = await analyzer(graph);
     expect(findings.filter((f) => f.issue.includes('Full scan runs inside'))).toHaveLength(0);
+  });
+
+  it('emits HIGH when only the deployment identifies the handler', async () => {
+    const graph = pipelineGraph({
+      consumerLambda: 'processOrders',
+      consumerHandler: 'orders.handler',
+      consumerFnName: 'handler',
+      consumerFnFile: 'src/orders.ts',
+      dlq: true,
+    });
+    const scan = (await PipelineAnalyzer(graph)).filter((f) =>
+      f.issue.includes('Full scan runs inside'),
+    );
+    expect(scan).toHaveLength(1);
+    expect(scan[0]!.severity).toBe('high');
+    expect(scan[0]!.issue).toContain('(proven)');
+    expect(scan[0]!.description).toContain('proven from a deployed or declared handler');
+  });
+});
+
+describe('addLambdaCodeLinks — handler provenance on the edge', () => {
+  const iac: IaCLambda[] = [
+    { name: 'processOrders', handler: 'index.handler', source: 'terraform', filePath: 'main.tf' },
+  ];
+  const linkedGraph = (handler?: string): SystemGraph => ({
+    nodes: [
+      {
+        id: 'lambda:aws:processOrders',
+        type: 'lambda',
+        name: 'processOrders',
+        ...(handler ? { handler } : {}),
+      },
+      {
+        id: 'function:src/orders.ts:handler',
+        type: 'function',
+        name: 'handler',
+        file: 'src/orders.ts',
+      },
+    ],
+    edges: [],
+  });
+
+  it('records which source resolved the link and the drift, and keeps the declaration on the node', () => {
+    const graph = linkedGraph('orders.handler');
+    addLambdaCodeLinks(graph, iac);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(lambda?.type === 'lambda' ? lambda.declaredHandler : undefined).toBe('index.handler');
+    expect(graph.edges).toEqual([
+      {
+        from: 'lambda:aws:processOrders',
+        to: 'function:src/orders.ts:handler',
+        type: 'implemented_by',
+        confidence: 'proven',
+        handlerSource: 'deployed',
+        handlerDrift: 'modified',
+      },
+    ]);
+  });
+
+  it('records the refusal on the node when the deployed handler names unscanned code', () => {
+    const graph = linkedGraph('ghost.handler');
+    addLambdaCodeLinks(graph, []);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(graph.edges).toEqual([]);
+    expect(lambda?.type === 'lambda' ? lambda.unresolvedLink : undefined).toEqual({
+      reason: 'no_match',
+      candidates: [],
+    });
+  });
+
+  it('keeps the first declaration for a Lambda declared twice', () => {
+    const graph = linkedGraph('orders.handler');
+    addLambdaCodeLinks(graph, [
+      iac[0]!,
+      {
+        name: 'processOrders',
+        handler: 'orders.handler',
+        source: 'terraform',
+        filePath: 'main.tf',
+      },
+    ]);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(lambda?.type === 'lambda' ? lambda.declaredHandler : undefined).toBe('index.handler');
+  });
+
+  it('ignores a declaration without a handler and uses the next one', () => {
+    const graph = linkedGraph('orders.handler');
+    addLambdaCodeLinks(graph, [
+      { name: 'processOrders', source: 'terraform', filePath: 'main.tf' },
+      iac[0]!,
+    ]);
+    const lambda = graph.nodes.find((n) => n.type === 'lambda');
+    expect(lambda?.type === 'lambda' ? lambda.declaredHandler : undefined).toBe('index.handler');
   });
 });
 

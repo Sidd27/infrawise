@@ -62,7 +62,8 @@ Analyzes a single Lambda function for infrastructure issues, including the exact
 - **matches** — one entry per source file defining a function with this name, each carrying the file path and `accesses`: every service and table that file's function reaches, with edge type (`query`, `scan`, `put`, etc.)
 - **ambiguous: true** when more than one file matched
 - **candidateLambdas** — when several deployed Lambdas link to this function (`index.handler` across a stack), they are named here and `triggers` is absent rather than empty, since no single Lambda's event sources can be attributed
-- **unresolvedLambdas** — present when no deployed Lambda could be linked to this function: one entry per Lambda considered, with `reason` (`no_match`, `multiple_functions`, or `multiple_lambdas`) and `candidates`. An empty `triggers` next to this list means the link was refused, not that the function is undeployed.
+- **resolvedLambda** — the Lambda this function implements, when exactly one link exists: `lambda`, `confidence`, and, for a proven link, `handlerSource` (`deployed` or `declared`) plus `handlerDrift` (`in_sync`, `modified`, or `not_checked`). `declared` with `modified` means the IaC handler resolved the link because the deployed handler named code outside the scan, so the disagreement is visible instead of a guess.
+- **unresolvedLambdas** — present when no deployed Lambda could be linked to this function: one entry per Lambda considered, with `reason` (`no_match`, `multiple_functions`, or `multiple_lambdas`) and `candidates`. An empty `triggers` next to this list means the link was refused, not that the function is undeployed. `no_match` also covers a Lambda whose deployed handler names code outside the scan.
 - **Triggers** — the trigger source (SQS, SNS, EventBridge, S3, DynamoDB Streams, etc.) with the exact `event` object shape the handler receives. For SQS: `event.Records[0].body`. For S3: `event.Records[0].s3.object.key`. For EventBridge: rule name and event pattern.
 - **missingPermissions** — AWS service names the function accesses in code but its execution role doesn't allow (e.g. `["dynamodb", "sqs"]`); present only when IAM role data is available
 - Related findings scoped to this function
@@ -258,8 +259,10 @@ Per function:
 - Name, runtime, memory (MB), timeout (seconds)
 - Environment variable key names (values never included)
 - `roleArn` — the execution role ARN
+- `handler` — the handler the deployment runs; absent when never read or when the function is an image
+- `declaredHandler` — the handler the IaC declares for the same Lambda, when one was found
 - **Triggers** — source type, source name, and the correct handler event shape. S3-triggered Lambdas show `event.Records[0].s3.object.key`. Includes all trigger types: SQS, SNS, DynamoDB Streams, Kinesis, MSK, EventBridge, S3.
-- **unresolvedLink** — present only when no linker could attribute the Lambda to one source function. `reason` is `no_match`, `multiple_functions` (candidates are function node ids), or `multiple_lambdas` (candidates are the other Lambda names that normalize to the same key: `checkout-handler-prod` and `checkout-dev` both reduce to `checkout`, so neither links rather than both claiming `checkout.ts`).
+- **unresolvedLink** — present only when no linker could attribute the Lambda to one source function. `reason` is `no_match`, `multiple_functions` (candidates are function node ids), or `multiple_lambdas` (candidates are the other Lambda names that normalize to the same key: `checkout-handler-prod` and `checkout-dev` both reduce to `checkout`, so neither links rather than both claiming `checkout.ts`). `no_match` also covers a deployed handler that names code outside the scan.
 - `recentThrottles` / `recentErrors` — CloudWatch counts for the analysis window, only when runtime signals are enabled
 - `costSignal` — present when memory is 3008 MB+ and runtime signals are off (not enough evidence for a finding, so it's advisory only); when signals are on and throttles are 0, this becomes a low-severity finding instead — no billing API involved, this is a config-level heuristic
 - Any associated findings

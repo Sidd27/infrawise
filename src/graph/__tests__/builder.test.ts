@@ -348,6 +348,7 @@ describe('buildGraph', () => {
           name: 'processOrders',
           arn: 'arn:aws:lambda:us-east-1:123:function:processOrders',
           runtime: 'nodejs22.x',
+          handler: 'orders.handler',
           memoryMB: 512,
           timeoutSec: 30,
           envVarKeys: [],
@@ -360,6 +361,9 @@ describe('buildGraph', () => {
     const lambdas = getLambdaNodes(graph);
     expect(lambdas).toHaveLength(1);
     expect(lambdas[0].memoryMB).toBe(512);
+    // Without this the graph drops the deployed handler and every link is
+    // resolved from the IaC declaration, which is what #140 is about.
+    expect(lambdas[0].handler).toBe('orders.handler');
   });
 
   it('creates secret nodes from servicesMeta', () => {

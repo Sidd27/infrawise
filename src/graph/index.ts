@@ -246,6 +246,7 @@ export function buildGraph(
       triggers: fn.triggers,
       roleArn: fn.roleArn,
       allowedServices: fn.allowedServices,
+      handler: fn.handler,
       recentThrottles: fn.recentThrottles,
       recentErrors: fn.recentErrors,
       reservedConcurrency: fn.reservedConcurrency,

@@ -113,6 +113,11 @@ export type GraphNode = (
       triggers?: LambdaTrigger[];
       roleArn?: string;
       allowedServices?: string[];
+      // The handler the deployment runs. undefined = never read (a failed call
+      // or an image function), never "no handler configured".
+      handler?: string;
+      // The handler the IaC declares for this Lambda, when one was found.
+      declaredHandler?: string;
       recentThrottles?: number;
       recentErrors?: number;
       reservedConcurrency?: number | null;
@@ -236,7 +241,16 @@ export type GraphEdge =
   // Deployed Lambda → the source function that implements it. Resolved by the
   // linkers, which is the only way to bridge a stack-prefixed deployed name to
   // a plain function name in the repo.
-  | { from: string; to: string; type: 'implemented_by'; confidence: 'proven' | 'inferred' };
+  | {
+      from: string;
+      to: string;
+      type: 'implemented_by';
+      confidence: 'proven' | 'inferred';
+      // Which source established a proven link, and whether the two sources
+      // that were read agree. Absent on inferred links: neither was read.
+      handlerSource?: 'deployed' | 'declared';
+      handlerDrift?: 'in_sync' | 'modified' | 'not_checked';
+    };
 
 export interface SystemGraph {
   nodes: GraphNode[];
@@ -433,7 +447,8 @@ export interface SecretsManagerMetadata {
 }
 
 export interface UnresolvedLink {
-  // no_match: nothing in the scanned code matched.
+  // no_match: nothing in the scanned code matched, including when the deployed
+  // handler names code that was not scanned.
   // multiple_functions: several source functions matched; candidates are their node ids.
   // multiple_lambdas: several Lambdas normalize to one key; candidates are the other Lambda names.
   reason: 'no_match' | 'multiple_functions' | 'multiple_lambdas';

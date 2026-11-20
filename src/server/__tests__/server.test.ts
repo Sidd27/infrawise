@@ -12,6 +12,8 @@ import {
   setCodeRefreshError,
 } from '../index.js';
 import type { SystemGraph, Finding } from '../../types.js';
+import { addLambdaCodeLinks } from '../../analyzers/pipeline.js';
+import type { IaCLambda } from '../../adapters/iac/terraform.js';
 
 const emptyGraph: SystemGraph = { nodes: [], edges: [] };
 
@@ -525,6 +527,61 @@ describe('MCP Server — tool results', () => {
       expect(data.triggers[0].eventShape).toBe('event.Records[0].body');
       expect(data.resolvedLambda.lambda).toBe('payments-prod-processOrder');
       expect(data.resolvedLambda.confidence).toBe('proven');
+    } finally {
+      await c.close();
+    }
+  });
+
+  it('exposes handler provenance on the link and both handlers in the overview', async () => {
+    const graph: SystemGraph = {
+      nodes: [
+        {
+          id: 'function:src/orders.ts:handler',
+          type: 'function',
+          name: 'handler',
+          file: 'src/orders.ts',
+        },
+        {
+          id: 'lambda:aws:processOrders',
+          type: 'lambda',
+          name: 'processOrders',
+          handler: 'orders.handler',
+          triggers: [
+            {
+              type: 'sqs',
+              sourceName: 'orders',
+              sourceArn: 'arn:aws:sqs:us-east-1:1:orders',
+              eventShape: 'event.Records[0].body',
+            },
+          ],
+        },
+        { id: 'lambda:aws:opaque', type: 'lambda', name: 'opaque' },
+      ],
+      edges: [],
+    };
+    const iac: IaCLambda[] = [
+      { name: 'processOrders', handler: 'index.handler', source: 'terraform', filePath: 'main.tf' },
+    ];
+    addLambdaCodeLinks(graph, iac);
+    const c = await makeClient(graph, []);
+    try {
+      const fn = await callTool(c, 'analyze_function', { function: 'handler', file: 'orders.ts' });
+      expect(fn.resolvedLambda).toEqual({
+        lambda: 'processOrders',
+        confidence: 'proven',
+        handlerSource: 'deployed',
+        handlerDrift: 'modified',
+      });
+
+      const overview = await callTool(c, 'get_lambda_overview');
+      const byName = Object.fromEntries(
+        overview.lambdas.map((l: Record<string, unknown>) => [l.name, l]),
+      );
+      expect(byName.processOrders.handler).toBe('orders.handler');
+      expect(byName.processOrders.declaredHandler).toBe('index.handler');
+      // Never read is absent, not null: an image function has no handler string.
+      expect('handler' in byName.opaque).toBe(false);
+      expect('declaredHandler' in byName.opaque).toBe(false);
     } finally {
       await c.close();
     }

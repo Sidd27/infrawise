@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SystemGraph } from '../../types.js';
 import type { IaCLambda } from '../../adapters/iac/terraform.js';
-import { normalizeName, HeuristicLinker, IaCHandlerLinker, compositeLink } from '../linkers.js';
+import { normalizeName, HeuristicLinker, HandlerLinker, compositeLink } from '../linkers.js';
 
 function graphWith(lambdaName: string, fnName: string, fnFile: string): SystemGraph {
   return {
@@ -108,7 +108,7 @@ describe('HeuristicLinker', () => {
   });
 });
 
-describe('IaCHandlerLinker', () => {
+describe('HandlerLinker', () => {
   const iac: IaCLambda[] = [
     {
       name: 'fulfill-prod',
@@ -131,12 +131,14 @@ describe('IaCHandlerLinker', () => {
       ],
       edges: [],
     };
-    expect(new IaCHandlerLinker(iac).link(g)).toEqual({
+    expect(new HandlerLinker(iac).link(g)).toEqual({
       links: [
         {
           lambdaId: 'lambda:aws:fulfill-prod',
           functionId: 'function:src/fulfill.ts:handler',
           confidence: 'proven',
+          handlerSource: 'declared',
+          handlerDrift: 'not_checked',
         },
       ],
       unresolved: [],
@@ -156,7 +158,7 @@ describe('IaCHandlerLinker', () => {
       ],
       edges: [],
     };
-    expect(new IaCHandlerLinker(iac).link(g).unresolved).toEqual([
+    expect(new HandlerLinker(iac).link(g).unresolved).toEqual([
       { lambdaId: 'lambda:aws:fulfill-prod', reason: 'no_match', candidates: [] },
     ]);
   });
@@ -173,7 +175,7 @@ describe('IaCHandlerLinker', () => {
       ],
       edges: [],
     };
-    expect(new IaCHandlerLinker(iac).link(g)).toEqual({ links: [], unresolved: [] });
+    expect(new HandlerLinker(iac).link(g)).toEqual({ links: [], unresolved: [] });
   });
 });
 
@@ -207,6 +209,8 @@ describe('compositeLink', () => {
       lambdaId: 'lambda:aws:fulfill-prod',
       functionId: 'function:src/fulfill.ts:handler',
       confidence: 'proven',
+      handlerSource: 'declared',
+      handlerDrift: 'not_checked',
     });
     expect(links).toContainEqual({
       lambdaId: 'lambda:aws:ship',
@@ -239,6 +243,242 @@ describe('compositeLink', () => {
     expect(compositeLink(iac, g)).toEqual({
       links: [],
       unresolved: [{ lambdaId: 'lambda:aws:fulfill-prod', reason: 'no_match', candidates: [] }],
+    });
+  });
+});
+
+const fnNode = (file: string, name = 'handler') => ({
+  id: `function:${file}:${name}`,
+  type: 'function' as const,
+  name,
+  file,
+});
+const lamNode = (name: string, handler?: string) => ({
+  id: `lambda:aws:${name}`,
+  type: 'lambda' as const,
+  name,
+  ...(handler === undefined ? {} : { handler }),
+});
+const iacLambda = (name: string, handler?: string): IaCLambda => ({
+  name,
+  handler,
+  source: 'terraform',
+  filePath: 'main.tf',
+});
+
+describe('HandlerLinker - deployed handler is the authority', () => {
+  it('resolves the deployed handler and records the disagreement with the declaration', () => {
+    const g: SystemGraph = {
+      nodes: [
+        lamNode('orders-prod', 'orders.handler'),
+        fnNode('src/index.ts'),
+        fnNode('src/orders.ts'),
+      ],
+      edges: [],
+    };
+    expect(new HandlerLinker([iacLambda('orders-prod', 'index.handler')]).link(g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:orders-prod',
+          functionId: 'function:src/orders.ts:handler',
+          confidence: 'proven',
+          handlerSource: 'deployed',
+          handlerDrift: 'modified',
+        },
+      ],
+      unresolved: [],
+    });
+  });
+
+  it('records in_sync when both sources name the same handler', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders-prod', 'orders.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    const { links } = new HandlerLinker([iacLambda('orders-prod', 'orders.handler')]).link(g);
+    expect(links[0]?.handlerDrift).toBe('in_sync');
+  });
+
+  it('resolves a deployed handler with no IaC at all', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders-prod', 'orders.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(new HandlerLinker([]).link(g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:orders-prod',
+          functionId: 'function:src/orders.ts:handler',
+          confidence: 'proven',
+          handlerSource: 'deployed',
+          handlerDrift: 'not_checked',
+        },
+      ],
+      unresolved: [],
+    });
+  });
+
+  it('falls back to the declaration when the deployed handler names unscanned code', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders-prod', 'ghost.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(new HandlerLinker([iacLambda('orders-prod', 'orders.handler')]).link(g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:orders-prod',
+          functionId: 'function:src/orders.ts:handler',
+          confidence: 'proven',
+          handlerSource: 'declared',
+          handlerDrift: 'modified',
+        },
+      ],
+      unresolved: [],
+    });
+  });
+
+  it('records no_match when neither source resolves', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders-prod', 'ghost.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(new HandlerLinker([iacLambda('orders-prod', 'missing.handler')]).link(g)).toEqual({
+      links: [],
+      unresolved: [{ lambdaId: 'lambda:aws:orders-prod', reason: 'no_match', candidates: [] }],
+    });
+  });
+
+  it('records multiple_functions when the deployed handler matches several files', () => {
+    const g: SystemGraph = {
+      nodes: [
+        lamNode('orders-prod', 'orders.handler'),
+        fnNode('a/orders.ts'),
+        fnNode('b/orders.ts'),
+      ],
+      edges: [],
+    };
+    expect(new HandlerLinker([]).link(g).unresolved).toEqual([
+      {
+        lambdaId: 'lambda:aws:orders-prod',
+        reason: 'multiple_functions',
+        candidates: ['function:a/orders.ts:handler', 'function:b/orders.ts:handler'],
+      },
+    ]);
+  });
+
+  it('resolves a Python handler through a .py file', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('jobs', 'main.handler'), fnNode('jobs/main.py')],
+      edges: [],
+    };
+    expect(new HandlerLinker([]).link(g).links).toEqual([
+      {
+        lambdaId: 'lambda:aws:jobs',
+        functionId: 'function:jobs/main.py:handler',
+        confidence: 'proven',
+        handlerSource: 'deployed',
+        handlerDrift: 'not_checked',
+      },
+    ]);
+  });
+
+  it('resolves a Python handler when the scanner reported a backslash path', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('jobs', 'main.handler'), fnNode('D:\\repo\\jobs\\main.py')],
+      edges: [],
+    };
+    expect(new HandlerLinker([]).link(g).links[0]?.functionId).toBe(
+      'function:D:\\repo\\jobs\\main.py:handler',
+    );
+  });
+});
+
+describe('compositeLink - a read handler outranks the name heuristic', () => {
+  it('refuses a name match when the deployed handler names unscanned code', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders', 'ghost.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([], g)).toEqual({
+      links: [],
+      unresolved: [{ lambdaId: 'lambda:aws:orders', reason: 'no_match', candidates: [] }],
+    });
+  });
+
+  it('keeps the declared link when only the deployment disagrees', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders', 'ghost.handler'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([iacLambda('orders', 'orders.handler')], g).links[0]?.confidence).toBe(
+      'proven',
+    );
+  });
+
+  it('still fills a name match when only the declaration was read and it failed', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders'), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([iacLambda('orders', 'missing.handler')], g).links).toEqual([
+      {
+        lambdaId: 'lambda:aws:orders',
+        functionId: 'function:src/orders.ts:handler',
+        confidence: 'inferred',
+      },
+    ]);
+  });
+
+  it('leaves a placeholder Lambda with no handler to the name heuristic', () => {
+    const g: SystemGraph = { nodes: [lamNode('orders'), fnNode('src/orders.ts')], edges: [] };
+    expect(compositeLink([], g).links).toEqual([
+      {
+        lambdaId: 'lambda:aws:orders',
+        functionId: 'function:src/orders.ts:handler',
+        confidence: 'inferred',
+      },
+    ]);
+  });
+});
+
+describe('HandlerLinker - drift is a property of the declarations, not of file order', () => {
+  const graph = (): SystemGraph => ({
+    nodes: [lamNode('orders', 'orders.handler'), fnNode('src/orders.ts')],
+    edges: [],
+  });
+
+  it('reports modified for duplicate declarations that disagree, in either order', () => {
+    const a = new HandlerLinker([
+      iacLambda('orders', 'index.handler'),
+      iacLambda('orders', 'orders.handler'),
+    ]).link(graph());
+    const b = new HandlerLinker([
+      iacLambda('orders', 'orders.handler'),
+      iacLambda('orders', 'index.handler'),
+    ]).link(graph());
+    expect(a.links[0]?.handlerDrift).toBe('modified');
+    expect(b.links[0]?.handlerDrift).toBe('modified');
+  });
+
+  it('compares resolved identities, so a leading ./ is not a disagreement', () => {
+    const { links } = new HandlerLinker([iacLambda('orders', './orders.handler')]).link(graph());
+    expect(links[0]?.handlerDrift).toBe('in_sync');
+  });
+
+  it('treats an empty handler string as never read', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders', ''), fnNode('src/orders.ts')],
+      edges: [],
+    };
+    expect(compositeLink([], g)).toEqual({
+      links: [
+        {
+          lambdaId: 'lambda:aws:orders',
+          functionId: 'function:src/orders.ts:handler',
+          confidence: 'inferred',
+        },
+      ],
+      unresolved: [],
     });
   });
 });
