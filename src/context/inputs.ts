@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ts } from 'ts-morph';
+import { toPosixPath } from './paths.js';
 
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const excluded = new Set([
@@ -40,7 +41,10 @@ export function getTypeScriptInputs(root: string): {
       ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'],
       [...excluded].map((dir) => `**/${dir}/**`),
     );
-    return { files: files.filter(isTypeScriptInput), options: { allowJs: true } };
+    return {
+      files: files.filter(isTypeScriptInput).map(toPosixPath),
+      options: { allowJs: true },
+    };
   }
   const read = ts.readConfigFile(config, ts.sys.readFile);
   if (read.error) throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, '\n'));
@@ -61,7 +65,10 @@ export function getTypeScriptInputs(root: string): {
     throw new Error(
       errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('\n'),
     );
-  return { files: parsed.fileNames.filter(isTypeScriptInput), options: parsed.options };
+  return {
+    files: parsed.fileNames.filter(isTypeScriptInput).map(toPosixPath),
+    options: parsed.options,
+  };
 }
 
 export function sourceDependencies(file: string, options: ts.CompilerOptions): string[] {
@@ -72,7 +79,7 @@ export function sourceDependencies(file: string, options: ts.CompilerOptions): s
     return resolved &&
       !resolved.isExternalLibraryImport &&
       isTypeScriptInput(resolved.resolvedFileName)
-      ? [path.resolve(resolved.resolvedFileName)]
+      ? [toPosixPath(path.resolve(resolved.resolvedFileName))]
       : [];
   });
 }

@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { triggersRefresh } from '../mcp-boot.js';
+import { isConfigFile, triggersRefresh } from '../mcp-boot.js';
+
+describe('isConfigFile', () => {
+  it('matches the configured file however the caller spelled it', () => {
+    expect(isConfigFile('/repo', 'infrawise.yaml', '/repo/infrawise.yaml')).toBe(true);
+    expect(isConfigFile(process.cwd(), 'infrawise.yaml', 'infrawise.yaml')).toBe(true);
+    expect(isConfigFile('/repo', 'config/custom.yaml', '/repo/config/custom.yaml')).toBe(true);
+  });
+
+  it('leaves neighbours alone', () => {
+    expect(isConfigFile('/repo', 'orders.ts', '/repo/infrawise.yaml')).toBe(false);
+    expect(isConfigFile('/repo', 'src/infrawise.yaml', '/repo/infrawise.yaml')).toBe(false);
+    expect(isConfigFile('/repo', 'infrawise.yaml.bak', '/repo/infrawise.yaml')).toBe(false);
+  });
+});
 
 describe('triggersRefresh', () => {
   it('refreshes on source files', () => {
