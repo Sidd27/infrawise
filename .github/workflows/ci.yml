@@ -137,5 +137,8 @@ jobs:
 
       # No `pnpm build` here: the build script shells out to `cp`. Coverage and
       # typecheck already run in the ubuntu job; this leg is about path behavior.
+      # The 5s default is too tight for this runner: one test measured 4227ms and
+      # the first Python scan pays interpreter startup, so the budget is raised
+      # here rather than in the suite, where it would hide slowness on Linux.
       - name: Test
-        run: pnpm test
+        run: pnpm test -- --testTimeout=15000
