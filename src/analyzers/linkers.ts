@@ -58,6 +58,36 @@ function functionNodes(graph: SystemGraph) {
 }
 type FunctionNode = ReturnType<typeof functionNodes>[number];
 
+interface FunctionIndex {
+  // Keyed by the handler's file base and export name: `orders\0handler`.
+  byHandler: Map<string, FunctionNode[]>;
+  // Keyed by every name a Lambda can be matched against: the normalised
+  // function name and the normalised file basename, when they differ.
+  byNameOrFile: Map<string, FunctionNode[]>;
+}
+
+// Built once per link pass. Without it every Lambda filtered the whole function
+// list and recomputed normalizeName per comparison, which is quadratic: 5000
+// Lambdas took 30s on a synthetic graph.
+function buildFunctionIndex(fns: FunctionNode[]): FunctionIndex {
+  const byHandler = new Map<string, FunctionNode[]>();
+  const byNameOrFile = new Map<string, FunctionNode[]>();
+  const push = (map: Map<string, FunctionNode[]>, key: string, f: FunctionNode) => {
+    const list = map.get(key);
+    if (list) list.push(f);
+    else map.set(key, [f]);
+  };
+  for (const f of fns) {
+    push(byHandler, `${fileBaseNoExt(f.file)}\0${f.name}`, f);
+    const nameKey = normalizeName(f.name);
+    const fileKey = normalizeName(f.file);
+    if (nameKey) push(byNameOrFile, nameKey, f);
+    // A function whose name and file normalise to one key is one match, not two.
+    if (fileKey && fileKey !== nameKey) push(byNameOrFile, fileKey, f);
+  }
+  return { byHandler, byNameOrFile };
+}
+
 function resolve(
   lambdaId: string,
   matches: { id: string }[],
@@ -81,7 +111,7 @@ function resolve(
 
 export class HeuristicLinker {
   link(graph: SystemGraph): LinkResult {
-    const fns = functionNodes(graph);
+    const index = buildFunctionIndex(functionNodes(graph));
     const out: LinkResult = { links: [], unresolved: [] };
 
     // normalizeName deletes the tokens that tell `checkout-handler-prod` from
@@ -110,12 +140,7 @@ export class HeuristicLinker {
       }
       const [lam] = lams;
       if (!lam) continue;
-      const matches = fns.filter((f) => {
-        const byName = normalizeName(f.name);
-        const byFile = normalizeName(f.file);
-        return (byName !== '' && byName === key) || (byFile !== '' && byFile === key);
-      });
-      resolve(lam.id, matches, 'inferred', out);
+      resolve(lam.id, index.byNameOrFile.get(key) ?? [], 'inferred', out);
     }
     return out;
   }
@@ -137,10 +162,10 @@ function fileBaseNoExt(file: string): string {
   return base.replace(/\.(ts|js|mjs|cjs|py)$/, '');
 }
 
-function handlerMatches(handler: string, fns: FunctionNode[]): FunctionNode[] {
+function handlerMatches(handler: string, index: FunctionIndex): FunctionNode[] {
   const { fileBase, exportName } = parseHandler(handler);
   if (!exportName || !fileBase) return [];
-  return fns.filter((f) => f.name === exportName && fileBaseNoExt(f.file) === fileBase);
+  return index.byHandler.get(`${fileBase}\0${exportName}`) ?? [];
 }
 
 function driftOf(deployed: string | undefined, declared: string[]): HandlerDrift {
@@ -164,7 +189,7 @@ export class HandlerLinker {
   constructor(private readonly iacLambdas: IaCLambda[]) {}
 
   link(graph: SystemGraph): LinkResult {
-    const fns = functionNodes(graph);
+    const index = buildFunctionIndex(functionNodes(graph));
     const out: LinkResult = { links: [], unresolved: [] };
     const declaredByName = new Map<string, string[]>();
     for (const il of this.iacLambdas) {
@@ -178,8 +203,8 @@ export class HandlerLinker {
       const declaredList = declaredByName.get(lam.name) ?? [];
       const [declared] = declaredList;
       const drift = driftOf(deployed, declaredList);
-      const viaDeployed = deployed ? handlerMatches(deployed, fns) : [];
-      const viaDeclared = declared ? handlerMatches(declared, fns) : [];
+      const viaDeployed = deployed ? handlerMatches(deployed, index) : [];
+      const viaDeclared = declared ? handlerMatches(declared, index) : [];
       if (viaDeployed.length > 0) {
         resolve(lam.id, viaDeployed, 'proven', out, {
           handlerSource: 'deployed',

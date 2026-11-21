@@ -441,6 +441,58 @@ describe('compositeLink - a read handler outranks the name heuristic', () => {
   });
 });
 
+describe('linkers - indexed lookup keeps graph order', () => {
+  it('names candidates in graph order when one matches by file and another by name', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders'), fnNode('/repo/orders.ts', 'x'), fnNode('/repo/a.ts', 'orders')],
+      edges: [],
+    };
+    expect(compositeLink([], g).unresolved).toEqual([
+      {
+        lambdaId: 'lambda:aws:orders',
+        reason: 'multiple_functions',
+        candidates: ['function:/repo/orders.ts:x', 'function:/repo/a.ts:orders'],
+      },
+    ]);
+  });
+
+  it('counts a function whose name and file normalise to one key once', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('orders'), fnNode('/repo/orders.ts', 'orders')],
+      edges: [],
+    };
+    expect(compositeLink([], g).links).toEqual([
+      {
+        lambdaId: 'lambda:aws:orders',
+        functionId: 'function:/repo/orders.ts:orders',
+        confidence: 'inferred',
+      },
+    ]);
+  });
+
+  it('does not match on an empty normalised key', () => {
+    const g: SystemGraph = {
+      nodes: [lamNode('handler'), fnNode('/repo/handler.ts', 'fn')],
+      edges: [],
+    };
+    expect(compositeLink([], g).unresolved).toEqual([
+      { lambdaId: 'lambda:aws:handler', reason: 'no_match', candidates: [] },
+    ]);
+  });
+
+  it('links every Lambda in a large graph, in graph order', () => {
+    const nodes: SystemGraph['nodes'] = [];
+    for (let i = 0; i < 500; i++) {
+      nodes.push(lamNode(`svc-${i}`, `file${i}.export${i}`));
+      nodes.push(fnNode(`/repo/file${i}.ts`, `export${i}`));
+    }
+    const { links } = compositeLink([], { nodes, edges: [] });
+    expect(links).toHaveLength(500);
+    expect(links[0]?.functionId).toBe('function:/repo/file0.ts:export0');
+    expect(links[499]?.functionId).toBe('function:/repo/file499.ts:export499');
+  });
+});
+
 describe('HandlerLinker - drift is a property of the declarations, not of file order', () => {
   const graph = (): SystemGraph => ({
     nodes: [lamNode('orders', 'orders.handler'), fnNode('src/orders.ts')],

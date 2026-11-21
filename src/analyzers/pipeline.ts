@@ -9,13 +9,19 @@ const TRANSPORT_EDGES = new Set(['publishes_to', 'triggers']);
 // answer "what triggers the handler I am editing" when the deployed name is
 // stack-prefixed and shares no string with the function name.
 export function addLambdaCodeLinks(graph: SystemGraph, iacLambdas: IaCLambda[] = []): void {
+  // One pass over the graph: a find per IaC record was quadratic on accounts
+  // with thousands of functions.
+  const byName = new Map<string, Extract<GraphNode, { type: 'lambda' }>>();
+  for (const node of graph.nodes) {
+    // Node ids embed the Lambda name, so two entries cannot share one.
+    if (node.type === 'lambda') byName.set(node.name, node);
+  }
   for (const il of iacLambdas) {
     if (!il.handler) continue;
-    const node = graph.nodes.find((n) => n.type === 'lambda' && n.name === il.name);
+    const node = byName.get(il.name);
     // First record wins, matching the linker; the last would make the tool
     // report a different declaration than the one the drift was computed from.
-    if (node?.type === 'lambda' && node.declaredHandler === undefined)
-      node.declaredHandler = il.handler;
+    if (node && node.declaredHandler === undefined) node.declaredHandler = il.handler;
   }
   const { links, unresolved } = compositeLink(iacLambdas, graph);
   for (const link of links) {
